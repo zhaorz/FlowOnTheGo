@@ -9,12 +9,10 @@ title:            cudaFlow
 tagline:          'A 418 project'
 description:      'By Ashwin and Richard'
 url:
-baseurl:          /418project/
+baseurl:          /418project
 
 author:
   name:           'Ashwin and Richard'
-
-# paginate:         5
 
 # Custom vars
 version:          0.1
