@@ -3,4 +3,4 @@ layout: default
 title: Home
 ---
 
-# cudaFlow
+# Flow on the Go

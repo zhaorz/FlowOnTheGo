@@ -5,9 +5,9 @@ highlighter:      rouge
 permalink:        pretty
 
 # Setup
-title:            cudaFlow
+title:            Flow on the Go
 tagline:          'A 418 project'
-description:      'By Ashwin and Richard'
+description:      'Fast, accurate optical flows on mobile GPUs.'
 url:
 baseurl:          /418project
 
