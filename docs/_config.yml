@@ -6,7 +6,7 @@ permalink:        pretty
 
 # Setup
 title:            Flow on the Go
-tagline:          'A 418 project'
+tagline:          'Fast, accurate optical flows on mobile GPUs.'
 description:      'Fast, accurate optical flows on mobile GPUs.'
 url:
 baseurl:          /FlowOnTheGo

@@ -248,3 +248,30 @@ a.sidebar-nav-item:focus {
 .theme-base-0f .related-posts li a:hover {
   color: #8f5536;
 }
+
+
+/*
+ * Buttons
+ *
+ * Custom content.
+ */
+
+.btn {
+  font-size: 0.8em;
+  padding: 13px 17px;
+  border: none;
+  transition: color .2s linear;
+  transition: background-color .2s linear;
+  color: #fff;
+}
+
+/* Green */
+.theme-base-0b .btn {
+  color: #fff !important;
+  background-color: #90a959;
+}
+
+.theme-base-0b .btn:hover {
+  color: #fff;
+  background-color: #a8c172;
+}
