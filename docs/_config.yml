@@ -1,1 +1,23 @@
-theme: jekyll-theme-cayman
+# Dependencies
+highlighter:      rouge
+
+# Permalinks
+permalink:        pretty
+
+# Setup
+title:            cudaFlow
+tagline:          'A 418 project'
+description:      'By Ashwin and Richard'
+url:
+baseurl:          /
+
+author:
+  name:           'Ashwin and Richard'
+
+# paginate:         5
+
+# Custom vars
+version:          0.1
+
+github:
+  repo:           https://github.com/zhaorz/418project

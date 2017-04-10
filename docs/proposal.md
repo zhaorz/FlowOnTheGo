@@ -1,6 +1,10 @@
-# Proposal
+---
+layout: page
+title: Proposal
+---
 
-##### Ashwin Sekar <asekar@andrew.cmu.edu> and Richard Zhao <richardz@andrew.cmu.edu>
+###### Ashwin Sekar <asekar@andrew.cmu.edu>
+###### Richard Zhao <richardz@andrew.cmu.edu>
 
 ## Summary
 
