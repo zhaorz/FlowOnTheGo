@@ -98,24 +98,14 @@ and network access) is impossible.
 
 ## Schedule
 
-| -------- | ------------------------------------------------------------- |
 | Date     | Milestone                                                     |
 | -------- | ------------------------------------------------------------- |
 | April 11 | Complete understanding of the algorithm                       |
-| -------- | ------------------------------------------------------------- |
 | April 15 | Working implementation in C++                                 |
-| -------- | ------------------------------------------------------------- |
 | April 19 | Critical CUDA kernels written and working on desktop GTX 1080 |
-| -------- | ------------------------------------------------------------- |
 | April 25 | **[Checkpoint]** Optimized CUDA version working on a Jetson   |
-| -------- | ------------------------------------------------------------- |
 | April 30 | Interfacing with drone camera and preliminary evaluation      |
-| -------- | ------------------------------------------------------------- |
 | May 2    | Achieve performance as published in [1]                       |
-| -------- | ------------------------------------------------------------- |
 | May 10   | All testing done                                              |
-| -------- | ------------------------------------------------------------- |
 | May 11   | Final writeup and demo preparation                            |
-| -------- | ------------------------------------------------------------- |
 | May 12   | Final presentation                                            |
-| -------- | ------------------------------------------------------------- |
