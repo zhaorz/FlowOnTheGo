@@ -9,7 +9,7 @@ title:            Flow on the Go
 tagline:          'A 418 project'
 description:      'Fast, accurate optical flows on mobile GPUs.'
 url:
-baseurl:          /418project
+baseurl:          /FlowOnTheGo
 
 author:
   name:           'Ashwin and Richard'
