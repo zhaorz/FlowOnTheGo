@@ -17,124 +17,38 @@
    along with Image Alignment.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <imagealign/imagealign.h>
-IA_DISABLE_PRAGMA_WARN(4190)
-IA_DISABLE_PRAGMA_WARN(4244)
 #include <opencv2/opencv.hpp>
 #include <opencv2/tracking.hpp>
 #include <opencv2/optflow.hpp>
-IA_DISABLE_PRAGMA_WARN_END
-IA_DISABLE_PRAGMA_WARN_END
 #include <iomanip>
 #include <iostream>
 #include <chrono>
 #include <math.h>
 
+#define MAX_FEATURES 100
+
 /**
-   This example is based on OpenCVs Lucas Kanade Optical Flow example.
-   It demonstrates how Image Alignment can be used to perform optical flow.
-*/
 
-namespace ia = imagealign;
+   Nice hsv -> rgb conversion
 
-const int MAX_FEATURES = 100;
+   http://stackoverflow.com/questions/3018313/algorithm-to-convert-rgb-to-hsv-and-hsv-to-rgb-in-range-0-255-for-both
 
-template<class Scalar>
-cv::Point_<Scalar> toP(const cv::Matx<Scalar, 2, 1> &p) {
-  return cv::Point_<Scalar>(p(0), p(1));
-}
+ */
 
-template<int WarpType, class Scalar>
-void drawRectOfTemplate(cv::Mat &img, const ia::Warp<WarpType, Scalar> &w, cv::Size tplSize, cv::Scalar color)
-{
-  typedef typename ia::WarpTraits<WarpType, Scalar>::PointType PointType;
+typedef struct {
+    double r;       // a fraction between 0 and 1
+    double g;       // a fraction between 0 and 1
+    double b;       // a fraction between 0 and 1
+} rgb;
 
-  PointType c0 = w(PointType(Scalar(0.5), Scalar(0.5)));
-  PointType c1 = w(PointType(Scalar(0.5) + tplSize.width, Scalar(0.5)));
-  PointType c2 = w(PointType(Scalar(0.5) + tplSize.width, Scalar(0.5) + tplSize.height));
-  PointType c3 = w(PointType(Scalar(0.5), Scalar(0.5) + tplSize.height));
+typedef struct {
+    double h;       // angle in degrees
+    double s;       // a fraction between 0 and 1
+    double v;       // a fraction between 0 and 1
+} hsv;
 
-  cv::line(img, toP(c0), toP(c1), color, 1, CV_AA);
-  cv::line(img, toP(c1), toP(c2), color, 1, CV_AA);
-  cv::line(img, toP(c2), toP(c3), color, 1, CV_AA);
-  cv::line(img, toP(c3), toP(c0), color, 1, CV_AA);
-}
-
-void opticalFlowIA(cv::Mat &prevGray,
-                   cv::Mat &gray,
-                   std::vector<cv::Point2f> &prevPoints,
-                   std::vector<cv::Point2f> &points,
-                   std::vector<uchar> &status,
-                   std::vector<float> &err)
-{
-  const int LEVELS = 3;
-
-  // Will be using pure translational motion
-  typedef ia::WarpTranslationF WarpType;
-
-  // In conjunction with inverse compositional algorithm
-  typedef ia::AlignInverseCompositional< WarpType > AlignType;
-
-  // We will also make use of the face, that we can share gray among all aligners
-  ia::ImagePyramid target;
-  target.create(gray, LEVELS);
-
-  // Create an aligner for each point
-  std::vector<AlignType> aligners(prevPoints.size());
-
-  // Create a warp for each point. Note we use identity transform here.
-  std::vector<WarpType> warps(prevPoints.size());
-
-  // Prepare outputs
-  points.resize(prevPoints.size());
-  status.resize(prevPoints.size());
-  err.resize(prevPoints.size());
-
-#pragma omp parallel for
-  for (int i = 0; i < (int)aligners.size(); ++i) {
-
-    // The template will be a rectangular region around the point
-    const int windowOff = 15;
-    const cv::Point2f p = prevPoints[i];
-
-    int l = (int)(p.x - windowOff);
-    int t = (int)(p.y - windowOff);
-    int r = (int)(p.x + windowOff);
-    int b = (int)(p.y + windowOff);
-
-    // Clamp to region
-    l = std::min<int>(gray.cols - 1, std::max<int>(0, l));
-    t = std::min<int>(gray.rows - 1, std::max<int>(0, t));
-    r = std::min<int>(gray.cols - 1, std::max<int>(0, r));
-    b = std::min<int>(gray.rows - 1, std::max<int>(0, b));
-    cv::Rect roi(l, t, r - l, b - t);
-
-    if (roi.area() < 10) {
-      status[i] = 0;
-      continue;
-    }
-
-    // Move corner to top left
-    float offsetX = (float)l - p.x;
-    float offsetY = (float)t - p.y;
-
-    // Initialize warp
-    ia::WarpTranslationF::Traits::ParamType wp(p.x + offsetX, p.y + offsetY);
-    warps[i].setParameters(wp);
-
-    // Initialize aligner
-    aligners[i].prepare(prevGray(roi), target, warps[i], LEVELS);
-    aligners[i].align(warps[i], 20, 0.03f);
-
-    // Extract result
-    wp = warps[i].parameters();
-    points[i].x = wp(0) - offsetX;
-    points[i].y = wp(1) - offsetY;
-    err[i] = aligners[i].lastError();
-    status[i] = err[i] < 40*40;
-  }
-
-}
+static hsv   rgb2hsv(rgb in);
+static rgb   hsv2rgb(hsv in);
 
 void opticalFlowCV(cv::Mat &prevGray,
                    cv::Mat &gray,
@@ -153,8 +67,6 @@ void opticalFlowFB(cv::Mat &prevGray,
                    cv::Mat &gray,
                    cv::Mat &flow)
 {
-  // cv::Size winSize(31,31);
-
   double pyr_scale = 0.5;
   int levels = 6;
   int winsize = 15;
@@ -165,21 +77,6 @@ void opticalFlowFB(cv::Mat &prevGray,
   cv::calcOpticalFlowFarneback(prevGray, gray, flow, pyr_scale, levels, winsize,
                                iterations, poly_n, poly_sigma, cv::OPTFLOW_FARNEBACK_GAUSSIAN);
 }
-
-typedef struct {
-    double r;       // a fraction between 0 and 1
-    double g;       // a fraction between 0 and 1
-    double b;       // a fraction between 0 and 1
-} rgb;
-
-typedef struct {
-    double h;       // angle in degrees
-    double s;       // a fraction between 0 and 1
-    double v;       // a fraction between 0 and 1
-} hsv;
-
-static hsv   rgb2hsv(rgb in);
-static rgb   hsv2rgb(hsv in);
 
 hsv rgb2hsv(rgb in)
 {
