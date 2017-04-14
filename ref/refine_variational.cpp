@@ -308,7 +308,7 @@ void VarRefClass::RefLevelDE(image_t *wx, const color_image_t *im1, const color_
           {
             for( i=0 ; i<height*stride/4 ; i++)
             {
-                (*uup) = __builtin_ia32_maxps(   (*wxp) + (*dup)   ,  op->zero);
+                (*uup) = _mm_max_ps(   (*wxp) + (*dup)   ,  op->zero);
                 uup+=1; wxp+=1; dup+=1;
             }
           }
