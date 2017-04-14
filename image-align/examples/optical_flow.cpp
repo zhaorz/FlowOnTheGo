@@ -27,6 +27,7 @@ IA_DISABLE_PRAGMA_WARN_END
 IA_DISABLE_PRAGMA_WARN_END
 #include <iomanip>
 #include <iostream>
+#include <chrono>
 #include <math.h>
 
 /**
@@ -385,115 +386,181 @@ void drawOpticalFlow(cv::Mat &image,
   }
 }
 
+static std::chrono::time_point<std::chrono::high_resolution_clock> now() {
+  return std::chrono::high_resolution_clock::now();
+}
 
 int main(int argc, char **argv)
 {
-  cv::VideoCapture cap;
 
-  if (argc > 1) {
-    if (isdigit(argv[1][0])) {
-      // Open capture device by index
-      cap.open(atoi(argv[1]));
-    } else {
-      // Open video video
-      cap.open(argv[1]);
-    }
-  } else {
-    // Open default device;
-    cap.open(0);
-  }
+  // Usage:
+  //
+  //   ./example_optflow img0.png img1.png out.png
+  //
+  // Computes a flow (in .flo format) from img0 and img2.
+  //
 
-  if (!cap.isOpened()) {
-    std::cerr << "Failed to open capture device." << std::endl;
-    return -1;
-  }
+  if (argc == 4) {
+    cv::Mat img0, img1, gray, prevGray, flow, flowImg;
 
-  cv::Mat gray, prevGray, flow, image, frame, flowImg;
-  std::vector<cv::Point2f> points[2];
+    img0 = cv::imread(argv[1], CV_LOAD_IMAGE_COLOR);   // Read the file
+    img1 = cv::imread(argv[2], CV_LOAD_IMAGE_COLOR);   // Read the file
 
-  // cv::optflow::DISOpticalFlow DIS = cv::optflow::createOptFlow_DIS(cv::optflow::DISOpticalFlow::PRESET_FAST);
-  auto DIS = cv::optflow::createOptFlow_DIS(cv::optflow::DISOpticalFlow::PRESET_FAST);
-
-  // bool init = false;
-  bool done = false;
-
-  bool init = true;
-  while (!done) {
-
-    // Grab frame
-    cap >> frame;
-    if (frame.empty())
-      break;
-
-    frame.copyTo(image);
-    cv::cvtColor(image, gray, CV_BGR2GRAY);
-
-    int key;
-
-    if (init) {
-      cv::TermCriteria termcrit(cv::TermCriteria::COUNT|cv::TermCriteria::EPS,20,0.03);
-      cv::Size subPixWinSize(10,10), winSize(31,31);
-
-      // Shi-Thomasi corner features.
-      cv::goodFeaturesToTrack(gray, points[1], MAX_FEATURES, 0.01, 10, cv::Mat(), 3, 0, 0.04);
-      cv::cornerSubPix(gray, points[1], subPixWinSize, cv::Size(-1,-1), termcrit);
-
-      // Init flowImg
-      image.copyTo(flowImg);
-
-      init = false;
-
-    } else if (!points[0].empty()) {
-      if(prevGray.empty())
-        gray.copyTo(prevGray);
-
-      std::vector<uchar> status;
-      std::vector<float> err;
-
-      // Perform optical flow
-      //opticalFlowIA(prevGray, gray, points[0], points[1], status, err);
-      //opticalFlowCV(prevGray, gray, points[0], points[1], status, err);
-      //opticalFlowFB(prevGray, gray, flow);
-
-      DIS->calc(prevGray, gray, flow);
-
-      // std::cout << flow[0] << std::endl;
-
-      std::cout << "Drawing dense opt flow" << std::endl;
-
-      drawDenseOpticalFlow(flowImg, flow);
-      cv::imshow("Optical Flow", flowImg);
-      key = cv::waitKey(0);
-
-      // Draw optical flow results
-      size_t k = 0;
-      for (size_t i = 0; i < points[1].size(); ++i) {
-        if (!status[i])
-          continue;
-
-        points[1][k++] = points[1][i];
+    if(!img0.data || !img1.data)                              // Check for invalid input
+      {
+        std::cout <<  "Could not open or find the image" << std::endl ;
+        return -1;
       }
-      points[1].resize(k);
 
-    }
+    // Initialize flowImg
+    img0.copyTo(flowImg);
 
-    // int key = cv::waitKey(10);
+    cv::cvtColor(img0, prevGray, CV_BGR2GRAY);
+    cv::cvtColor(img1, gray, CV_BGR2GRAY);
 
-    switch (key) {
-    case 'x':
-      done = true;
-      break;
+    auto DIS = cv::optflow::createOptFlow_DIS(cv::optflow::DISOpticalFlow::PRESET_ULTRAFAST);
 
-    case 'r':
-      init = true;
-      break;
-    }
+    // DIS->setFinestScale(0);
+    // DIS->setPatchStride(1);
 
-    std::swap(points[1], points[0]);
-    cv::swap(prevGray, gray);
+    int finestScale = DIS->getFinestScale();
+    int gradientDescentIterations = DIS->getGradientDescentIterations();
+    int patchSize = DIS->getPatchSize();
+    int patchStride = DIS->getPatchStride();
+    int variationalRefinementIterations = DIS->getVariationalRefinementIterations();
 
+    std::cout << "finestScale:                     " << finestScale << std::endl;
+    std::cout << "gradientDescentIterations:       " << gradientDescentIterations << std::endl;
+    std::cout << "patchSize:                       " << patchSize << std::endl;
+    std::cout << "patchStride:                     " << patchStride << std::endl;
+    std::cout << "variationalRefinementIterations: " << variationalRefinementIterations << std::endl;
+    std::cout << std::endl;
+
+    auto start = now();
+
+    DIS->calc(prevGray, gray, flow);
+
+    auto dt = now() - start;
+    auto us = std::chrono::duration_cast<std::chrono::milliseconds>(dt);
+    double duration = us.count();
+
+    std::cout << "time: " << duration << " ms" << std::endl;
+
+
+    drawDenseOpticalFlow(flowImg, flow);
+
+    cv::imwrite(argv[3], flowImg);
+
+    cv::imshow("Optical Flow", flowImg);
+    int key = cv::waitKey(0);
+
+    return 0;
   }
 
+  // Usage:
+  //
+  //   ./example_optflow
+  //
+  // Uses the webcam
+
+  else {
+
+    // Use the webcam as input
+
+    cv::VideoCapture cap;
+
+    if (!cap.isOpened()) {
+      std::cerr << "Failed to open capture device." << std::endl;
+      return -1;
+    }
+
+    cv::Mat gray, prevGray, flow, image, frame, flowImg;
+    std::vector<cv::Point2f> points[2];
+
+    // cv::optflow::DISOpticalFlow DIS = cv::optflow::createOptFlow_DIS(cv::optflow::DISOpticalFlow::PRESET_FAST);
+    auto DIS = cv::optflow::createOptFlow_DIS(cv::optflow::DISOpticalFlow::PRESET_FAST);
+
+    // bool init = false;
+    bool done = false;
+
+    bool init = true;
+    while (!done) {
+
+      // Grab frame
+      cap >> frame;
+      if (frame.empty())
+        break;
+
+      frame.copyTo(image);
+      cv::cvtColor(image, gray, CV_BGR2GRAY);
+
+      int key;
+
+      if (init) {
+        cv::TermCriteria termcrit(cv::TermCriteria::COUNT|cv::TermCriteria::EPS,20,0.03);
+        cv::Size subPixWinSize(10,10), winSize(31,31);
+
+        // Shi-Thomasi corner features.
+        cv::goodFeaturesToTrack(gray, points[1], MAX_FEATURES, 0.01, 10, cv::Mat(), 3, 0, 0.04);
+        cv::cornerSubPix(gray, points[1], subPixWinSize, cv::Size(-1,-1), termcrit);
+
+        // Init flowImg
+        image.copyTo(flowImg);
+
+        init = false;
+
+      } else if (!points[0].empty()) {
+        if(prevGray.empty())
+          gray.copyTo(prevGray);
+
+        std::vector<uchar> status;
+        std::vector<float> err;
+
+        // Perform optical flow
+        //opticalFlowIA(prevGray, gray, points[0], points[1], status, err);
+        //opticalFlowCV(prevGray, gray, points[0], points[1], status, err);
+        //opticalFlowFB(prevGray, gray, flow);
+
+        DIS->calc(prevGray, gray, flow);
+
+        // std::cout << flow[0] << std::endl;
+
+        std::cout << "Drawing dense opt flow" << std::endl;
+
+        drawDenseOpticalFlow(flowImg, flow);
+        cv::imshow("Optical Flow", flowImg);
+        key = cv::waitKey(0);
+
+        // Draw optical flow results
+        size_t k = 0;
+        for (size_t i = 0; i < points[1].size(); ++i) {
+          if (!status[i])
+            continue;
+
+          points[1][k++] = points[1][i];
+        }
+        points[1].resize(k);
+
+      }
+
+      // int key = cv::waitKey(10);
+
+      switch (key) {
+      case 'x':
+        done = true;
+        break;
+
+      case 'r':
+        init = true;
+        break;
+      }
+
+      std::swap(points[1], points[0]);
+      cv::swap(prevGray, gray);
+
+    }
+
+  }
 
   return 0;
 }
