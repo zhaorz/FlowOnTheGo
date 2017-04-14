@@ -8,7 +8,18 @@ if (WIN32)
 	add_definitions("-D_SCL_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_WARNINGS")
 endif()
 
-find_package(OpenCV REQUIRED)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+set(CMAKE_PREFIX_PATH "/usr/local/opt/opencv3/share/OpenCV")
+
+set(OpenCV_INCLUDE_DIRS "/usr/local/opt/opencv3/include")
+# set(OpenCV_LIBS         "/usr/local/opt/opencv3/lib")
+
+find_package(OpenCV 3 REQUIRED)
+
+message(STATUS "OpenCV library status:")
+message(STATUS "    version: ${OpenCV_VERSION}")
+message(STATUS "    libraries: ${OpenCV_LIBRARIES}")
+message(STATUS "    include path: ${OpenCV_INCLUDE_DIRS}")
 
 set(IMAGEALIGN_USE_OPENMP OFF CACHE BOOL "Build Image Align with OpenMP support")
 if(IMAGEALIGN_USE_OPENMP)
@@ -37,9 +48,9 @@ add_library(ialign
     inc/imagealign/inverse_compositional.h
     src/unused.cpp
 )
-	
+
 target_link_libraries(ialign ${OpenCV_LIBRARIES})
-	
+
 # Samples
 
 add_executable(example_align examples/align.cpp)

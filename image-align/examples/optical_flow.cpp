@@ -21,6 +21,8 @@
 IA_DISABLE_PRAGMA_WARN(4190)
 IA_DISABLE_PRAGMA_WARN(4244)
 #include <opencv2/opencv.hpp>
+#include <opencv2/tracking.hpp>
+#include <opencv2/optflow.hpp>
 IA_DISABLE_PRAGMA_WARN_END
 IA_DISABLE_PRAGMA_WARN_END
 #include <iomanip>
@@ -409,6 +411,8 @@ int main(int argc, char **argv)
   cv::Mat gray, prevGray, flow, image, frame, flowImg;
   std::vector<cv::Point2f> points[2];
 
+  // cv::optflow::DISOpticalFlow DIS = cv::optflow::createOptFlow_DIS(cv::optflow::DISOpticalFlow::PRESET_FAST);
+  auto DIS = cv::optflow::createOptFlow_DIS(cv::optflow::DISOpticalFlow::PRESET_FAST);
 
   // bool init = false;
   bool done = false;
@@ -449,7 +453,9 @@ int main(int argc, char **argv)
       // Perform optical flow
       //opticalFlowIA(prevGray, gray, points[0], points[1], status, err);
       //opticalFlowCV(prevGray, gray, points[0], points[1], status, err);
-      opticalFlowFB(prevGray, gray, flow);
+      //opticalFlowFB(prevGray, gray, flow);
+
+      DIS->calc(prevGray, gray, flow);
 
       // std::cout << flow[0] << std::endl;
 
