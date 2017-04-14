@@ -1,8 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <malloc.h>
 #include <math.h>
+
+#if !(defined(__APPLE__) && defined(__MACH__))
+#include <malloc.h>
+#endif
 
 #include "image.h"
 
