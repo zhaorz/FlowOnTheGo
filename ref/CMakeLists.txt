@@ -1,30 +1,21 @@
-# cmake needs this line
 cmake_minimum_required(VERSION 2.8)
 
-# Define project name
-project(lkdemo)
+project(flow_ref)
 
-# Find OpenCV, you may need to set OpenCV_DIR variable
-# to the absolute path to the directory containing OpenCVConfig.cmake file
-# via the command line or GUI
-find_package(OpenCV REQUIRED)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+set(CMAKE_PREFIX_PATH "/usr/local/opt/opencv3/share/OpenCV")
 
-# If the package has been found, several variables will
-# be set, you can find the full list with descriptions
-# in the OpenCVConfig.cmake file.
-# Print some message showing some of them
+set(OpenCV_INCLUDE_DIRS "/usr/local/opt/opencv3/include")
+
+find_package(OpenCV 3 REQUIRED)
+
 message(STATUS "OpenCV library status:")
 message(STATUS "    version: ${OpenCV_VERSION}")
-message(STATUS "    libraries: ${OpenCV_LIBS}")
+message(STATUS "    libraries: ${OpenCV_LIBRARIES}")
 message(STATUS "    include path: ${OpenCV_INCLUDE_DIRS}")
 
-if(CMAKE_VERSION VERSION_LESS "2.8.11")
-  # Add OpenCV headers location to your include paths
-  include_directories(${OpenCV_INCLUDE_DIRS})
-endif()
+include_directories(${CMAKE_CURRENT_BINARY_DIR} ${OpenCV_INCLUDE_DIRS} "inc")
 
-# Declare the executable target built from your sources
-add_executable(lkdemo lkdemo.cpp)
-
-# Link your application with OpenCV libraries
-target_link_libraries(lkdemo ${OpenCV_LIBS})
+# Samples
+add_executable(flow_ref flow_ref.cpp)
+target_link_libraries(flow_ref ${OpenCV_LIBRARIES})
