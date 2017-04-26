@@ -3,6 +3,9 @@
 # Install with
 #   $ git config --global core.excludesfile ~/.gitignore_global
 
+# Output files
+output
+
 ### C ###
 # Prerequisites
 *.d
