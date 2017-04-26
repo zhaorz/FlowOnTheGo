@@ -17,6 +17,8 @@
    along with Image Alignment.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#define CV_CPU_HAS_SUPPORT_SSE2 0
+
 #include <opencv2/opencv.hpp>
 #include <opencv2/tracking.hpp>
 #include <opencv2/optflow.hpp>
