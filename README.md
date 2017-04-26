@@ -40,12 +40,14 @@ make flow_ref
 
 | Date     | Milestone                                                     | Done |
 | -------- | ------------------------------------------------------------- | ---- |
-| April 11 | Complete understanding of the algorithm                       |  ✔️ |
-| April 15 | Working implementation in C++                                 |      |
-| April 19 | Critical CUDA kernels written and working on desktop GTX 1080 |      |
-| April 25 | **[Checkpoint]** Optimized CUDA version working on a Jetson   |      |
-| April 30 | Interfacing with drone camera and preliminary evaluation      |      |
-| May 2    | Achieve performance as published in [1]                       |      |
-| May 10   | All testing done                                              |      |
+| April 11 | Complete understanding of the algorithm                       |  ✔️   |
+| April 14 | Working OpenCV reference and testing harness                  |  ✔️   |
+| April 25 | **[Checkpoint]** Working implementation in C++                |  ✔️   |
+| April 27 | Cleaned up and optimized C++ version                          |      |
+| May 1    | Working implementation in CUDA                                |      |
+| May 5    | CUDA implementation with same performance as C++ version      |      |
+| May 8    | Achieve performance better than published in [1]              |      |
+| May 9    | Running on example drone footage                              |      |
 | May 11   | Final writeup and demo preparation                            |      |
+| May 11   | (_Reach_) Hardware hooked up to drone                         |      |
 | May 12   | Final presentation                                            |      |
