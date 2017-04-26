@@ -179,14 +179,14 @@ int main( int argc, char** argv )
   // *** Parse rest of parameters, See oflow.h for definitions.
   int lv_f, lv_l, maxiter, miniter, patchsz, patnorm, costfct, tv_innerit, tv_solverit, verbosity;
   float mindprate, mindrrate, minimgerr, poverl, tv_alpha, tv_gamma, tv_delta, tv_sor;
-  bool usefbcon, usetvref;
+  bool usetvref;
   //bool hasinfile; // initialization flow file
   //char *infile = nullptr;
 
   if (argc<=5)  // Use operation point X, set scales automatically
   {
     mindprate = 0.05; mindrrate = 0.95; minimgerr = 0.0;
-    usefbcon = 0; patnorm = 1; costfct = 0;
+    patnorm = 1; costfct = 0;
     tv_alpha = 10.0; tv_gamma = 10.0; tv_delta = 5.0;
     tv_innerit = 1; tv_solverit = 3; tv_sor = 1.6;
     verbosity = 2; // Default: Plot detailed timings
@@ -239,7 +239,6 @@ int main( int argc, char** argv )
     minimgerr = atof(argv[acnt++]);
     patchsz = atoi(argv[acnt++]);
     poverl = atof(argv[acnt++]);
-    usefbcon = atoi(argv[acnt++]);
     patnorm = atoi(argv[acnt++]);
     costfct = atoi(argv[acnt++]);
     usetvref = atoi(argv[acnt++]);

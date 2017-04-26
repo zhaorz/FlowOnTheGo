@@ -60,13 +60,11 @@ VARIANT 2 (Manually select operating point X=1-4, automatically selects coarsest
 
 VARIANT 3 (Set all parameters explicitly):
 
-` ./run_*_* image1.png image2.png outputfile p1 p2 p3 p4 p5 p6 p7 p8 p9 p10 p11 p12 p13 p14 p15 p16 p17 p18 p19 p20`
+` ./run_*_* image1.png image2.png outputfile p1 p2 p3 p4 p5 p6 p7 p8 p9 p10 p11 p12 p13 p14 p15 p16 p17 p18 p19`
 
 Example for variant 3 using operating point 2 of the paper:
 
-` ./run_OF_INT in1.png int2.png out.flo 5 3 12 12 0.05 0.95 0 8 0.40 0 1 0 1 10 10 5 1 3 1.6 2  `
-
-
+` ./run_OF_INT in1.png int2.png out.flo 5 3 12 12 0.05 0.95 0 8 0.40 1 0 1 10 10 5 1 3 1.6 2  `
 
 Parameters:
 ```
@@ -76,15 +74,14 @@ Parameters:
 5./6./7. Early stopping parameters
 8. Patch size                                   (here: 8)
 9. Patch overlap                                (here: 0.4)
-10.Use forward-backward consistency             (here: 0/no)
-11.Mean-normalize patches                       (here: 1/yes)
-12.Cost function                                (here: 0/L2)  Alternatives: 1/L1, 2/Huber, 10/NCC
-13.Use TV refinement                            (here: 1/yes)
-14./15./16. TV parameters alpha,gamma,delta     (here 10,10,5)
-17. Number of TV outer iterations               (here: 1)
-18. Number of TV solver iterations              (here: 3)
-19. TV SOR value                                (here: 1.6)
-20. Verbosity                                   (here: 2) Alternatives: 0/no output, 1/only flow runtime, 2/total runtime
+10.Mean-normalize patches                       (here: 1/yes)
+11.Cost function                                (here: 0/L2)  Alternatives: 1/L1, 2/Huber, 10/NCC
+12.Use TV refinement                            (here: 1/yes)
+13./14./15. TV parameters alpha,gamma,delta     (here 10,10,5)
+16. Number of TV outer iterations               (here: 1)
+17. Number of TV solver iterations              (here: 3)
+18. TV SOR value                                (here: 1.6)
+19. Verbosity                                   (here: 2) Alternatives: 0/no output, 1/only flow runtime, 2/total runtime
 ```
 
 
