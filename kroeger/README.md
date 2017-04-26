@@ -19,17 +19,17 @@ Is you use the variational refinement, please additionally cite:
     BOOKTITLE = {{ICCV 2013 - IEEE International Conference on Computer Vision}},
     YEAR = {2013}} `
 
-  
-  
-  
+
+
+
 ## Compiling ##
 
 The program was only tested under a 64-bit Linux distribution.
 SSE instructions from built-in X86 functions for GNU GCC were used.
 
-The following will build four binaries: 
+The following will build four binaries:
 Two for optical flow (`run_OF_*`) and two for depth from stereo (`run_DE_*`).
-For each problem, a fast variant operating on intensity images (`run_*_INT`) and 
+For each problem, a fast variant operating on intensity images (`run_*_INT`) and
 a slower variant operating on RGB images (`run_*_RGB`) is provided.
 
 ```
@@ -39,12 +39,12 @@ cmake ../
 make -j
 ```
 
-The code depends on Eigen3 and OpenCV. However, OpenCV is only used for image loading, 
+The code depends on Eigen3 and OpenCV. However, OpenCV is only used for image loading,
 scaling and gradient computation (`run_dense.cpp`). It can easily be replaced by other libraries.
-      
-      
-      
-      
+
+
+
+
 ## Usage ##
 The interface for all four binaries (`run_*_*`) is the same.
 
@@ -121,7 +121,7 @@ August 2016 	v1.0.1 - Minor Bugfix: Error in L1 and Huber error norm computation
 
 GPLv3: http://gplv3.fsf.org/
 
-All programs in this collection are free software: 
+All programs in this collection are free software:
 you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
