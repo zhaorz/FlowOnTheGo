@@ -41,7 +41,6 @@ typedef struct
   float res_thresh;     // if (mean absolute) residual falls below this threshold, terminate iterations on current scale, IGNORES MIN_ITER , SET TO LOW (1e-10) TO DISABLE
   int patnorm;          // Use patch mean-normalization
   int verbosity;        // Verbosity, 0: plot nothing, 1: final internal timing 2: complete iteration timing, (UNCOMMENTED -> 3: Display flow scales, 4: Display flow scale iterations)
-  bool usefbcon;        // use forward-backward flow merging 
   int costfct;          // Cost function: 0: L2-Norm, 1: L1-Norm, 2: PseudoHuber-Norm 
   bool usetvref;        // TV parameters
   float tv_alpha;
@@ -97,7 +96,6 @@ public:
           const float res_thresh_in,            
           const int padval_in,
           const float patove_in,
-          const bool usefbcon_in,
           const int costfct_in, 
           const int noc_in,
           const int patnorm_in,

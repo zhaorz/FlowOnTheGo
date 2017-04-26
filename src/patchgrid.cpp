@@ -84,12 +84,6 @@ namespace OFC
       delete pat[i];
   }
 
-  void PatGridClass::SetComplGrid(PatGridClass *cg_in)
-  {
-    cg = cg_in;
-  }
-
-
   void PatGridClass::InitializeGrid(const float * im_ao_in, const float * im_ao_dx_in, const float * im_ao_dy_in)
   {
     im_ao = im_ao_in;
@@ -243,86 +237,6 @@ namespace OFC
 
               flowout[2*i]   += flnew[0];
               flowout[2*i+1] += flnew[1];
-            }
-          }
-        }
-      }
-    }
-
-    // if complementary (forward-backward merging) is given, integrate negative backward flow as well
-    if (cg)
-    {
-      Eigen::Vector4f wbil; // bilinear weight vector
-      Eigen::Vector4i pos;
-
-#ifdef USE_PARALLEL_ON_FLOWAGGR
-#pragma omp parallel for schedule(static)
-#endif
-      for (int ip = 0; ip < cg->nopatches; ++ip)
-      {
-        if (cg->pat[ip]->IsValid())
-        {
-          const Eigen::Vector2f*            fl = (cg->pat[ip]->GetParam()); // flow displacement of this patch
-          Eigen::Vector2f flnew;
-
-          const Eigen::Vector2f rppos = cg->pat[ip]->GetPointPos(); // get patch position after optimization
-          const float * pweight = cg->pat[ip]->GetpWeightPtr(); // use image error as weight
-
-          Eigen::Vector2f resid;
-
-          // compute bilinear weight vector
-          pos[0] = ceil(rppos[0] +.00001); // make sure they are rounded up to natural number
-          pos[1] = ceil(rppos[1] +.00001); // make sure they are rounded up to natural number
-          pos[2] = floor(rppos[0]);
-          pos[3] = floor(rppos[1]);
-
-          resid[0] = rppos[0] - pos[2];
-          resid[1] = rppos[1] - pos[3];
-          wbil[0] = resid[0]*resid[1];
-          wbil[1] = (1-resid[0])*resid[1];
-          wbil[2] = resid[0]*(1-resid[1]);
-          wbil[3] = (1-resid[0])*(1-resid[1]);
-
-          int lb = -op->p_samp_s/2;
-          int ub = op->p_samp_s/2-1;
-
-
-          for (int y = lb; y <= ub; ++y)
-          {
-            for (int x = lb; x <= ub; ++x, ++pweight)
-            {
-
-              int yt = y + pos[1];
-              int xt = x + pos[0];
-              if (xt >= 1 && yt >= 1 && xt < (cpt->width-1) && yt < (cpt->height-1))
-              {
-
-                float absw = 1.0f /  (float)(std::max(op->minerrval  ,*pweight));
-
-                flnew = (*fl) * absw;
-
-                int idxcc =  xt    +  yt   *cpt->width;
-                int idxfc = (xt-1) +  yt   *cpt->width;
-                int idxcf =  xt    + (yt-1)*cpt->width;
-                int idxff = (xt-1) + (yt-1)*cpt->width;
-
-                we[idxcc] += wbil[0] * absw;
-                we[idxfc] += wbil[1] * absw;
-                we[idxcf] += wbil[2] * absw;
-                we[idxff] += wbil[3] * absw;
-
-                flowout[2*idxcc  ] -= wbil[0] * flnew[0];   // use reversed flow
-                flowout[2*idxcc+1] -= wbil[0] * flnew[1];
-
-                flowout[2*idxfc  ] -= wbil[1] * flnew[0];
-                flowout[2*idxfc+1] -= wbil[1] * flnew[1];
-
-                flowout[2*idxcf  ] -= wbil[2] * flnew[0];
-                flowout[2*idxcf+1] -= wbil[2] * flnew[1];
-
-                flowout[2*idxff  ] -= wbil[3] * flnew[0];
-                flowout[2*idxff+1] -= wbil[3] * flnew[1];
-              }
             }
           }
         }

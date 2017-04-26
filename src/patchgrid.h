@@ -33,8 +33,6 @@ namespace OFC
       //Optimize each patch in grid for one iteration, visualize displacement vector, repeat
       //void OptimizeAndVisualize(const float sc_fct_tmp);  // needed for verbosity >= 3, DISVISUAL
 
-      void SetComplGrid(PatGridClass *cg_in);
-
       inline const int GetNoPatches() const { return nopatches; }
       inline const int GetNoph() const { return noph; }
       inline const int GetNopw() const { return nopw; }
@@ -63,8 +61,6 @@ namespace OFC
       std::vector<OFC::PatClass*> pat; // Patch Objects
       std::vector<Eigen::Vector2f> pt_ref; // Midpoints for reference patches
       std::vector<Eigen::Vector2f>            p_init; // starting parameters for query patches
-
-      const PatGridClass * cg=nullptr;
   };
 
 

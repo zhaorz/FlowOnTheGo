@@ -324,7 +324,7 @@ int main( int argc, char** argv )
       nullptr,  // pointer to n-band input float array of size of first (coarsest) scale, pass as nullptr to disable
       sz.width, sz.height,
       lv_f, lv_l, maxiter, miniter, mindprate, mindrrate, minimgerr, patchsz, poverl,
-      usefbcon, costfct, nochannels, patnorm,
+      costfct, nochannels, patnorm,
       usetvref, tv_alpha, tv_gamma, tv_delta, tv_innerit, tv_solverit, tv_sor,
       verbosity);
 

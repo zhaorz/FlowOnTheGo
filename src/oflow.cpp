@@ -46,7 +46,6 @@ namespace OFC
       const float res_thresh_in,
       const int p_samp_s_in,
       const float patove_in,
-      const bool usefbcon_in,
       const int costfct_in,
       const int noc_in,
       const int patnorm_in,
@@ -87,7 +86,6 @@ namespace OFC
     op.res_thresh = res_thresh_in;
     op.steps = std::max(1,  (int)floor(op.p_samp_s*(1-op.patove)));
     op.novals = noc_in * (p_samp_s_in)*(p_samp_s_in);
-    op.usefbcon = usefbcon_in;
     op.costfct = costfct_in;
     op.noc = noc_in;
     op.patnorm = patnorm_in;
@@ -124,12 +122,9 @@ namespace OFC
 
     if (op.verbosity>1) gettimeofday(&tv_start_all, nullptr);
 
-
     // Create grids on each scale
     vector<OFC::PatGridClass*> grid_fw(op.noscales);
-    vector<OFC::PatGridClass*> grid_bw(op.noscales); // grid for backward OF computation, only needed if 'usefbcon' is set to 1.
     vector<float*> flow_fw(op.noscales);
-    vector<float*> flow_bw(op.noscales);
     cpl.resize(op.noscales);
     cpr.resize(op.noscales);
     for (int sl=op.sc_f; sl>=op.sc_l; --sl)
@@ -156,15 +151,6 @@ namespace OFC
       flow_fw[i]   = new float[op.nop * cpl[i].width * cpl[i].height];
       grid_fw[i]   = new OFC::PatGridClass(&(cpl[i]), &(cpr[i]), &op);
 
-      if (op.usefbcon) // for merging forward and backward flow
-      {
-        flow_bw[i] = new float[op.nop * cpr[i].width * cpr[i].height];
-        grid_bw[i] = new OFC::PatGridClass(&(cpr[i]), &(cpl[i]), &op);
-
-        // Make grids known to each other, necessary for AggregateFlowDense();
-        grid_fw[i]->SetComplGrid( grid_bw[i] );
-        grid_bw[i]->SetComplGrid( grid_fw[i] );
-      }
     }
 
 
@@ -187,11 +173,6 @@ namespace OFC
       // Initialize grid (Step 1 in Algorithm 1 of paper)
       grid_fw[ii]->  InitializeGrid(im_ao[sl], im_ao_dx[sl], im_ao_dy[sl]);
       grid_fw[ii]->  SetTargetImage(im_bo[sl], im_bo_dx[sl], im_bo_dy[sl]);
-      if (op.usefbcon)
-      {
-        grid_bw[ii]->InitializeGrid(im_bo[sl], im_bo_dx[sl], im_bo_dy[sl]);
-        grid_bw[ii]->SetTargetImage(im_ao[sl], im_ao_dx[sl], im_ao_dy[sl]);
-      }
 
       // Timing, Grid construction
       if (op.verbosity>1)
@@ -206,10 +187,6 @@ namespace OFC
       if (sl < op.sc_f)
       {
         grid_fw[ii]->InitializeFromCoarserOF(flow_fw[ii+1]); // initialize from flow at previous coarser scale
-
-        // Initialize backward flow
-        if (op.usefbcon)
-          grid_bw[ii]->InitializeFromCoarserOF(flow_bw[ii+1]);
       }
       else if (sl == op.sc_f && initflow != nullptr) // initialization given input flow
       {
@@ -228,9 +205,6 @@ namespace OFC
 
       // Dense Inverse Search. (Step 3 in Algorithm 1 of paper)
       grid_fw[ii]->Optimize();
-      if (op.usefbcon)
-        grid_bw[ii]->Optimize();
-
 
       // Timing, DIS
       if (op.verbosity>1)
@@ -250,9 +224,6 @@ namespace OFC
 
       grid_fw[ii]->AggregateFlowDense(tmp_ptr);
 
-      if (op.usefbcon && sl > op.sc_l )  // skip at last scale, backward flow no longer needed
-        grid_bw[ii]->AggregateFlowDense(flow_bw[ii]);
-
 
       // Timing, Densification
       if (op.verbosity>1)
@@ -269,13 +240,8 @@ namespace OFC
       if (op.usetvref)
       {
         OFC::VarRefClass varref_fw(im_ao[sl], im_ao_dx[sl], im_ao_dy[sl],
-            im_bo[sl], im_bo_dx[sl], im_bo_dy[sl]
-            ,&(cpl[ii]), &(cpr[ii]), &op, tmp_ptr);
-
-        if (op.usefbcon  && sl > op.sc_l )    // skip at last scale, backward flow no longer needed
-          OFC::VarRefClass varref_bw(im_bo[sl], im_bo_dx[sl], im_bo_dy[sl],
-              im_ao[sl], im_ao_dx[sl], im_ao_dy[sl]
-              ,&(cpr[ii]), &(cpl[ii]), &op, flow_bw[ii]);
+            im_bo[sl], im_bo_dx[sl], im_bo_dy[sl],
+            &(cpl[ii]), &(cpr[ii]), &op, tmp_ptr);
       }
 
       // Timing, Variational Refinement
@@ -296,11 +262,6 @@ namespace OFC
       delete[] flow_fw[sl-op.sc_l];
       delete grid_fw[sl-op.sc_l];
 
-      if (op.usefbcon)
-      {
-        delete[] flow_bw[sl-op.sc_l];
-        delete grid_bw[sl-op.sc_l];
-      }
     }
 
 
