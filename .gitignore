@@ -5,6 +5,7 @@
 
 # Output files
 output
+flow_ref
 
 ### C ###
 # Prerequisites
