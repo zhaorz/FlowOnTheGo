@@ -71,7 +71,7 @@ void ReadFlowFile(cv::Mat& img, const char* filename)
   if ((int)fread(&tag,    sizeof(float), 1, stream) != 1 ||
       (int)fread(&width,  sizeof(int),   1, stream) != 1 ||
       (int)fread(&height, sizeof(int),   1, stream) != 1)
-        cout << "ReadFile: problem reading file %s" << endl;
+    cout << "ReadFile: problem reading file %s" << endl;
 
   for (int y = 0; y < height; y++)
   {
@@ -105,41 +105,41 @@ void ReadFlowFile(cv::Mat& img, const char* filename)
 
 void ConstructImgPyramide(const cv::Mat & img_ao_fmat, cv::Mat * img_ao_fmat_pyr, cv::Mat * img_ao_dx_fmat_pyr, cv::Mat * img_ao_dy_fmat_pyr, const float ** img_ao_pyr, const float ** img_ao_dx_pyr, const float ** img_ao_dy_pyr, const int lv_f, const int lv_l, const int rpyrtype, const bool getgrad, const int imgpadding, const int padw, const int padh)
 {
-    for (int i=0; i<=lv_f; ++i)  // Construct image and gradient pyramides
+  for (int i=0; i<=lv_f; ++i)  // Construct image and gradient pyramides
+  {
+    if (i==0) // At finest scale: copy directly, for all other: downscale previous scale by .5
     {
-      if (i==0) // At finest scale: copy directly, for all other: downscale previous scale by .5
-      {
-        img_ao_fmat_pyr[i] = img_ao_fmat.clone();
-      }
-      else
-        cv::resize(img_ao_fmat_pyr[i-1], img_ao_fmat_pyr[i], cv::Size(), .5, .5, cv::INTER_LINEAR);
-
-      img_ao_fmat_pyr[i].convertTo(img_ao_fmat_pyr[i], rpyrtype);
-
-      if ( getgrad )
-      {
-        cv::Sobel( img_ao_fmat_pyr[i], img_ao_dx_fmat_pyr[i], CV_32F, 1, 0, 1, 1, 0, cv::BORDER_DEFAULT );
-        cv::Sobel( img_ao_fmat_pyr[i], img_ao_dy_fmat_pyr[i], CV_32F, 0, 1, 1, 1, 0, cv::BORDER_DEFAULT );
-        img_ao_dx_fmat_pyr[i].convertTo(img_ao_dx_fmat_pyr[i], CV_32F);
-        img_ao_dy_fmat_pyr[i].convertTo(img_ao_dy_fmat_pyr[i], CV_32F);
-      }
+      img_ao_fmat_pyr[i] = img_ao_fmat.clone();
     }
+    else
+      cv::resize(img_ao_fmat_pyr[i-1], img_ao_fmat_pyr[i], cv::Size(), .5, .5, cv::INTER_LINEAR);
 
-    // pad images
-    for (int i=0; i<=lv_f; ++i)  // Construct image and gradient pyramides
+    img_ao_fmat_pyr[i].convertTo(img_ao_fmat_pyr[i], rpyrtype);
+
+    if ( getgrad )
     {
-      copyMakeBorder(img_ao_fmat_pyr[i],img_ao_fmat_pyr[i],imgpadding,imgpadding,imgpadding,imgpadding,cv::BORDER_REPLICATE);  // Replicate border for image padding
-      img_ao_pyr[i] = (float*)img_ao_fmat_pyr[i].data;
-
-      if ( getgrad )
-      {
-        copyMakeBorder(img_ao_dx_fmat_pyr[i],img_ao_dx_fmat_pyr[i],imgpadding,imgpadding,imgpadding,imgpadding,cv::BORDER_CONSTANT , 0); // Zero padding for gradients
-        copyMakeBorder(img_ao_dy_fmat_pyr[i],img_ao_dy_fmat_pyr[i],imgpadding,imgpadding,imgpadding,imgpadding,cv::BORDER_CONSTANT , 0);
-
-        img_ao_dx_pyr[i] = (float*)img_ao_dx_fmat_pyr[i].data;
-        img_ao_dy_pyr[i] = (float*)img_ao_dy_fmat_pyr[i].data;
-      }
+      cv::Sobel( img_ao_fmat_pyr[i], img_ao_dx_fmat_pyr[i], CV_32F, 1, 0, 1, 1, 0, cv::BORDER_DEFAULT );
+      cv::Sobel( img_ao_fmat_pyr[i], img_ao_dy_fmat_pyr[i], CV_32F, 0, 1, 1, 1, 0, cv::BORDER_DEFAULT );
+      img_ao_dx_fmat_pyr[i].convertTo(img_ao_dx_fmat_pyr[i], CV_32F);
+      img_ao_dy_fmat_pyr[i].convertTo(img_ao_dy_fmat_pyr[i], CV_32F);
     }
+  }
+
+  // pad images
+  for (int i=0; i<=lv_f; ++i)  // Construct image and gradient pyramides
+  {
+    copyMakeBorder(img_ao_fmat_pyr[i],img_ao_fmat_pyr[i],imgpadding,imgpadding,imgpadding,imgpadding,cv::BORDER_REPLICATE);  // Replicate border for image padding
+    img_ao_pyr[i] = (float*)img_ao_fmat_pyr[i].data;
+
+    if ( getgrad )
+    {
+      copyMakeBorder(img_ao_dx_fmat_pyr[i],img_ao_dx_fmat_pyr[i],imgpadding,imgpadding,imgpadding,imgpadding,cv::BORDER_CONSTANT , 0); // Zero padding for gradients
+      copyMakeBorder(img_ao_dy_fmat_pyr[i],img_ao_dy_fmat_pyr[i],imgpadding,imgpadding,imgpadding,imgpadding,cv::BORDER_CONSTANT , 0);
+
+      img_ao_dx_pyr[i] = (float*)img_ao_dx_fmat_pyr[i].data;
+      img_ao_dy_pyr[i] = (float*)img_ao_dy_fmat_pyr[i].data;
+    }
+  }
 }
 
 int AutoFirstScaleSelect(int imgwidth, int fratio, int patchsize)
@@ -318,15 +318,15 @@ int main( int argc, char** argv )
   cv::Mat flowout(sz.height / sc_fct , sz.width / sc_fct, CV_32FC2); // Optical Flow
 
   OFC::OFClass ofc(img_ao_pyr, img_ao_dx_pyr, img_ao_dy_pyr,
-                    img_bo_pyr, img_bo_dx_pyr, img_bo_dy_pyr,
-                    patchsz,  // extra image padding to avoid border violation check
-                    (float*)flowout.data,   // pointer to n-band output float array
-                    nullptr,  // pointer to n-band input float array of size of first (coarsest) scale, pass as nullptr to disable
-                    sz.width, sz.height,
-                    lv_f, lv_l, maxiter, miniter, mindprate, mindrrate, minimgerr, patchsz, poverl,
-                    usefbcon, costfct, nochannels, patnorm,
-                    usetvref, tv_alpha, tv_gamma, tv_delta, tv_innerit, tv_solverit, tv_sor,
-                    verbosity);
+      img_bo_pyr, img_bo_dx_pyr, img_bo_dy_pyr,
+      patchsz,  // extra image padding to avoid border violation check
+      (float*)flowout.data,   // pointer to n-band output float array
+      nullptr,  // pointer to n-band input float array of size of first (coarsest) scale, pass as nullptr to disable
+      sz.width, sz.height,
+      lv_f, lv_l, maxiter, miniter, mindprate, mindrrate, minimgerr, patchsz, poverl,
+      usefbcon, costfct, nochannels, patnorm,
+      usetvref, tv_alpha, tv_gamma, tv_delta, tv_innerit, tv_solverit, tv_sor,
+      verbosity);
 
   if (verbosity > 1) gettimeofday(&tv_start_all, NULL);
 
