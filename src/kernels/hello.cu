@@ -31,20 +31,6 @@ __global__ void helloKernel(int val)
 
 void launchHelloKernel() {
 
-  int devID;
-  cudaDeviceProp props;
-
-  // This will pick the best possible CUDA capable device
-  devID = findCudaDevice(0, (const char **) NULL);
-
-  //Get GPU information
-  checkCudaErrors(cudaGetDevice(&devID));
-  checkCudaErrors(cudaGetDeviceProperties(&props, devID));
-  printf("Device %d: \"%s\" with Compute %d.%d capability\n",
-      devID, props.name, props.major, props.minor);
-
-  printf("printf() is called. Output:\n\n");
-
   //Kernel configuration, where a two-dimensional grid and
   //three-dimensional blocks are configured.
   dim3 dimGrid(2, 2);

@@ -7,9 +7,12 @@
 #include <sys/time.h>
 #include <fstream>
 
-#include "kernels/hello.h"
 #include "oflow.h"
 
+// CUDA
+#include <cuda_runtime.h>
+#include "kernels/hello.h"
+#include "kernels/get_device.h"
 
 using namespace std;
 
@@ -148,9 +151,21 @@ int AutoFirstScaleSelect(int imgwidth, int fratio, int patchsize)
   return std::max(0,(int)std::floor(log2((2.0f*(float)imgwidth) / ((float)fratio * (float)patchsize))));
 }
 
+void initializeCuda(int argc, char** argv) {
+  int devID;
+  cudaDeviceProp props;
+
+  // This will pick the best possible CUDA capable device
+  devID = findCudaDevice(0, (const char **) NULL);
+
+  //Get GPU information
+  checkCudaErrors(cudaGetDevice(&devID));
+  checkCudaErrors(cudaGetDeviceProperties(&props, devID));
+}
+
 int main( int argc, char** argv )
 {
-  launchHelloKernel();
+  initializeCuda(argc, argv);
 
   struct timeval tv_start_all, tv_end_all;
   gettimeofday(&tv_start_all, NULL);
