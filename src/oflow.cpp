@@ -1,5 +1,3 @@
-
-
 #include <iostream>
 #include <string>
 #include <vector>
@@ -47,7 +45,6 @@ namespace OFC
       const int p_samp_s_in,
       const float patove_in,
       const int costfct_in,
-      const int noc_in,
       const int patnorm_in,
       const bool usetvref_in,
       const float tv_alpha_in,
@@ -73,7 +70,6 @@ namespace OFC
 #endif //DWITH_OPENMP
 
     // Parse optimization parameters
-    op.nop = 2;
     op.p_samp_s = p_samp_s_in;  // patch has even border length, center pixel is at (p_samp_s/2, p_samp_s/2) (ZERO INDEXED!)
     op.outlierthresh = (float)op.p_samp_s/2;
     op.patove = patove_in;
@@ -85,9 +81,8 @@ namespace OFC
     op.dr_thresh = dr_thresh_in;
     op.res_thresh = res_thresh_in;
     op.steps = std::max(1,  (int)floor(op.p_samp_s*(1-op.patove)));
-    op.novals = noc_in * (p_samp_s_in)*(p_samp_s_in);
+    op.novals = p_samp_s_in * p_samp_s_in;
     op.costfct = costfct_in;
-    op.noc = noc_in;
     op.patnorm = patnorm_in;
     op.verbosity = verbosity_in;
     op.noscales = op.sc_f-op.sc_l+1;
@@ -148,7 +143,7 @@ namespace OFC
       cpr[i] = cpl[i];
       cpr[i].camlr = 1;
 
-      flow_fw[i]   = new float[op.nop * cpl[i].width * cpl[i].height];
+      flow_fw[i]   = new float[2 * cpl[i].width * cpl[i].height];
       grid_fw[i]   = new OFC::PatGridClass(&(cpl[i]), &(cpr[i]), &op);
 
     }

@@ -32,7 +32,7 @@ namespace OFC
     tvparams.beta = 0.0f;  // for matching term, not needed for us
     tvparams.gamma = op->tv_gamma;
     tvparams.delta = op->tv_delta;
-    tvparams.n_inner_iteration = op->tv_innerit * (cpt->curr_lv+1);
+    tvparams.n_inner_iteration = (cpt->curr_lv+1);
     tvparams.n_solver_iteration = op->tv_solverit;//5;
     tvparams.sor_omega = op->tv_sor;
 

@@ -199,7 +199,7 @@ namespace OFC
   {
     float* we = new float[cpt->width * cpt->height];
 
-    memset(flowout, 0, sizeof(float) * (op->nop * cpt->width * cpt->height) );
+    memset(flowout, 0, sizeof(float) * (2 * cpt->width * cpt->height) );
     memset(we,      0, sizeof(float) * (          cpt->width * cpt->height) );
 
 #ifdef USE_PARALLEL_ON_FLOWAGGR // Using this enables OpenMP on flow aggregation. This can lead to race conditions. Experimentally we found that the result degrades only marginally. However, for our experiments we did not enable this.
