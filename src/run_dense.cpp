@@ -7,6 +7,7 @@
 #include <sys/time.h>
 #include <fstream>
 
+#include "kernels/hello.h"
 #include "oflow.h"
 
 
@@ -149,10 +150,10 @@ int AutoFirstScaleSelect(int imgwidth, int fratio, int patchsize)
 
 int main( int argc, char** argv )
 {
+  launchHelloKernel();
+
   struct timeval tv_start_all, tv_end_all;
   gettimeofday(&tv_start_all, NULL);
-
-
 
   // *** Parse and load input images
   char *imgfile_ao = argv[1];
