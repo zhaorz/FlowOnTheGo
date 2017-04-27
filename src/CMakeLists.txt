@@ -8,22 +8,35 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -Wno-unknown-pragmas -Wall -msse4")  #-W
 set(OpenCV_DIR "/afs/cs/academic/class/15418-s17/public/sw/opencv/build")
 set(Eigen3_DIR "/afs/cs.cmu.edu/academic/class/15418-s17/public/sw/eigen/build")
 
-FIND_PACKAGE(OpenCV REQUIRED)
-FIND_PACKAGE(Eigen3 REQUIRED)
+find_package(OpenCV REQUIRED)
+find_package(Eigen3 REQUIRED)
+find_package(CUDA REQUIRED)
+
+# On ghc, include DIR from FIND_PACKAGE is set wrong
+set(EIGEN3_INCLUDE_DIR "/afs/cs.cmu.edu/academic/class/15418-s17/public/sw/eigen/include/eigen3")
+include_directories(${EIGEN3_INCLUDE_DIR})
 
 message(STATUS "OpenCV library status:")
 message(STATUS "    version: ${OpenCV_VERSION}")
 message(STATUS "    libraries: ${OpenCV_LIBRARIES}")
 message(STATUS "    include path: ${OpenCV_INCLUDE_DIRS}")
 
-# On ghc, include DIR from FIND_PACKAGE is set wrong
-set(EIGEN3_INCLUDE_DIR "/afs/cs.cmu.edu/academic/class/15418-s17/public/sw/eigen/include/eigen3")
-
 message(STATUS "Eigen3 library status:")
 message(STATUS "    version: ${EIGEN3_VERSION_STRING}")
 message(STATUS "    include path: ${EIGEN3_INCLUDE_DIR} ${EIGEN3_INCLUDE_DIRS}")
 
-include_directories(${EIGEN3_INCLUDE_DIR})
+message(STATUS "CUDA library status:")
+message(STATUS "    version: ${CUDA_VERSION}")
+message(STATUS "    libraries: ${CUDA_LIBRARIES}")
+message(STATUS "    include path: ${CUDA_INCLUDE_DIRS}")
+
+################################################################################
+# CUDA                                                                         #
+################################################################################
+
+set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS}; -std=c++11 --gpu-architecture compute_35)
+
+cuda_add_executable(simplePrintf kernels/simplePrintf.cu)
 
 # # # UNCOMMENT THIS IF YOU WANT TO USE OPENMP PARALLELIZATION
 # add_definitions(-DWITH_OPENMP=true)
@@ -48,5 +61,5 @@ set(CODEFILES
 
 # GrayScale, Optical Flow
 add_executable (flow ${CODEFILES})
-TARGET_LINK_LIBRARIES(flow ${OpenCV_LIBS})
+target_link_libraries(flow ${OpenCV_LIBS})
 
