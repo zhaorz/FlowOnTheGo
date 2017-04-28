@@ -133,32 +133,22 @@ void process(const char* input_file, const char* output_file) {
 
 
   // Copy result to host, reuse the same pointer
-  float* pHostDst = new float[width * height * sizeof(float)];
+  float* pHostDst = (float*) I0_f.data;
   checkCudaErrors(
       cudaMemcpy(pHostDst, pDeviceDst, width * height * sizeof(float), cudaMemcpyDeviceToHost) );
 
   calc_print_elapsed("cudaMemcpy H<-D", start_memcpy_dh);
 
 
-  auto start_mat_init = now();
-
-  // Init output image
-  cv::Mat I1(height, width, CV_32F, pHostDst);
-
-  calc_print_elapsed("cv mat init", start_mat_init);
-
-
   auto start_write = now();
 
   // Write output
-  cv::imwrite(output_file, I1);
+  cv::imwrite(output_file, I0_f);
 
   calc_print_elapsed("write", start_write);
 
   cudaFree((void*) pDeviceSrc);
   cudaFree((void*) pDeviceDst);
-
-  delete[] pHostDst;
 
   std::cout << "[complete] Primary compute time: " << compute_time << " (ms)" << std::endl;
 }
