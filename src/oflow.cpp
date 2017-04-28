@@ -19,6 +19,8 @@
 #include "patchgrid.h"
 #include "refine_variational.h"
 
+#include "kernels/sobel.h"
+
 
 using std::cout;
 using std::endl;

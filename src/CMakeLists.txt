@@ -42,8 +42,8 @@ message(STATUS "    nppi path: ${CUDA_nppi_LIBRARY}")
 set(CUDA_VERBOSE_BUILD ON)
 set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS}; -std=c++11 -arch=compute_61 -code=sm_61)
 
-set(CUFILES
-  kernels/hello.cu)
+set(KERNELS
+  kernels/sobel.cpp)
 
 set(CODEFILES
   run_dense.cpp
@@ -56,7 +56,7 @@ set(CODEFILES
   FDF1.0.1/solver.c)
 
 # GrayScale, Optical Flow
-cuda_add_executable(flow ${CODEFILES} ${CUFILES})
+cuda_add_executable(flow ${CODEFILES} ${KERNELS})
 set_target_properties (flow PROPERTIES COMPILE_DEFINITIONS "SELECTMODE=1")
 set_property(TARGET flow APPEND PROPERTY COMPILE_DEFINITIONS "SELECTCHANNEL=3") # use RGB image
 target_link_libraries(flow ${OpenCV_LIBS})
