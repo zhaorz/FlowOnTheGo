@@ -267,11 +267,12 @@ namespace OFC {
       p_state->delta_p_sq_norm_init = p_state->delta_p_sq_norm;
 
     // Check early termination criterions
-    // TODO: remove all these extra vars now that no threshold stuff is happening
     p_state->mares_old = p_state->mares;
     p_state->mares = p_state->cost_diff.lpNorm<1>() / (op->n_vals);
 
-    if (p_state->count >= op->grad_descent_iter) {
+    if (!((p_state->count < op->grad_descent_iter) & (p_state->mares > op->res_thresh)
+          & ((p_state->count < op->grad_descent_iter) | (p_state->delta_p_sq_norm / p_state->delta_p_sq_norm_init >= op->dp_thresh))
+          & ((p_state->count < op->grad_descent_iter) | (p_state->mares / p_state->mares_old <= op->dr_thresh)))) {
       p_state->has_converged = 1;
     }
 
@@ -296,11 +297,12 @@ namespace OFC {
     for (int j = lb; j <= ub; ++j) {
       for (int i = lb; i <= ub; ++i, ++posxx) {
 
-        int idx = (x + i) + (y + j) * i_params->width_pad;
+        // RGB
+        int idx = 3 * ((x + i) + (y + j) * i_params->width_pad);
 
-        patch_f[posxx] = I0->data()[idx];
-        patch_xf[posxx] = I0x->data()[idx];
-        patch_yf[posxx] = I0y->data()[idx];
+        patch_f[posxx] = I0->data()[idx]; patch_xf[posxx] = I0x->data()[idx]; patch_yf[posxx] = I0y->data()[idx]; ++posxx; ++idx;
+        patch_f[posxx] = I0->data()[idx]; patch_xf[posxx] = I0x->data()[idx]; patch_yf[posxx] = I0y->data()[idx]; ++posxx; ++idx;
+        patch_f[posxx] = I0->data()[idx]; patch_xf[posxx] = I0x->data()[idx]; patch_yf[posxx] = I0y->data()[idx];
 
       }
     }
@@ -340,21 +342,28 @@ namespace OFC {
 
     const float * img_a, * img_b, * img_c, * img_d, *img_e;
 
-    img_e = I1->data() + pos[0] - op->patch_size / 2;
+    // RGB
+    img_e = I1->data() + (pos[0] - op->patch_size / 2) * 3;
 
     int lb = -op->patch_size / 2;
     int ub = op->patch_size / 2 - 1;
 
     for (pos_iter[1] = pos[1] + lb; pos_iter[1] <= pos[1] + ub; ++pos_iter[1]) {
 
-      img_a = img_e + pos_iter[1] * i_params->width_pad;
-      img_c = img_e + (pos_iter[1] - 1) * i_params->width_pad;
-      img_b = img_a - 1;
-      img_d = img_c - 1;
+      // RGB
+      img_a = img_e + pos_iter[1] * i_params->width_pad * 3;
+      img_c = img_e + (pos_iter[1] - 1) * i_params->width_pad * 3;
+      img_b = img_a - 3;
+      img_d = img_c - 3;
 
       for (pos_iter[0] = pos[0] + lb; pos_iter[0] <= pos[0] + ub; ++pos_iter[0],
           ++raw, ++img_a, ++img_b, ++img_c, ++img_d) {
 
+        // RGB
+        (*raw) = weight[0] * (*img_a) + weight[1] * (*img_b) + weight[2] * (*img_c) + weight[3] * (*img_d);
+        ++raw; ++img_a; ++img_b; ++img_c; ++img_d;
+        (*raw) = weight[0] * (*img_a) + weight[1] * (*img_b) + weight[2] * (*img_c) + weight[3] * (*img_d);
+        ++raw; ++img_a; ++img_b; ++img_c; ++img_d;
         (*raw) = weight[0] * (*img_a) + weight[1] * (*img_b) + weight[2] * (*img_c) + weight[3] * (*img_d);
 
       }

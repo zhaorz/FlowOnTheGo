@@ -46,7 +46,9 @@ set(CODEFILES
   FDF1.0.1/opticalflow_aux.c
   FDF1.0.1/solver.c)
 
-# GrayScale, Optical Flow
+# RGB, Optical Flow
 add_executable (flow ${CODEFILES})
+set_target_properties (flow PROPERTIES COMPILE_DEFINITIONS "SELECTMODE=1")
+set_property(TARGET flow APPEND PROPERTY COMPILE_DEFINITIONS "SELECTCHANNEL=3") # use RGB image
 TARGET_LINK_LIBRARIES(flow ${OpenCV_LIBS})
 

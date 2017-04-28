@@ -38,6 +38,9 @@ namespace OFC {
     op.norm_outlier_tmpbsq = (v4sf) {norm_outlier2, norm_outlier2, norm_outlier2, norm_outlier2};
     op.norm_outlier_tmp2bsq = __builtin_ia32_mulps(op.norm_outlier_tmpbsq, op.twos);
     op.norm_outlier_tmp4bsq = __builtin_ia32_mulps(op.norm_outlier_tmpbsq, op.fours);
+    op.dp_thresh = 0.05 * 0.05;
+    op.dr_thresh = 0.95;
+    op.res_thresh = 0.0;
 
     // Allocate scale pyramides
     I0s = new float*[op.coarsest_scale+1];

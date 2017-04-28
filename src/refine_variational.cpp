@@ -24,103 +24,106 @@ namespace OFC {
       const img_params* _i_params, const opt_params* _op, float *flowout)
     : i_params(_i_params), op(_op) {
 
-    // initialize parameters
-    vr.alpha = op->var_ref_alpha;
-    vr.beta = 0.0f;  // for matching term, not needed for us
-    vr.gamma = op->var_ref_gamma;
-    vr.delta = op->var_ref_delta;
-    vr.inner_iter = i_params->curr_lvl + 1;
-    vr.solve_iter = op->var_ref_iter;
-    vr.sor_omega = op->var_ref_sor_weight;
+      // initialize parameters
+      vr.alpha = op->var_ref_alpha;
+      vr.beta = 0.0f;  // for matching term, not needed for us
+      vr.gamma = op->var_ref_gamma;
+      vr.delta = op->var_ref_delta;
+      vr.inner_iter = i_params->curr_lvl + 1;
+      vr.solve_iter = op->var_ref_iter;
+      vr.sor_omega = op->var_ref_sor_weight;
 
-    vr.tmp_quarter_alpha = 0.25f * vr.alpha;
-    vr.tmp_half_gamma_over3 = vr.gamma * 0.5f / 3.0f;
-    vr.tmp_half_delta_over3 = vr.delta * 0.5f / 3.0f;
-    vr.tmp_half_beta = vr.beta * 0.5f;
+      vr.tmp_quarter_alpha = 0.25f * vr.alpha;
+      vr.tmp_half_gamma_over3 = vr.gamma * 0.5f / 3.0f;
+      vr.tmp_half_delta_over3 = vr.delta * 0.5f / 3.0f;
+      vr.tmp_half_beta = vr.beta * 0.5f;
 
-    float deriv_filter[3] = {0.0f, -8.0f / 12.0f, 1.0f / 12.0f};
-    deriv = convolution_new(2, deriv_filter, 0);
-    float deriv_filter_flow[2] = {0.0f, -0.5f};
-    deriv_flow = convolution_new(1, deriv_filter_flow, 0);
+      float deriv_filter[3] = {0.0f, -8.0f / 12.0f, 1.0f / 12.0f};
+      deriv = convolution_new(2, deriv_filter, 0);
+      float deriv_filter_flow[2] = {0.0f, -0.5f};
+      deriv_flow = convolution_new(1, deriv_filter_flow, 0);
 
-    // copy flow initialization into FV structs
-    static int noparam = 2; // Optical flow
+      // copy flow initialization into FV structs
+      static int noparam = 2; // Optical flow
 
-    std::vector<image_t*> flow_sep(noparam);
+      std::vector<image_t*> flow_sep(noparam);
 
-    for (int i = 0; i < noparam; ++i)
-      flow_sep[i] = image_new(i_params->width, i_params->height);
+      for (int i = 0; i < noparam; ++i)
+        flow_sep[i] = image_new(i_params->width, i_params->height);
 
-    for (int iy = 0; iy < i_params->height; ++iy) {
-      for (int ix = 0; ix < i_params->width; ++ix) {
+      for (int iy = 0; iy < i_params->height; ++iy) {
+        for (int ix = 0; ix < i_params->width; ++ix) {
 
-        int i  = iy * i_params->width + ix;
-        int is = iy * flow_sep[0]->stride + ix;
-        for (int j = 0; j < noparam; ++j) {
-          flow_sep[j]->c1[is] = flowout[i * noparam + j];
+          int i  = iy * i_params->width + ix;
+          int is = iy * flow_sep[0]->stride + ix;
+          for (int j = 0; j < noparam; ++j) {
+            flow_sep[j]->c1[is] = flowout[i * noparam + j];
+          }
+
         }
-
       }
+
+      // copy image data into FV structs
+      color_image_t * I0, * I1;
+      I0 = color_image_new(i_params->width, i_params->height);
+      I1 = color_image_new(i_params->width, i_params->height);
+
+      copyimage(_I0, I0);
+      copyimage(_I1, I1);
+
+      // Call solver
+      RefLevelOF(flow_sep[0], flow_sep[1], I0, I1);
+
+      // Copy flow result back
+      for (int iy = 0; iy < i_params->height; ++iy) {
+        for (int ix = 0; ix < i_params->width; ++ix) {
+
+          int i = iy * i_params->width + ix;
+          int is = iy * flow_sep[0]->stride + ix;
+          for (int j = 0; j < noparam; ++j)
+            flowout[i*noparam + j] = flow_sep[j]->c1[is];
+
+        }
+      }
+
+      // free FV structs
+      for (int i = 0; i < noparam; ++i )
+        image_delete(flow_sep[i]);
+
+      convolution_delete(deriv);
+      convolution_delete(deriv_flow);
+
+
+      color_image_delete(I0);
+      color_image_delete(I1);
+
     }
 
-    // copy image data into FV structs
-    image_t * I0, * I1;
-    I0 = image_new(i_params->width, i_params->height);
-    I1 = image_new(i_params->width, i_params->height);
 
-    copyimage(_I0, I0);
-    copyimage(_I1, I1);
-
-    // Call solver
-    RefLevelOF(flow_sep[0], flow_sep[1], I0, I1);
-
-    // Copy flow result back
-    for (int iy = 0; iy < i_params->height; ++iy) {
-      for (int ix = 0; ix < i_params->width; ++ix) {
-
-        int i = iy * i_params->width + ix;
-        int is = iy * flow_sep[0]->stride + ix;
-        for (int j = 0; j < noparam; ++j)
-          flowout[i*noparam + j] = flow_sep[j]->c1[is];
-
-      }
-    }
-
-    // free FV structs
-    for (int i = 0; i < noparam; ++i )
-      image_delete(flow_sep[i]);
-
-    convolution_delete(deriv);
-    convolution_delete(deriv_flow);
-
-
-    image_delete(I0);
-    image_delete(I1);
-
-  }
-
-
-  void VarRefClass::copyimage(const float* img, image_t * img_t) {
+  void VarRefClass::copyimage(const float* img, color_image_t * img_t) {
 
     // remove image padding, start at first valid pixel
-    const float * img_st = img + (i_params->width_pad + 1 ) * (i_params->padding);
+    const float * img_st = img + 3 * (i_params->width_pad + 1 ) * (i_params->padding);
 
     for (int yi = 0; yi < i_params->height; ++yi) {
       for (int xi = 0; xi < i_params->width; ++xi, ++img_st) {
 
+        // RGB
         int i = yi * img_t->stride + xi;
-        img_t->c1[i] =  (*img_st);
+        img_t->c1[i] =  (*img_st); ++img_st;
+        img_t->c2[i] =  (*img_st); ++img_st;
+        img_t->c3[i] =  (*img_st);
 
       }
 
-      img_st += 2 * i_params->padding;
+      img_st += 3 * 2 * i_params->padding;
 
     }
 
   }
 
 
-  void VarRefClass::RefLevelOF(image_t *wx, image_t *wy, const image_t *im1, const image_t *im2) {
+  void VarRefClass::RefLevelOF(image_t *wx, image_t *wy, const color_image_t *im1, const color_image_t *im2) {
 
     int i_inner_iteration;
     int width  = wx->width;
@@ -135,9 +138,10 @@ namespace OFC {
             *a11 = image_new(width,height), *a12 = image_new(width,height), *a22 = image_new(width,height), // system matrix A of Ax=b for each pixel
             *b1 = image_new(width,height), *b2 = image_new(width,height); // system matrix b of Ax=b for each pixel
 
-    image_t *w_im2 = image_new(width,height), // warped second image
-            *Ix = image_new(width,height), *Iy = image_new(width,height), *Iz = image_new(width,height), // first order derivatives
-            *Ixx = image_new(width,height), *Ixy = image_new(width,height), *Iyy = image_new(width,height), *Ixz = image_new(width,height), *Iyz = image_new(width,height); // second order derivatives
+    color_image_t *w_im2 = color_image_new(width,height), // warped second image
+                  *Ix = color_image_new(width,height), *Iy = color_image_new(width,height), *Iz = color_image_new(width,height), // first order derivatives
+                  *Ixx = color_image_new(width,height), *Ixy = color_image_new(width,height),
+                  *Iyy = color_image_new(width,height), *Ixz = color_image_new(width,height), *Iyz = color_image_new(width,height); // second order derivatives
 
     // warp second image
     image_warp(w_im2, mask, im2, wx, wy);
@@ -188,14 +192,14 @@ namespace OFC {
     image_delete(a11); image_delete(a12); image_delete(a22);
     image_delete(b1); image_delete(b2);
 
-    image_delete(w_im2);
-    image_delete(Ix); image_delete(Iy); image_delete(Iz);
-    image_delete(Ixx); image_delete(Ixy); image_delete(Iyy); image_delete(Ixz); image_delete(Iyz);
+    color_image_delete(w_im2);
+    color_image_delete(Ix); color_image_delete(Iy); color_image_delete(Iz);
+    color_image_delete(Ixx); color_image_delete(Ixy); color_image_delete(Iyy); color_image_delete(Ixz); color_image_delete(Iyz);
 
   }
 
 
-  void VarRefClass::RefLevelDE(image_t *wx, const image_t *im1, const image_t *im2) {
+  void VarRefClass::RefLevelDE(image_t *wx, const color_image_t *im1, const color_image_t *im2) {
 
     int i_inner_iteration;
     int width  = wx->width;
@@ -211,9 +215,9 @@ namespace OFC {
 
     image_erase(wy_dummy);
 
-    image_t *w_im2 = image_new(width,height), // warped second image
-            *Ix = image_new(width,height), *Iy = image_new(width,height), *Iz = image_new(width,height), // first order derivatives
-            *Ixx = image_new(width,height), *Ixy = image_new(width,height), *Iyy = image_new(width,height), *Ixz = image_new(width,height), *Iyz = image_new(width,height); // second order derivatives
+    color_image_t *w_im2 = color_image_new(width,height), // warped second image
+                  *Ix = color_image_new(width,height), *Iy = color_image_new(width,height), *Iz = color_image_new(width,height), // first order derivatives
+                  *Ixx = color_image_new(width,height), *Ixy = color_image_new(width,height), *Iyy = color_image_new(width,height), *Ixz = color_image_new(width,height), *Iyz = color_image_new(width,height); // second order derivatives
 
     // warp second image
     image_warp(w_im2, mask, im2, wx, wy_dummy);
@@ -240,11 +244,11 @@ namespace OFC {
       int i;
       v4sf *uup = (v4sf*) uu->c1, *wxp = (v4sf*) wx->c1, *dup = (v4sf*) du->c1;
 
-        for( i=0 ; i<height*stride/4 ; i++)
-        {
-          (*uup) = __builtin_ia32_minps(   (*wxp) + (*dup)   ,  op->zero);
-          uup+=1; wxp+=1; dup+=1;
-        }
+      for( i=0 ; i<height*stride/4 ; i++)
+      {
+        (*uup) = __builtin_ia32_minps(   (*wxp) + (*dup)   ,  op->zero);
+        uup+=1; wxp+=1; dup+=1;
+      }
 
     }
 
@@ -259,9 +263,9 @@ namespace OFC {
     image_delete(a11);
     image_delete(b1);
 
-    image_delete(w_im2);
-    image_delete(Ix); image_delete(Iy); image_delete(Iz);
-    image_delete(Ixx); image_delete(Ixy); image_delete(Iyy); image_delete(Ixz); image_delete(Iyz);
+    color_image_delete(w_im2);
+    color_image_delete(Ix); color_image_delete(Iy); color_image_delete(Iz);
+    color_image_delete(Ixx); color_image_delete(Ixy); color_image_delete(Iyy); color_image_delete(Ixz); color_image_delete(Iyz);
 
   }
 

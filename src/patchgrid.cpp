@@ -165,8 +165,10 @@ namespace OFC {
 
               int i = yt * i_params->width + xt;
 
-              // Weight contribution
-              float absw = 1.0f /  (float)(std::max(op->min_errval, *pweight));
+              // Weight contribution RGB
+              float absw = 1.0f /  (float)(std::max(op->min_errval, *pweight)); ++pweight;
+              absw += 1.0f /  (float)(std::max(op->min_errval, *pweight)); ++pweight;
+              absw += 1.0f /  (float)(std::max(op->min_errval, *pweight));
 
               flnew = (*fl) * absw;
               weights[i] += absw;

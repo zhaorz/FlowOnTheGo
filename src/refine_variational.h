@@ -40,9 +40,9 @@ namespace OFC {
 
       convolution_t *deriv, *deriv_flow;
 
-      void copyimage(const float* img, image_t * img_t);
-      void RefLevelOF(image_t *wx, image_t *wy, const image_t *im1, const image_t *im2);
-      void RefLevelDE(image_t *wx, const image_t *im1, const image_t *im2);
+      void copyimage(const float* img, color_image_t * img_t);
+      void RefLevelOF(image_t *wx, image_t *wy, const color_image_t *im1, const color_image_t *im2);
+      void RefLevelDE(image_t *wx, const color_image_t *im1, const color_image_t *im2);
 
       VR_params vr;
       const img_params* i_params;
