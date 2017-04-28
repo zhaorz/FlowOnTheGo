@@ -43,7 +43,7 @@ make flow_ref
 | April 11 | Complete understanding of the algorithm                       |  ✔️   |
 | April 14 | Working OpenCV reference and testing harness                  |  ✔️   |
 | April 25 | **[Checkpoint]** Working implementation in C++                |  ✔️   |
-| April 27 | Cleaned up and optimized C++ version                          |      |
+| April 27 | Cleaned up and optimized C++ version                          |  ✔️   |
 | May 1    | Working implementation in CUDA                                |      |
 | May 5    | CUDA implementation with same performance as C++ version      |      |
 | May 8    | Achieve performance better than published in [1]              |      |
