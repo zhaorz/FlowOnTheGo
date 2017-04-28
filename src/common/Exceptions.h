@@ -214,9 +214,11 @@ static const char *_cudaGetErrorEnum(NppStatus eStatusNPP)
 
     case NPP_RESIZE_FACTOR_ERROR:
       return "NPP_RESIZE_FACTOR_ERROR";
+
+    default:
+      return "<unknown>";
   }
 
-  return "<unknown>";
 }
 
 
