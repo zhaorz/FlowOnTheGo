@@ -1,131 +1,93 @@
-
 // Class implements step (3.) in Algorithm 1 of the paper:
 // It finds the displacement of one patch from reference/template image to the closest-matching patch in target image via gradient descent.
-
 
 #ifndef PAT_HEADER
 #define PAT_HEADER
 
-                                              //#include <opencv2/core/core.hpp> // needed for verbosity >= 3, DISVISUAL
-                                              //#include <opencv2/highgui/highgui.hpp> // needed for verbosity >= 3, DISVISUAL
-                                              //#include <opencv2/imgproc/imgproc.hpp> // needed for verbosity >= 3, DISVISUAL
-
 #include "oflow.h" // For camera intrinsic and opt. parameter struct
 
-namespace OFC
-{
+namespace OFC {
+
+  typedef struct {
+    bool has_converged;
+    bool has_opt_started;
+
+    // reference/template patch
+    Eigen::Matrix<float, Eigen::Dynamic, 1> raw_diff; // image error to reference image
+    Eigen::Matrix<float, Eigen::Dynamic, 1> cost_diff; // absolute error image
+
+    Eigen::Matrix<float, 2, 2> hessian; // Hessian for optimization
+    Eigen::Vector2f p_org, p_cur, delta_p; // point position, displacement to starting position, iteration update
+
+    // start positions, current point position, patch norm
+    Eigen::Matrix<float,1,1> norm;
+    Eigen::Vector2f midpoint_cur;
+    Eigen::Vector2f midpoint_org;
+
+    float delta_p_sq_norm = 1e-10;
+    float delta_p_sq_norm_init = 1e-10;
+    float mares = 1e20; // mares: Mean Absolute RESidual
+    float mares_old = 1e20;
+    int count = 0;
+    bool invalid = false;
+  } patch_state;
 
 
-typedef struct
-{
-  bool hasconverged;
-  bool hasoptstarted;
+  class PatClass {
 
-  // reference/template patch
-  Eigen::Matrix<float, Eigen::Dynamic, 1> pdiff; // image error to reference image
-  Eigen::Matrix<float, Eigen::Dynamic, 1> pweight; // absolute error image
+    public:
+      PatClass(const img_params* _i_params,
+          const opt_params* _op,
+          const int _patch_id);
 
-  #if (SELECTMODE==1) // Optical Flow
-  Eigen::Matrix<float, 2, 2> Hes; // Hessian for optimization
-  Eigen::Vector2f p_in, p_iter, delta_p; // point position, displacement to starting position, iteration update
-  #else // Depth from Stereo
-  Eigen::Matrix<float, 1, 1> Hes; // Hessian for optimization
-  Eigen::Matrix<float, 1, 1> p_in, p_iter, delta_p; // point position, displacement to starting position, iteration update
-  #endif
+      ~PatClass();
 
-  // start positions, current point position, patch norm
-  Eigen::Matrix<float,1,1> normtmp;
-  Eigen::Vector2f pt_iter;
-  Eigen::Vector2f pt_st;
+      void InitializePatch(Eigen::Map<const Eigen::MatrixXf> * _I0, Eigen::Map<const Eigen::MatrixXf> * _I0x, Eigen::Map<const Eigen::MatrixXf> * _I0y, const Eigen::Vector2f _midpoint);
+      void SetTargetImage(Eigen::Map<const Eigen::MatrixXf> * _I1, Eigen::Map<const Eigen::MatrixXf> * _I1x, Eigen::Map<const Eigen::MatrixXf> * _I1y);
 
-  float delta_p_sqnorm = 1e-10;
-  float delta_p_sqnorm_init = 1e-10;
-  float mares = 1e20; // mares: Mean Absolute RESidual
-  float mares_old = 1e20;
-  int cnt=0;
-  bool invalid=false;
-} patchstate;
+      void OptimizeIter(const Eigen::Vector2f p_prev);
 
+      inline const bool IsConverged() const { return p_state->has_converged; }
+      inline const bool HasOptStarted() const { return p_state->has_opt_started; }
+      inline const Eigen::Vector2f GetTargMidpoint() const { return p_state->midpoint_cur; }
+      inline const bool IsValid() const { return !p_state->invalid; }
+      inline const float * GetCostDiffPtr() const { return (float*) p_state->cost_diff.data(); }
 
+      inline const Eigen::Vector2f* GetCurP() const { return &(p_state->p_cur); }
+      inline const Eigen::Vector2f* GetOrgP() const { return &(p_state->p_org); }
 
-class PatClass
-{
+    private:
 
-public:
-  PatClass(const camparam* cpt_in,
-            const camparam* cpo_in,
-            const optparam* op_in,
-            const int patchid_in);
+      void OptimizeStart(const Eigen::Vector2f p_prev);
 
-  ~PatClass();
+      void OptimizeComputeErrImg();
+      void UpdateMidpoint();
+      void ResetPatchState();
+      void ComputeHessian();
+      void InitializeError();
+      void ComputeCostErr();
 
-  void InitializePatch(Eigen::Map<const Eigen::MatrixXf> * im_ao_in, Eigen::Map<const Eigen::MatrixXf> * im_ao_dx_in, Eigen::Map<const Eigen::MatrixXf> * im_ao_dy_in, const Eigen::Vector2f pt_ref_in);
-  void SetTargetImage(Eigen::Map<const Eigen::MatrixXf> * im_bo_in, Eigen::Map<const Eigen::MatrixXf> * im_bo_dx_in, Eigen::Map<const Eigen::MatrixXf> * im_bo_dy_in);
+      // Extract patch on integer position, and gradients, No Bilinear interpolation
+      void ExtractPatch();
+      // Extract patch on float position with bilinear interpolation, no gradients.
+      void InterpolatePatch();
 
-  #if (SELECTMODE==1) // Optical Flow
-  void OptimizeIter(const Eigen::Vector2f p_in_arg, const bool untilconv);
-  #else  // Depth from Stereo
-  void OptimizeIter(const Eigen::Matrix<float, 1, 1> p_in_arg, const bool untilconv);
-  #endif
+      Eigen::Vector2f midpoint; // reference point location
+      Eigen::Matrix<float, Eigen::Dynamic, 1> patch;
+      Eigen::Matrix<float, Eigen::Dynamic, 1> patch_x;
+      Eigen::Matrix<float, Eigen::Dynamic, 1> patch_y;
 
-  inline const bool isConverged() const { return pc->hasconverged; }
-  inline const bool hasOptStarted() const { return pc->hasoptstarted; }
-  inline const Eigen::Vector2f GetPointPos() const { return pc->pt_iter; }  // get current iteration patch position (in this frame's opposite camera for OF, Depth)
-  inline const bool IsValid() const { return (!pc->invalid) ; }
-  inline const float * GetpWeightPtr() const {return (float*) pc->pweight.data(); } // Return data pointer to image error patch, used in efficient indexing for densification in patchgrid class
+      Eigen::Map<const Eigen::MatrixXf> * I0, * I0x, * I0y;
+      Eigen::Map<const Eigen::MatrixXf> * I1, * I1x, * I1y;
 
-  #if (SELECTMODE==1) // Optical Flow
-  inline const Eigen::Vector2f*            GetParam()    const { return &(pc->p_iter); }   // get current iteration parameters
-  #else // Depth from Stereo
-  inline const Eigen::Matrix<float, 1, 1>* GetParam()    const { return &(pc->p_iter); }   // get current iteration parameters
-  #endif
+      const img_params* i_params;
+      const opt_params* op;
+      const int patch_id;
 
-  #if (SELECTMODE==1) // Optical Flow
-  inline const Eigen::Vector2f*            GetParamStart() const { return &(pc->p_in); }
-  #else // Depth from Stereo
-  inline const Eigen::Matrix<float, 1, 1>* GetParamStart() const { return &(pc->p_in); }
-  #endif
+      patch_state * p_state = nullptr; // current patch state
 
-private:
-
-  #if (SELECTMODE==1) // Optical Flow
-  void OptimizeStart(const Eigen::Vector2f p_in_arg);
-  #else // Depth from Stereo
-  void OptimizeStart(const Eigen::Matrix<float, 1, 1> p_in_arg);
-  #endif
-
-  void OptimizeComputeErrImg();
-  void paramtopt();
-  void ResetPatch();
-  void ComputeHessian();
-  void CreateStatusStruct(patchstate * psin);
-  void LossComputeErrorImage(Eigen::Matrix<float, Eigen::Dynamic, 1>* patdest,  Eigen::Matrix<float, Eigen::Dynamic, 1>* wdest, const Eigen::Matrix<float, Eigen::Dynamic, 1>* patin,  const Eigen::Matrix<float, Eigen::Dynamic, 1>*  tmpin);
-
-  // Extract patch on integer position, and gradients, No Bilinear interpolation
-  void getPatchStaticNNGrad    (const float* img, const float* img_dx, const float* img_dy,  const Eigen::Vector2f* mid_in, Eigen::Matrix<float, Eigen::Dynamic, 1>* tmp_in,  Eigen::Matrix<float, Eigen::Dynamic, 1>*  tmp_dx_in, Eigen::Matrix<float, Eigen::Dynamic, 1>* tmp_dy_in);
-  // Extract patch on float position with bilinear interpolation, no gradients.
-  void getPatchStaticBil(const float* img, const Eigen::Vector2f* mid_in,  Eigen::Matrix<float, Eigen::Dynamic, 1>* tmp_in_e);
-
-  Eigen::Vector2f pt_ref; // reference point location
-  Eigen::Matrix<float, Eigen::Dynamic, 1> tmp;
-  Eigen::Matrix<float, Eigen::Dynamic, 1> dxx_tmp; // x derivative, doubles as steepest descent image for OF, Depth, SF
-  Eigen::Matrix<float, Eigen::Dynamic, 1> dyy_tmp; // y derivative, doubles as steepest descent image for OF, SF
-
-  Eigen::Map<const Eigen::MatrixXf> * im_ao, * im_ao_dx, * im_ao_dy;
-  Eigen::Map<const Eigen::MatrixXf> * im_bo, * im_bo_dx, * im_bo_dy;
-
-  const camparam* cpt;
-  const camparam* cpo;
-  const optparam* op;
-  const int patchid;
-
-  patchstate * pc = nullptr; // current patch state
-
-};
-
+  };
 
 }
 
 #endif /* PAT_HEADER */
-
-
