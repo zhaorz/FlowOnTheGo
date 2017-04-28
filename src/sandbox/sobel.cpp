@@ -20,42 +20,10 @@
 
 // Local
 #include "../common/Exceptions.h"
-// #include "../common/cuda_helper.h"
+#include "../common/timer.h"
 #include "process.h"
 
-typedef std::chrono::high_resolution_clock Clock;
-
-/**
- * General purpose high resolution timer.
- *
- * Usage:
- *
- *  auto start = now();
- *
- *  DIS->calc(prevGray, gray, flow);
- *
- *  auto dt = now() - start;
- *  auto us = std::chrono::duration_cast<std::chrono::milliseconds>(dt);
- *  double duration = us.count();
- *
- *  std::cout << "time: " << duration << " ms" << std::endl;
- *
- */
-static std::chrono::time_point<Clock> now() {
-  return Clock::now();
-}
-
-double time_diff(std::chrono::time_point<Clock> start, std::chrono::time_point<Clock> end) {
-  auto dt = end - start;
-  auto us = std::chrono::duration_cast<std::chrono::microseconds>(dt);
-  return us.count() / 1000.0;
-}
-
-double calc_print_elapsed(const char* name, std::chrono::time_point<Clock> start) {
-  double duration = time_diff(start, now());
-  std::cout << "[time] " << duration << " (ms) : " << name  << std::endl;
-  return duration;
-}
+using namespace timer;
 
 void process(const char* input_file, const char* output_file) {
   cv::Mat I0, I0_f;
