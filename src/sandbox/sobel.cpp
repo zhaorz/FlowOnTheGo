@@ -66,7 +66,7 @@ void process(const char* input_file, const char* output_file) {
   auto start_read = now();
 
   // Get input
-  I0 = cv::imread(input_file, cv::IMREAD_GRAYSCALE);
+  I0 = cv::imread(input_file, CV_LOAD_IMAGE_COLOR);
 
   calc_print_elapsed("imread", start_read);
 
@@ -80,7 +80,8 @@ void process(const char* input_file, const char* output_file) {
   auto start_convert = now();
 
   // Convert to float
-  I0.convertTo(I0_f, CV_32F);
+  I0.convertTo(I0_f, CV_32FC3);
+  unsigned int pixel_width = 3 * sizeof(float);
 
   calc_print_elapsed("convertTo float", start_convert);
 
@@ -96,7 +97,7 @@ void process(const char* input_file, const char* output_file) {
   Npp32f* pHostSrc = (float*) I0_f.data;
 
   // The width, in bytes, of the image, sometimes referred to as pitch
-  unsigned int nSrcStep = width * sizeof(float);
+  unsigned int nSrcStep = width * pixel_width;
   unsigned int nDstStep = nSrcStep;
 
   NppiSize oSizeROI = { width, height };
@@ -106,8 +107,8 @@ void process(const char* input_file, const char* output_file) {
 
   // Allocate device memory
   Npp32f* pDeviceSrc, *pDeviceDst;
-  checkCudaErrors( cudaMalloc((void**) &pDeviceSrc, width * height * sizeof(float)) );
-  checkCudaErrors( cudaMalloc((void**) &pDeviceDst, width * height * sizeof(float)) );
+  checkCudaErrors( cudaMalloc((void**) &pDeviceSrc, width * height * pixel_width) );
+  checkCudaErrors( cudaMalloc((void**) &pDeviceDst, width * height * pixel_width) );
 
   calc_print_elapsed("cudaMalloc", start_cuda_malloc);
 
@@ -116,7 +117,7 @@ void process(const char* input_file, const char* output_file) {
 
   // Copy image to device
   checkCudaErrors(
-      cudaMemcpy(pDeviceSrc, pHostSrc, width * height * sizeof(float), cudaMemcpyHostToDevice) );
+      cudaMemcpy(pDeviceSrc, pHostSrc, width * height * pixel_width, cudaMemcpyHostToDevice) );
 
   calc_print_elapsed("cudaMemcpy H->D", start_memcpy_hd);
 
@@ -124,7 +125,7 @@ void process(const char* input_file, const char* output_file) {
   auto start_sobel = now();
 
   NPP_CHECK_NPP(
-      nppiFilterSobelHoriz_32f_C1R (pDeviceSrc, nSrcStep, pDeviceDst, nDstStep, oSizeROI) );
+      nppiFilterSobelHoriz_32f_C3R (pDeviceSrc, nSrcStep, pDeviceDst, nDstStep, oSizeROI) );
 
   compute_time += calc_print_elapsed("sobel", start_sobel);
 
@@ -135,7 +136,7 @@ void process(const char* input_file, const char* output_file) {
   // Copy result to host, reuse the same pointer
   float* pHostDst = (float*) I0_f.data;
   checkCudaErrors(
-      cudaMemcpy(pHostDst, pDeviceDst, width * height * sizeof(float), cudaMemcpyDeviceToHost) );
+      cudaMemcpy(pHostDst, pDeviceDst, width * height * pixel_width, cudaMemcpyDeviceToHost) );
 
   calc_print_elapsed("cudaMemcpy H<-D", start_memcpy_dh);
 
