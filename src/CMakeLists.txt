@@ -39,7 +39,8 @@ message(STATUS "    nppi path: ${CUDA_nppi_LIBRARY}")
 # CUDA                                                                         #
 ################################################################################
 
-set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS}; -std=c++11 --gpu-architecture compute_35)
+set(CUDA_VERBOSE_BUILD ON)
+set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS}; -std=c++11 -arch=compute_61 -code=sm_61)
 
 set(CUFILES
   kernels/hello.cu)
