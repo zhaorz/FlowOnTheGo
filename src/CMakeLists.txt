@@ -16,6 +16,9 @@ find_package(CUDA REQUIRED)
 set(EIGEN3_INCLUDE_DIR "/afs/cs.cmu.edu/academic/class/15418-s17/public/sw/eigen/include/eigen3")
 include_directories(${EIGEN3_INCLUDE_DIR})
 
+# Add extra cuda libraries
+set(CUDA_LIBRARIES ${CUDA_LIBRARIES} ${CUDA_nppi_LIBRARY})
+
 message(STATUS "OpenCV library status:")
 message(STATUS "    version: ${OpenCV_VERSION}")
 message(STATUS "    libraries: ${OpenCV_LIBRARIES}")
@@ -29,6 +32,8 @@ message(STATUS "CUDA library status:")
 message(STATUS "    version: ${CUDA_VERSION}")
 message(STATUS "    libraries: ${CUDA_LIBRARIES}")
 message(STATUS "    include path: ${CUDA_INCLUDE_DIRS}")
+message(STATUS "    toolkit path: ${CUDA_TOOLKIT_ROOT_DIR}")
+message(STATUS "    nppi path: ${CUDA_nppi_LIBRARY}")
 
 ################################################################################
 # CUDA                                                                         #
@@ -58,7 +63,7 @@ target_link_libraries(flow ${OpenCV_LIBS})
 # CUDA sandbox
 set(SANDBOX_FILES
   sandbox/sandbox.cpp)
-add_executable(sandbox ${SANDBOX_FILES})
+cuda_add_executable(sandbox ${SANDBOX_FILES})
 target_link_libraries(sandbox ${OpenCV_LIBS})
 
 

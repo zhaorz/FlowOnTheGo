@@ -11,10 +11,15 @@
 
 // CUDA
 #include <cuda.h>
+#include <cuda_runtime.h>
 
 // NVIDIA Perf Primitives
 #include <nppi.h>
-#include <nppi_color_conversion.h>
+#include <nppi_filtering_functions.h>
+
+// Local
+#include "../common/Exceptions.h"
+#include "../common/cuda_helper.h"
 
 
 
@@ -50,11 +55,13 @@ int main(int argc, char **argv)
   const char* input_file  = argv[1];
   const char* output_file = argv[2];
 
+  initializeCuda(argc, argv);
+
   if (argc == 3) {
-    cv::Mat I0, I1;
+    cv::Mat I0, I0_f;
 
     // Get input
-    I0 = cv::imread(input_file, CV_LOAD_IMAGE_COLOR);
+    I0 = cv::imread(input_file, cv::IMREAD_GRAYSCALE);
 
     // Check for invalid input
     if(!I0.data) {
@@ -62,10 +69,52 @@ int main(int argc, char **argv)
       return -1;
     }
 
-    I1 = I0.clone();
+    // Convert to float
+    I0.convertTo(I0_f, CV_32F);
+
+    cv::Size sz = I0_f.size();
+
+    int width = sz.width;
+    int height = sz.height;
+
+    std::cout << "Processing " << width << "x" << height << " image" << std::endl;
+
+    // pSrc pointer to image data
+    Npp32f* pHostSrc = (float*) I0_f.data;
+
+    // The width, in bytes, of the image, sometimes referred to as pitch
+    unsigned int nSrcStep = width * sizeof(float);
+    unsigned int nDstStep = nSrcStep;
+
+    NppiSize oSizeROI = { width, height };
+
+    // Allocate device memory
+    Npp32f* pDeviceSrc, *pDeviceDst;
+    checkCudaErrors( cudaMalloc((void**) &pDeviceSrc, width * height * sizeof(float)) );
+    checkCudaErrors( cudaMalloc((void**) &pDeviceDst, width * height * sizeof(float)) );
+
+    // Copy image to device
+    checkCudaErrors(
+        cudaMemcpy(pDeviceSrc, pHostSrc, width * height * sizeof(float), cudaMemcpyHostToDevice) );
+
+    NPP_CHECK_NPP(
+        nppiFilterSobelHoriz_32f_C1R (pDeviceSrc, nSrcStep, pDeviceDst, nDstStep, oSizeROI) );
+
+    // Copy result to host, reuse the same pointer
+    float pHostDst[width * height * sizeof(float)];
+    checkCudaErrors(
+        cudaMemcpy(pHostDst, pDeviceDst, width * height * sizeof(float), cudaMemcpyDeviceToHost) );
+
+    // Init output image
+    cv::Mat I1(height, width, CV_32F, pHostDst);
 
     // Write output
     cv::imwrite(output_file, I1);
+
+    cudaFree((void*) pDeviceSrc);
+    cudaFree((void*) pDeviceDst);
+
+    std::cout << "Done." << std::endl;
 
     return 0;
   }
