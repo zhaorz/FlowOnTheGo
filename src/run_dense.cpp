@@ -8,6 +8,10 @@
 
 #include "oflow.h"
 
+// CUDA
+#include <cuda_runtime.h>
+#include "kernels/hello.h"
+#include "kernels/get_device.h"
 
 using namespace std;
 using namespace OFC;
@@ -100,7 +104,6 @@ int AutoFirstScaleSelect(int imgwidth, int fratio, int patchsize) {
   return std::max(0, (int) std::floor(log2(scale)));
 
 }
-
 
 int main( int argc, char** argv ) {
 
