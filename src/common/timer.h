@@ -24,17 +24,17 @@ namespace timer {
    *  double duration = calc_print_elapsed("myComputation", start);
    *
    */
-  static std::chrono::time_point<Clock> now() {
+  inline std::chrono::time_point<Clock> now() {
     return Clock::now();
   }
 
-  double time_diff(std::chrono::time_point<Clock> start, std::chrono::time_point<Clock> end) {
+  inline double time_diff(std::chrono::time_point<Clock> start, std::chrono::time_point<Clock> end) {
     auto dt = end - start;
     auto us = std::chrono::duration_cast<std::chrono::microseconds>(dt);
     return us.count() / 1000.0;
   }
 
-  double calc_print_elapsed(const char* name, std::chrono::time_point<Clock> start) {
+  inline double calc_print_elapsed(const char* name, std::chrono::time_point<Clock> start) {
     double duration = time_diff(start, now());
     std::cout << "[time] " << duration << " (ms) : " << name  << std::endl;
     return duration;
