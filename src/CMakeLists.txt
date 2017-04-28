@@ -63,7 +63,8 @@ target_link_libraries(flow ${OpenCV_LIBS})
 
 # CUDA sandbox
 set(SANDBOX_FILES
-  sandbox/sobel.cpp
+  # sandbox/sobel.cpp
+  kernels/sobel.cpp
   sandbox/sandbox.cpp)
 cuda_add_executable(sandbox ${SANDBOX_FILES})
 target_link_libraries(sandbox ${OpenCV_LIBS})
