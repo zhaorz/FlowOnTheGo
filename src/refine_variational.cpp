@@ -18,30 +18,27 @@ using std::endl;
 using std::vector;
 
 
-namespace OFC
-{
+namespace OFC {
 
-  VarRefClass::VarRefClass(const float * im_ao_in, const float * im_ao_dx_in, const float * im_ao_dy_in,
-      const float * im_bo_in, const float * im_bo_dx_in, const float * im_bo_dy_in,
-      const camparam* cpt_in,const camparam* cpo_in,const optparam* op_in, float *flowout)
-    : cpt(cpt_in), cpo(cpo_in), op(op_in)
-  {
+  VarRefClass::VarRefClass(const float * _I0, const float * _I1,
+      const img_params* _i_params, const opt_params* _op, float *flowout)
+    : i_params(_i_params), op(_op) {
 
     // initialize parameters
-    tvparams.alpha = op->tv_alpha;
-    tvparams.beta = 0.0f;  // for matching term, not needed for us
-    tvparams.gamma = op->tv_gamma;
-    tvparams.delta = op->tv_delta;
-    tvparams.n_inner_iteration = (cpt->curr_lv+1);
-    tvparams.n_solver_iteration = op->tv_solverit;//5;
-    tvparams.sor_omega = op->tv_sor;
+    vr.alpha = op->var_ref_alpha;
+    vr.beta = 0.0f;  // for matching term, not needed for us
+    vr.gamma = op->var_ref_gamma;
+    vr.delta = op->var_ref_delta;
+    vr.inner_iter = i_params->curr_lvl + 1;
+    vr.solve_iter = op->var_ref_iter;
+    vr.sor_omega = op->var_ref_sor_weight;
 
-    tvparams.tmp_quarter_alpha = 0.25f*tvparams.alpha;
-    tvparams.tmp_half_gamma_over3 = tvparams.gamma*0.5f/3.0f;
-    tvparams.tmp_half_delta_over3 = tvparams.delta*0.5f/3.0f;
-    tvparams.tmp_half_beta = tvparams.beta*0.5f;
+    vr.tmp_quarter_alpha = 0.25f * vr.alpha;
+    vr.tmp_half_gamma_over3 = vr.gamma * 0.5f / 3.0f;
+    vr.tmp_half_delta_over3 = vr.delta * 0.5f / 3.0f;
+    vr.tmp_half_beta = vr.beta * 0.5f;
 
-    float deriv_filter[3] = {0.0f, -8.0f/12.0f, 1.0f/12.0f};
+    float deriv_filter[3] = {0.0f, -8.0f / 12.0f, 1.0f / 12.0f};
     deriv = convolution_new(2, deriv_filter, 0);
     float deriv_filter_flow[2] = {0.0f, -0.5f};
     deriv_flow = convolution_new(1, deriv_filter_flow, 0);
@@ -51,38 +48,43 @@ namespace OFC
 
     std::vector<image_t*> flow_sep(noparam);
 
-    for (int i = 0; i < noparam; ++i )
-      flow_sep[i] = image_new(cpt->width,cpt->height);
+    for (int i = 0; i < noparam; ++i)
+      flow_sep[i] = image_new(i_params->width, i_params->height);
 
-    for (int iy = 0; iy < cpt->height; ++iy)
-      for (int ix = 0; ix < cpt->width; ++ix)
-      {
-        int i  = iy * cpt->width          + ix;
+    for (int iy = 0; iy < i_params->height; ++iy) {
+      for (int ix = 0; ix < i_params->width; ++ix) {
+
+        int i  = iy * i_params->width + ix;
         int is = iy * flow_sep[0]->stride + ix;
-        for (int j = 0; j < noparam; ++j)
-          flow_sep[j]->c1[is] = flowout[i*noparam + j];
+        for (int j = 0; j < noparam; ++j) {
+          flow_sep[j]->c1[is] = flowout[i * noparam + j];
+        }
+
       }
+    }
 
     // copy image data into FV structs
-    image_t * im_ao, *im_bo;
-    im_ao = image_new(cpt->width,cpt->height);
-    im_bo = image_new(cpt->width,cpt->height);
+    image_t * I0, * I1;
+    I0 = image_new(i_params->width, i_params->height);
+    I1 = image_new(i_params->width, i_params->height);
 
-    copyimage(im_ao_in, im_ao);
-    copyimage(im_bo_in, im_bo);
+    copyimage(_I0, I0);
+    copyimage(_I1, I1);
 
     // Call solver
-    RefLevelOF(flow_sep[0], flow_sep[1], im_ao, im_bo);
+    RefLevelOF(flow_sep[0], flow_sep[1], I0, I1);
 
     // Copy flow result back
-    for (int iy = 0; iy < cpt->height; ++iy)
-      for (int ix = 0; ix < cpt->width; ++ix)
-      {
-        int i  = iy * cpt->width          + ix;
+    for (int iy = 0; iy < i_params->height; ++iy) {
+      for (int ix = 0; ix < i_params->width; ++ix) {
+
+        int i = iy * i_params->width + ix;
         int is = iy * flow_sep[0]->stride + ix;
         for (int j = 0; j < noparam; ++j)
           flowout[i*noparam + j] = flow_sep[j]->c1[is];
+
       }
+    }
 
     // free FV structs
     for (int i = 0; i < noparam; ++i )
@@ -92,30 +94,34 @@ namespace OFC
     convolution_delete(deriv_flow);
 
 
-    image_delete(im_ao);
-    image_delete(im_bo);
+    image_delete(I0);
+    image_delete(I1);
+
   }
 
 
-  void VarRefClass::copyimage(const float* img, image_t * img_t)
-  {
-    const float * img_st = img +     (cpt->tmp_w + 1 ) * (cpt->imgpadding); // remove image padding, start at first valid pixel
+  void VarRefClass::copyimage(const float* img, image_t * img_t) {
 
-    for (int yi = 0; yi < cpt->height; ++yi)
-    {
-      for (int xi = 0; xi < cpt->width; ++xi, ++img_st)
-      {
-        int i    = yi*img_t->stride+ xi;
+    // remove image padding, start at first valid pixel
+    const float * img_st = img + (i_params->width_pad + 1 ) * (i_params->padding);
 
+    for (int yi = 0; yi < i_params->height; ++yi) {
+      for (int xi = 0; xi < i_params->width; ++xi, ++img_st) {
+
+        int i = yi * img_t->stride + xi;
         img_t->c1[i] =  (*img_st);
+
       }
-      img_st +=     2 * cpt->imgpadding;
+
+      img_st += 2 * i_params->padding;
+
     }
+
   }
 
 
-  void VarRefClass::RefLevelOF(image_t *wx, image_t *wy, const image_t *im1, const image_t *im2)
-  {
+  void VarRefClass::RefLevelOF(image_t *wx, image_t *wy, const image_t *im1, const image_t *im2) {
+
     int i_inner_iteration;
     int width  = wx->width;
     int height = wx->height;
@@ -144,27 +150,26 @@ namespace OFC
     memcpy(uu->c1,wx->c1,wx->stride*wx->height*sizeof(float));
     memcpy(vv->c1,wy->c1,wy->stride*wy->height*sizeof(float));
     // inner fixed point iterations
-    for(i_inner_iteration = 0 ; i_inner_iteration < tvparams.n_inner_iteration ; i_inner_iteration++)
-    {
+    for(i_inner_iteration = 0 ; i_inner_iteration < vr.inner_iter ; i_inner_iteration++) {
+
       //  compute robust function and system
-      compute_smoothness(smooth_horiz, smooth_vert, uu, vv, deriv_flow, tvparams.tmp_quarter_alpha );
-      //compute_data_and_match(a11, a12, a22, b1, b2, mask, wx, wy, du, dv, uu, vv, Ix, Iy, Iz, Ixx, Ixy, Iyy, Ixz, Iyz, desc_weight, desc_flow_x, desc_flow_y, tvparams.tmp_half_delta_over3, tvparams.tmp_half_beta, tvparams.tmp_half_gamma_over3);
-      compute_data(a11, a12, a22, b1, b2, mask, wx, wy, du, dv, uu, vv, Ix, Iy, Iz, Ixx, Ixy, Iyy, Ixz, Iyz, tvparams.tmp_half_delta_over3, tvparams.tmp_half_beta, tvparams.tmp_half_gamma_over3);
+      compute_smoothness(smooth_horiz, smooth_vert, uu, vv, deriv_flow, vr.tmp_quarter_alpha );
+      //compute_data_and_match(a11, a12, a22, b1, b2, mask, wx, wy, du, dv, uu, vv, Ix, Iy, Iz, Ixx, Ixy, Iyy, Ixz, Iyz, desc_weight, desc_flow_x, desc_flow_y, vr.tmp_half_delta_over3, vr.tmp_half_beta, vr.tmp_half_gamma_over3);
+      compute_data(a11, a12, a22, b1, b2, mask, wx, wy, du, dv, uu, vv, Ix, Iy, Iz, Ixx, Ixy, Iyy, Ixz, Iyz, vr.tmp_half_delta_over3, vr.tmp_half_beta, vr.tmp_half_gamma_over3);
       sub_laplacian(b1, wx, smooth_horiz, smooth_vert);
       sub_laplacian(b2, wy, smooth_horiz, smooth_vert);
 
       // solve system
 #ifdef WITH_OPENMP
-      sor_coupled_slow_but_readable(du, dv, a11, a12, a22, b1, b2, smooth_horiz, smooth_vert, tvparams.n_solver_iteration, tvparams.sor_omega); // slower but parallelized
+      sor_coupled_slow_but_readable(du, dv, a11, a12, a22, b1, b2, smooth_horiz, smooth_vert, vr.solve_iter, vr.sor_omega); // slower but parallelized
 #else
-      sor_coupled(du, dv, a11, a12, a22, b1, b2, smooth_horiz, smooth_vert, tvparams.n_solver_iteration, tvparams.sor_omega);
+      sor_coupled(du, dv, a11, a12, a22, b1, b2, smooth_horiz, smooth_vert, vr.solve_iter, vr.sor_omega);
 #endif
 
       // update flow plus flow increment
       int i;
       v4sf *uup = (v4sf*) uu->c1, *vvp = (v4sf*) vv->c1, *wxp = (v4sf*) wx->c1, *wyp = (v4sf*) wy->c1, *dup = (v4sf*) du->c1, *dvp = (v4sf*) dv->c1;
-      for( i=0 ; i<height*stride/4 ; i++)
-      {
+      for( i=0 ; i<height*stride/4 ; i++) {
         (*uup) = (*wxp) + (*dup);
         (*vvp) = (*wyp) + (*dvp);
         uup+=1; vvp+=1; wxp+=1; wyp+=1;dup+=1;dvp+=1;
@@ -190,8 +195,8 @@ namespace OFC
   }
 
 
-  void VarRefClass::RefLevelDE(image_t *wx, const image_t *im1, const image_t *im2)
-  {
+  void VarRefClass::RefLevelDE(image_t *wx, const image_t *im1, const image_t *im2) {
+
     int i_inner_iteration;
     int width  = wx->width;
     int height = wx->height;
@@ -221,37 +226,28 @@ namespace OFC
     memcpy(uu->c1,wx->c1,wx->stride*wx->height*sizeof(float));
 
     // inner fixed point iterations
-    for(i_inner_iteration = 0 ; i_inner_iteration < tvparams.n_inner_iteration ; i_inner_iteration++)
-    {
+    for(i_inner_iteration = 0 ; i_inner_iteration < vr.inner_iter ; i_inner_iteration++) {
+
       //  compute robust function and system
-      compute_smoothness(smooth_horiz, smooth_vert, uu, wy_dummy, deriv_flow, tvparams.tmp_quarter_alpha );
-      compute_data_DE(a11, b1, mask, wx, du, uu, Ix, Iy, Iz, Ixx, Ixy, Iyy, Ixz, Iyz, tvparams.tmp_half_delta_over3, tvparams.tmp_half_beta, tvparams.tmp_half_gamma_over3);
+      compute_smoothness(smooth_horiz, smooth_vert, uu, wy_dummy, deriv_flow, vr.tmp_quarter_alpha );
+      compute_data_DE(a11, b1, mask, wx, du, uu, Ix, Iy, Iz, Ixx, Ixy, Iyy, Ixz, Iyz, vr.tmp_half_delta_over3, vr.tmp_half_beta, vr.tmp_half_gamma_over3);
       sub_laplacian(b1, wx, smooth_horiz, smooth_vert);
 
       // solve system
-      sor_coupled_slow_but_readable_DE(du, a11, b1, smooth_horiz, smooth_vert, tvparams.n_solver_iteration, tvparams.sor_omega);
+      sor_coupled_slow_but_readable_DE(du, a11, b1, smooth_horiz, smooth_vert, vr.solve_iter, vr.sor_omega);
 
       // update flow plus flow increment
       int i;
       v4sf *uup = (v4sf*) uu->c1, *wxp = (v4sf*) wx->c1, *dup = (v4sf*) du->c1;
 
-      if(cpt->camlr==0)  // check if right or left camera, needed to truncate values above/below zero
-      {
         for( i=0 ; i<height*stride/4 ; i++)
         {
           (*uup) = __builtin_ia32_minps(   (*wxp) + (*dup)   ,  op->zero);
           uup+=1; wxp+=1; dup+=1;
         }
-      }
-      else
-      {
-        for( i=0 ; i<height*stride/4 ; i++)
-        {
-          (*uup) = __builtin_ia32_maxps(   (*wxp) + (*dup)   ,  op->zero);
-          uup+=1; wxp+=1; dup+=1;
-        }
-      }
+
     }
+
     // add flow increment to current flow
     memcpy(wx->c1,uu->c1,uu->stride*uu->height*sizeof(float));
 
@@ -266,12 +262,10 @@ namespace OFC
     image_delete(w_im2);
     image_delete(Ix); image_delete(Iy); image_delete(Iz);
     image_delete(Ixx); image_delete(Ixy); image_delete(Iyy); image_delete(Ixz); image_delete(Iyz);
-  }
-
-
-  VarRefClass::~VarRefClass()
-  {
 
   }
+
+
+  VarRefClass::~VarRefClass() { }
 
 }

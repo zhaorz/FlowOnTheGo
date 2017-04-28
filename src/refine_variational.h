@@ -7,19 +7,18 @@
 
 #include "oflow.h"
 
-namespace OFC
-{
+namespace OFC {
 
   typedef __v4sf v4sf;
 
-  typedef struct
-  {
+  typedef struct {
+
     float alpha;             // smoothness weight
     float beta;              // matching weight
     float gamma;             // gradient constancy assumption weight
     float delta;             // color constancy assumption weight
-    int n_inner_iteration;   // number of inner fixed point iterations
-    int n_solver_iteration;  // number of solver iterations 
+    int inner_iter;
+    int solve_iter;          // number of solver iterations
     float sor_omega;         // omega parameter of sor method
 
     float tmp_quarter_alpha;
@@ -27,37 +26,30 @@ namespace OFC
     float tmp_half_delta_over3;
     float tmp_half_beta;
 
-  } TVparams;  
+  } VR_params;
 
 
-  class VarRefClass
-  {
+  class VarRefClass {
 
     public:
-      VarRefClass(const float * im_ao_in, const float * im_ao_dx_in, const float * im_ao_dy_in, // expects #sc_f_in pointers to float arrays for images and gradients. 
-          const float * im_bo_in, const float * im_bo_dx_in, const float * im_bo_dy_in,
-          const camparam* cpt_in, const camparam* cpo_in,const optparam* op_in, float *flowout);
-      ~VarRefClass();  
+      VarRefClass(const float * _I0, const float * _I1,
+          const img_params* _i_params, const opt_params* _op, float *flowout);
+      ~VarRefClass();
 
     private:
 
       convolution_t *deriv, *deriv_flow;
 
-
       void copyimage(const float* img, image_t * img_t);
       void RefLevelOF(image_t *wx, image_t *wy, const image_t *im1, const image_t *im2);
       void RefLevelDE(image_t *wx, const image_t *im1, const image_t *im2);
 
-      TVparams tvparams;
-
-      const camparam* cpt;
-      const camparam* cpo;
-      const optparam* op;    
+      VR_params vr;
+      const img_params* i_params;
+      const opt_params* op;
 
   };
 
 }
 
 #endif /* VARREF_HEADER */
-
-

@@ -1,4 +1,3 @@
-
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
@@ -11,6 +10,7 @@
 
 
 using namespace std;
+using namespace OFC;
 
 // Save a Depth/OF/SF as .flo file
 void SaveFlowFile(cv::Mat& img, const char* filename) {
@@ -94,52 +94,6 @@ void ReadFlowFile(cv::Mat& img, const char* filename) {
 }
 
 
-void ConstructImgPyramide(const cv::Mat & img_fmat, cv::Mat * img_mats, 
-    cv::Mat * imgx_mats, cv::Mat * imgy_mats, const float ** imgs, 
-    const float ** imgxs, const float ** imgys, 
-    const int coarsest_scale, const int finest_scale, 
-    const int imgpadding, const int padw, const int padh) {
-
-  // Construct image and gradient pyramides
-  for (int i = 0; i <= coarsest_scale; ++i)  {
-    // At finest scale: copy directly, for all other: downscale previous scale by .5
-    if (i == 0) {
-      img_mats[i] = img_fmat.clone();
-    } else {
-      cv::resize(img_mats[i-1], img_mats[i], cv::Size(), .5, .5, cv::INTER_LINEAR);
-    }
-
-    img_mats[i].convertTo(img_mats[i], CV_32FC1);
-
-    // Generate gradients
-    cv::Sobel(img_mats[i], imgx_mats[i], CV_32F, 1, 0, 1, 1, 0, cv::BORDER_DEFAULT);
-    cv::Sobel(img_mats[i], imgy_mats[i], CV_32F, 0, 1, 1, 1, 0, cv::BORDER_DEFAULT);
-    imgx_mats[i].convertTo(imgx_mats[i], CV_32F);
-    imgy_mats[i].convertTo(imgy_mats[i], CV_32F);
-  }
-
-  // Pad images
-  for (int i = 0; i <= coarsest_scale; ++i) {
-
-    // Replicate padding for images
-    copyMakeBorder(img_mats[i], img_mats[i], imgpadding, imgpadding,
-        imgpadding, imgpadding, cv::BORDER_REPLICATE);
-    imgs[i] = (float*) img_mats[i].data;
-
-    // Zero pad for gradients
-    copyMakeBorder(imgx_mats[i], imgx_mats[i], imgpadding, imgpadding,
-        imgpadding, imgpadding, cv::BORDER_CONSTANT, 0);
-    copyMakeBorder(imgy_mats[i], imgy_mats[i], imgpadding, imgpadding,
-        imgpadding, imgpadding, cv::BORDER_CONSTANT, 0);
-
-    imgxs[i] = (float*) imgx_mats[i].data;
-    imgys[i] = (float*) imgy_mats[i].data;
-
-  }
-
-}
-
-
 int AutoFirstScaleSelect(int imgwidth, int fratio, int patchsize) {
 
   float scale = (2.0f * (float) imgwidth) / ((float) fratio * (float) patchsize);
@@ -165,22 +119,20 @@ int main( int argc, char** argv ) {
   cv::Mat I0_fmat, I1_fmat;
 
   // Load images
-  I0_mat = cv::imread(I0_file, CV_LOAD_IMAGE_GRAYSCALE);   // Read the file
-  I1_mat = cv::imread(I1_file, CV_LOAD_IMAGE_GRAYSCALE);   // Read the file
+  I0_mat = cv::imread(I0_file, CV_LOAD_IMAGE_COLOR);   // Read the file
+  I1_mat = cv::imread(I1_file, CV_LOAD_IMAGE_COLOR);   // Read the file
   int width_org = I0_mat.size().width;   // unpadded original image size
   int height_org = I0_mat.size().height;  // unpadded original image size
 
   // Parse rest of parameters
-  int coarsest_scale, finest_scale, grad_descent_iter, patch_size, cost_func, var_ref_iter, verbosity;
-  bool use_mean_normalization, use_var_ref;
-  float patch_stride, var_ref_alpha, var_ref_gamma, var_ref_delta, var_ref_sor_weight;
+  opt_params op;
 
   if (argc <= 5) {
 
-    use_mean_normalization = true; cost_func = 0;
-    var_ref_alpha = 10.0; var_ref_gamma = 10.0; var_ref_delta = 5.0;
-    var_ref_iter = 3; var_ref_sor_weight = 1.6;
-    verbosity = 2; // Default: Plot detailed timings
+    op.use_mean_normalization = true; op.cost_func = 0;
+    op.var_ref_alpha = 10.0; op.var_ref_gamma = 10.0; op.var_ref_delta = 5.0;
+    op.var_ref_iter = 3; op.var_ref_sor_weight = 1.6;
+    op.verbosity = 2; // Default: Plot detailed timings
 
     int fratio = 5; // For automatic selection of coarsest scale: 1/fratio * width = maximum expected motion magnitude in image. Set lower to restrict search space.
 
@@ -191,56 +143,56 @@ int main( int argc, char** argv ) {
     switch (op_point) {
 
       case 1:
-        patch_size = 8; patch_stride = 0.3;
-        coarsest_scale = AutoFirstScaleSelect(width_org, fratio, patch_size);
-        finest_scale = std::max(coarsest_scale-2,0); grad_descent_iter = 16;
-        use_var_ref = false;
+        op.patch_size = 8; op.patch_stride = 0.3;
+        op.coarsest_scale = AutoFirstScaleSelect(width_org, fratio, op.patch_size);
+        op.finest_scale = std::max(op.coarsest_scale - 2,0); op.grad_descent_iter = 16;
+        op.use_var_ref = false;
         break;
       case 3:
-        patch_size = 12; patch_stride = 0.75;
-        coarsest_scale = AutoFirstScaleSelect(width_org, fratio, patch_size);
-        finest_scale = std::max(coarsest_scale-4,0); grad_descent_iter = 16;
-        use_var_ref = true;
+        op.patch_size = 12; op.patch_stride = 0.75;
+        op.coarsest_scale = AutoFirstScaleSelect(width_org, fratio, op.patch_size);
+        op.finest_scale = std::max(op.coarsest_scale - 4,0); op.grad_descent_iter = 16;
+        op.use_var_ref = true;
         break;
       case 4:
-        patch_size = 12; patch_stride = 0.75;
-        coarsest_scale = AutoFirstScaleSelect(width_org, fratio, patch_size);
-        finest_scale = std::max(coarsest_scale-5,0); grad_descent_iter = 128;
-        use_var_ref = true;
+        op.patch_size = 12; op.patch_stride = 0.75;
+        op.coarsest_scale = AutoFirstScaleSelect(width_org, fratio, op.patch_size);
+        op.finest_scale = std::max(op.coarsest_scale - 5,0); op.grad_descent_iter = 128;
+        op.use_var_ref = true;
         break;
       case 2:
       default:
-        patch_size = 8; patch_stride = 0.4;
-        coarsest_scale = AutoFirstScaleSelect(width_org, fratio, patch_size);
-        finest_scale = std::max(coarsest_scale-2,0); grad_descent_iter = 12;
-        use_var_ref = true;
+        op.patch_size = 8; op.patch_stride = 0.4;
+        op.coarsest_scale = AutoFirstScaleSelect(width_org, fratio, op.patch_size);
+        op.finest_scale = std::max(op.coarsest_scale - 2,0); op.grad_descent_iter = 12;
+        op.use_var_ref = true;
         break;
 
     }
   } else {
 
     int acnt = 4; // Argument counter
-    coarsest_scale = atoi(argv[acnt++]);
-    finest_scale = atoi(argv[acnt++]);
-    grad_descent_iter = atoi(argv[acnt++]);
-    patch_size = atoi(argv[acnt++]);
-    patch_stride = atof(argv[acnt++]);
-    use_mean_normalization = atoi(argv[acnt++]);
-    cost_func = atoi(argv[acnt++]);
-    use_var_ref = atoi(argv[acnt++]);
-    var_ref_alpha = atof(argv[acnt++]);
-    var_ref_gamma = atof(argv[acnt++]);
-    var_ref_delta = atof(argv[acnt++]);
-    var_ref_iter = atoi(argv[acnt++]);
-    var_ref_sor_weight = atof(argv[acnt++]);
-    verbosity = atoi(argv[acnt++]);
+    op.coarsest_scale = atoi(argv[acnt++]);
+    op.finest_scale = atoi(argv[acnt++]);
+    op.grad_descent_iter = atoi(argv[acnt++]);
+    op.patch_size = atoi(argv[acnt++]);
+    op.patch_stride = atof(argv[acnt++]);
+    op.use_mean_normalization = atoi(argv[acnt++]);
+    op.cost_func = atoi(argv[acnt++]);
+    op.use_var_ref = atoi(argv[acnt++]);
+    op.var_ref_alpha = atof(argv[acnt++]);
+    op.var_ref_gamma = atof(argv[acnt++]);
+    op.var_ref_delta = atof(argv[acnt++]);
+    op.var_ref_iter = atoi(argv[acnt++]);
+    op.var_ref_sor_weight = atof(argv[acnt++]);
+    op.verbosity = atoi(argv[acnt++]);
 
   }
 
 
   // Pad image such that width and height are restless divisible on all scales (except last)
   int padw = 0, padh = 0;
-  int max_scale = pow(2, coarsest_scale); // enforce restless division by this number on coarsest scale
+  int max_scale = pow(2, op.coarsest_scale); // enforce restless division by this number on coarsest scale
   int div = width_org % max_scale;
   if (div > 0) padw = max_scale - div;
   div = height_org % max_scale;
@@ -255,75 +207,42 @@ int main( int argc, char** argv ) {
 
   }
 
+  // Create image paramaters
+  img_params iparams;
+
   // padded image size, ensures divisibility by 2 on all scales (except last)
-  int width_pad = I0_mat.size().width;
-  int height_pad = I0_mat.size().height;
-
-  // Timing, image loading
-  if (verbosity > 1) {
-
-    gettimeofday(&end_time, NULL);
-    double tt = (end_time.tv_sec-start_time.tv_sec)*1000.0f + (end_time.tv_usec-start_time.tv_usec)/1000.0f;
-    printf("TIME (Image loading     ) (ms): %3g\n", tt);
-    gettimeofday(&start_time, NULL);
-
-  }
+  iparams.width = I0_mat.size().width;
+  iparams.height = I0_mat.size().height;
+  iparams.padding = op.patch_size;
 
   // convert to float
   I0_mat.convertTo(I0_fmat, CV_32F);
   I1_mat.convertTo(I1_fmat, CV_32F);
 
-
-  // Generate scale pyramides
-  const float* I0s[coarsest_scale+1];
-  const float* I1s[coarsest_scale+1];
-  const float* I0xs[coarsest_scale+1];
-  const float* I0ys[coarsest_scale+1];
-  const float* I1xs[coarsest_scale+1];
-  const float* I1ys[coarsest_scale+1];
-
-  cv::Mat I0_mats[coarsest_scale+1];
-  cv::Mat I1_mats[coarsest_scale+1];
-  cv::Mat I0x_mats[coarsest_scale+1];
-  cv::Mat I0y_mats[coarsest_scale+1];
-  cv::Mat I1x_mats[coarsest_scale+1];
-  cv::Mat I1y_mats[coarsest_scale+1];
-
-  ConstructImgPyramide(I0_fmat, I0_mats, I0x_mats, I0y_mats, I0s, I0xs, I0ys,
-      coarsest_scale, finest_scale, patch_size, padw, padh);
-  ConstructImgPyramide(I1_fmat, I1_mats, I1x_mats, I1y_mats, I1s, I1xs, I1ys,
-      coarsest_scale, finest_scale, patch_size, padw, padh);
-
-  // Timing, image gradients and pyramid
-  if (verbosity > 1) {
+  // Timing, image loading
+  if (op.verbosity > 1) {
 
     gettimeofday(&end_time, NULL);
     double tt = (end_time.tv_sec-start_time.tv_sec)*1000.0f + (end_time.tv_usec-start_time.tv_usec)/1000.0f;
-    printf("TIME (Pyramide+Gradients) (ms): %3g\n", tt);
+    printf("TIME (Image loading     ) (ms): %3g\n", tt);
 
   }
 
 
+  // Create Optical Flow object
+  OFClass ofc(op);
+
   // Run main optical flow / depth algorithm
-  float scale_fact = pow(2, finest_scale);
-  cv::Mat flow_mat(height_pad / scale_fact , width_pad / scale_fact, CV_32FC2); // Optical Flow
+  float scale_fact = pow(2, op.finest_scale);
+  cv::Mat flow_mat(iparams.height / scale_fact , iparams.width / scale_fact, CV_32FC2); // Optical Flow
 
-  OFC::OFClass ofc(I0s, I0xs, I0ys,
-      I1s, I1xs, I1ys,
-      patch_size,  // extra image padding to avoid border violation check
-      (float*) flow_mat.data,   // pointer to n-band output float array
-      nullptr,  // pointer to n-band input float array of size of first (coarsest) scale, pass as nullptr to disable
-      width_pad, height_pad,
-      coarsest_scale, finest_scale, grad_descent_iter, patch_size, patch_stride,
-      cost_func, use_mean_normalization,
-      use_var_ref, var_ref_alpha, var_ref_gamma, var_ref_delta, var_ref_iter, var_ref_sor_weight,
-      verbosity);
+  ofc.calc(I0_fmat, I1_fmat, iparams, nullptr, (float*) flow_mat.data);
 
-  if (verbosity > 1) gettimeofday(&start_time, NULL);
 
+  if (op.verbosity > 1) gettimeofday(&start_time, NULL);
 
   // Resize to original scale, if not run to finest level
-  if (finest_scale != 0) {
+  if (op.finest_scale != 0) {
 
     flow_mat *= scale_fact;
     cv::resize(flow_mat, flow_mat, cv::Size(), scale_fact, scale_fact , cv::INTER_LINEAR);
@@ -331,12 +250,13 @@ int main( int argc, char** argv ) {
   }
 
   // If image was padded, remove padding before saving to file
-  flow_mat = flow_mat(cv::Rect((int)floor((float)padw/2.0f),(int)floor((float)padh/2.0f),width_org,height_org));
+  flow_mat = flow_mat(cv::Rect((int) floor((float) padw / 2.0f),(int) floor((float) padh / 2.0f),
+        width_org, height_org));
 
   // Save Result Image
   SaveFlowFile(flow_mat, flow_file);
 
-  if (verbosity > 1) {
+  if (op.verbosity > 1) {
 
     gettimeofday(&end_time, NULL);
     double tt = (end_time.tv_sec-start_time.tv_sec)*1000.0f + (end_time.tv_usec-start_time.tv_usec)/1000.0f;
