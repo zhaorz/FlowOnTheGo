@@ -55,6 +55,11 @@ set(CODEFILES
 cuda_add_executable(flow ${CODEFILES} ${CUFILES})
 target_link_libraries(flow ${OpenCV_LIBS})
 
+# CUDA sandbox
+set(SANDBOX_FILES
+  sandbox/sandbox.cpp)
+add_executable(sandbox ${SANDBOX_FILES})
+target_link_libraries(sandbox ${OpenCV_LIBS})
 
 
 
