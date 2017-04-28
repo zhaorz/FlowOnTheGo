@@ -55,10 +55,10 @@ set(CODEFILES
   FDF1.0.1/opticalflow_aux.c
   FDF1.0.1/solver.c)
 
-# add_executable (flow ${CODEFILES})
-
 # GrayScale, Optical Flow
 cuda_add_executable(flow ${CODEFILES} ${CUFILES})
+set_target_properties (flow PROPERTIES COMPILE_DEFINITIONS "SELECTMODE=1")
+set_property(TARGET flow APPEND PROPERTY COMPILE_DEFINITIONS "SELECTCHANNEL=3") # use RGB image
 target_link_libraries(flow ${OpenCV_LIBS})
 
 # CUDA sandbox
@@ -67,16 +67,4 @@ set(SANDBOX_FILES
   sandbox/sandbox.cpp)
 cuda_add_executable(sandbox ${SANDBOX_FILES})
 target_link_libraries(sandbox ${OpenCV_LIBS})
-
-
-
-# # # UNCOMMENT THIS IF YOU WANT TO USE OPENMP PARALLELIZATION
-# add_definitions(-DWITH_OPENMP=true)
-# FIND_PACKAGE( OpenMP REQUIRED)
-# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
-# set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
-# set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
-# #
-# # ENABLE PARALLEL FLOW AGGREGATION, CAN LEAD TO DATA RACES, BUT IN PRACTICE HAS ONLY A WEAK NEGATIVE EFFECT ON THE RESULT, [affects only PatGridClass::AggregateFlowDense() ]
-# # add_definitions(-DUSE_PARALLEL_ON_FLOWAGGR)
 

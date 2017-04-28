@@ -1,5 +1,3 @@
-
-
 #include <iostream>
 #include <string>
 #include <vector>
@@ -10,9 +8,9 @@
 #include <Eigen/LU>
 #include <Eigen/Dense>
 
-// #include <opencv2/core/core.hpp> // needed for verbosity >= 3, DISVISUAL
-// #include <opencv2/highgui/highgui.hpp> // needed for verbosity >= 3, DISVISUAL
-// #include <opencv2/imgproc/imgproc.hpp> // needed for verbosity >= 3, DISVISUAL
+#include <opencv2/core/core.hpp> // needed for verbosity >= 3, DISVISUAL
+#include <opencv2/highgui/highgui.hpp> // needed for verbosity >= 3, DISVISUAL
+#include <opencv2/imgproc/imgproc.hpp> // needed for verbosity >= 3, DISVISUAL
 
 #include <sys/time.h>    // timeof day
 #include <stdio.h>
@@ -26,269 +24,298 @@ using std::cout;
 using std::endl;
 using std::vector;
 
-namespace OFC
-{
+namespace OFC {
 
-  OFClass::OFClass(
-      const float ** im_ao_in, const float ** im_ao_dx_in, const float ** im_ao_dy_in, // expects #sc_f_in pointers to float arrays for images and gradients.
-      // E.g. im_ao[sc_f_in] will be used as coarsest coarsest, im_ao[sc_l_in] as finest scale
-      // im_ao[  (sc_l_in-1) : 0 ] can be left as nullptr pointers
-      // IMPORTANT assumption: mod(width,2^sc_f_in)==0  AND mod(height,2^sc_f_in)==0,
-      const float ** im_bo_in, const float ** im_bo_dx_in, const float ** im_bo_dy_in,
-      const int imgpadding_in,
-      float * outflow,
-      const float * initflow,
-      const int width_in, const int height_in,
-      const int sc_f_in, const int sc_l_in,
-      const int max_iter_in, const int min_iter_in,
-      const float  dp_thresh_in,
-      const float  dr_thresh_in,
-      const float res_thresh_in,
-      const int p_samp_s_in,
-      const float patove_in,
-      const int costfct_in,
-      const int noc_in,
-      const int patnorm_in,
-      const bool usetvref_in,
-      const float tv_alpha_in,
-      const float tv_gamma_in,
-      const float tv_delta_in,
-      const int tv_innerit_in,
-      const int tv_solverit_in,
-      const float tv_sor_in,
-      const int verbosity_in)
-        : im_ao(im_ao_in), im_ao_dx(im_ao_dx_in), im_ao_dy(im_ao_dy_in),
-        im_bo(im_bo_in), im_bo_dx(im_bo_dx_in), im_bo_dy(im_bo_dy_in)
-  {
-
-
-#ifdef WITH_OPENMP
-    if (verbosity_in>1)
-      cout <<  "OPENMP is ON - used in pconst, pinit, potim";
-#ifdef USE_PARALLEL_ON_FLOWAGGR
-    if (verbosity_in>1)
-      cout << ", cflow ";
-#endif
-    if (verbosity_in>1) cout << endl;
-#endif //DWITH_OPENMP
+  OFClass::OFClass(opt_params _op) {
 
     // Parse optimization parameters
-    op.nop = 2;
-    op.p_samp_s = p_samp_s_in;  // patch has even border length, center pixel is at (p_samp_s/2, p_samp_s/2) (ZERO INDEXED!)
-    op.outlierthresh = (float)op.p_samp_s/2;
-    op.patove = patove_in;
-    op.sc_f = sc_f_in;
-    op.sc_l = sc_l_in;
-    op.max_iter = max_iter_in;
-    op.min_iter = min_iter_in;
-    op.dp_thresh = dp_thresh_in*dp_thresh_in; // saves the square to compare with squared L2-norm (saves sqrt operation)
-    op.dr_thresh = dr_thresh_in;
-    op.res_thresh = res_thresh_in;
-    op.steps = std::max(1,  (int)floor(op.p_samp_s*(1-op.patove)));
-    op.novals = noc_in * (p_samp_s_in)*(p_samp_s_in);
-    op.costfct = costfct_in;
-    op.noc = noc_in;
-    op.patnorm = patnorm_in;
-    op.verbosity = verbosity_in;
-    op.noscales = op.sc_f-op.sc_l+1;
-    op.usetvref = usetvref_in;
-    op.tv_alpha = tv_alpha_in;
-    op.tv_gamma = tv_gamma_in;
-    op.tv_delta = tv_delta_in;
-    op.tv_innerit = tv_innerit_in;
-    op.tv_solverit = tv_solverit_in;
-    op.tv_sor = tv_sor_in;
-    op.normoutlier_tmpbsq = (v4sf) {op.normoutlier*op.normoutlier, op.normoutlier*op.normoutlier, op.normoutlier*op.normoutlier, op.normoutlier*op.normoutlier};
-    op.normoutlier_tmp2bsq = __builtin_ia32_mulps(op.normoutlier_tmpbsq, op.twos);
-    op.normoutlier_tmp4bsq = __builtin_ia32_mulps(op.normoutlier_tmpbsq, op.fours);
+    op = _op;
+    op.outlier_thresh = (float) op.patch_size / 2;
+    op.steps = std::max(1, (int) floor(op.patch_size * (1 - op.patch_stride)));
+    op.n_vals = 3 * pow(op.patch_size, 2);
+    op.n_scales = op.coarsest_scale - op.finest_scale + 1;
+    float norm_outlier2 = pow(op.norm_outlier, 2);
+    op.norm_outlier_tmpbsq = (v4sf) {norm_outlier2, norm_outlier2, norm_outlier2, norm_outlier2};
+    op.norm_outlier_tmp2bsq = __builtin_ia32_mulps(op.norm_outlier_tmpbsq, op.twos);
+    op.norm_outlier_tmp4bsq = __builtin_ia32_mulps(op.norm_outlier_tmpbsq, op.fours);
+    op.dp_thresh = 0.05 * 0.05;
+    op.dr_thresh = 0.95;
+    op.res_thresh = 0.0;
 
+    // Allocate scale pyramides
+    I0s = new float*[op.coarsest_scale+1];
+    I1s = new float*[op.coarsest_scale+1];
+    I0xs = new float*[op.coarsest_scale+1];
+    I0ys = new float*[op.coarsest_scale+1];
+    I1xs = new float*[op.coarsest_scale+1];
+    I1ys = new float*[op.coarsest_scale+1];
+
+    I0_mats = new cv::Mat[op.coarsest_scale+1];
+    I1_mats = new cv::Mat[op.coarsest_scale+1];
+    I0x_mats = new cv::Mat[op.coarsest_scale+1];
+    I0y_mats = new cv::Mat[op.coarsest_scale+1];
+    I1x_mats = new cv::Mat[op.coarsest_scale+1];
+    I1y_mats = new cv::Mat[op.coarsest_scale+1];
+
+  }
+
+
+
+  void OFClass::ConstructImgPyramids() {
+
+    // Timing structures
+    struct timeval start_time, end_time;
+    gettimeofday(&start_time, NULL);
+
+    // Construct image and gradient pyramides
+    for (int i = 0; i <= op.coarsest_scale; ++i)  {
+      // At finest scale: copy directly, for all other: downscale previous scale by .5
+      if (i == 0) {
+        I0_mats[i] = I0.clone();
+        I1_mats[i] = I1.clone();
+      } else {
+        cv::resize(I0_mats[i-1], I0_mats[i], cv::Size(), .5, .5, cv::INTER_LINEAR);
+        cv::resize(I1_mats[i-1], I1_mats[i], cv::Size(), .5, .5, cv::INTER_LINEAR);
+      }
+
+      // RGB
+      I0_mats[i].convertTo(I0_mats[i], CV_32FC3);
+      I1_mats[i].convertTo(I1_mats[i], CV_32FC3);
+
+      // Generate gradients
+      cv::Sobel(I0_mats[i], I0x_mats[i], CV_32F, 1, 0, 1, 1, 0, cv::BORDER_DEFAULT);
+      cv::Sobel(I0_mats[i], I0y_mats[i], CV_32F, 0, 1, 1, 1, 0, cv::BORDER_DEFAULT);
+      I0x_mats[i].convertTo(I0x_mats[i], CV_32F);
+      I0y_mats[i].convertTo(I0y_mats[i], CV_32F);
+
+      cv::Sobel(I1_mats[i], I1x_mats[i], CV_32F, 1, 0, 1, 1, 0, cv::BORDER_DEFAULT);
+      cv::Sobel(I1_mats[i], I1y_mats[i], CV_32F, 0, 1, 1, 1, 0, cv::BORDER_DEFAULT);
+      I1x_mats[i].convertTo(I1x_mats[i], CV_32F);
+      I1y_mats[i].convertTo(I1y_mats[i], CV_32F);
+    }
+
+
+    // Pad images
+    for (int i = 0; i <= op.coarsest_scale; ++i) {
+
+      // Replicate padding for images
+      copyMakeBorder(I0_mats[i], I0_mats[i], op.patch_size, op.patch_size,
+          op.patch_size, op.patch_size, cv::BORDER_REPLICATE);
+      copyMakeBorder(I1_mats[i], I1_mats[i], op.patch_size, op.patch_size,
+          op.patch_size, op.patch_size, cv::BORDER_REPLICATE);
+      I0s[i] = (float*) I0_mats[i].data;
+      I1s[i] = (float*) I1_mats[i].data;
+
+      // Zero pad for gradients
+      copyMakeBorder(I0x_mats[i], I0x_mats[i], op.patch_size, op.patch_size,
+          op.patch_size, op.patch_size, cv::BORDER_CONSTANT, 0);
+      copyMakeBorder(I0y_mats[i], I0y_mats[i], op.patch_size, op.patch_size,
+          op.patch_size, op.patch_size, cv::BORDER_CONSTANT, 0);
+      copyMakeBorder(I1x_mats[i], I1x_mats[i], op.patch_size, op.patch_size,
+          op.patch_size, op.patch_size, cv::BORDER_CONSTANT, 0);
+      copyMakeBorder(I1y_mats[i], I1y_mats[i], op.patch_size, op.patch_size,
+          op.patch_size, op.patch_size, cv::BORDER_CONSTANT, 0);
+
+      I0xs[i] = (float*) I0x_mats[i].data;
+      I0ys[i] = (float*) I0y_mats[i].data;
+      I1xs[i] = (float*) I1x_mats[i].data;
+      I1ys[i] = (float*) I1y_mats[i].data;
+
+    }
+
+    // Timing, image gradients and pyramid
+    if (op.verbosity > 1) {
+
+      gettimeofday(&end_time, NULL);
+      double tt = (end_time.tv_sec-start_time.tv_sec)*1000.0f + (end_time.tv_usec-start_time.tv_usec)/1000.0f;
+      printf("TIME (Pyramids+Gradients) (ms): %3g\n", tt);
+
+    }
+
+  }
+
+
+
+  void OFClass::calc(cv::Mat _I0, cv::Mat _I1, img_params _iparams, const float * initflow, float * outflow) {
+
+    I0 = _I0;
+    I1 = _I1;
+
+    printf("Constructing pyramids\n");
+    ConstructImgPyramids();
+
+    if (op.verbosity > 1) cout << ", cflow " << endl;
 
     // Variables for algorithm timings
     struct timeval tv_start_all, tv_end_all, tv_start_all_global, tv_end_all_global;
-    if (op.verbosity>0)
-      gettimeofday(&tv_start_all_global, nullptr);
+    if (op.verbosity > 0) gettimeofday(&tv_start_all_global, nullptr);
 
     // ... per each scale
-    double tt_patconstr[op.noscales], tt_patinit[op.noscales], tt_patoptim[op.noscales], tt_compflow[op.noscales], tt_tvopt[op.noscales], tt_all[op.noscales];
-    for (int sl=op.sc_f; sl>=op.sc_l; --sl)
-    {
-      tt_patconstr[sl-op.sc_l]=0;
-      tt_patinit[sl-op.sc_l]=0;
-      tt_patoptim[sl-op.sc_l]=0;
-      tt_compflow[sl-op.sc_l]=0;
-      tt_tvopt[sl-op.sc_l]=0;
-      tt_all[sl-op.sc_l]=0;
+    double tt_patconstr[op.n_scales], tt_patinit[op.n_scales], tt_patoptim[op.n_scales],
+           tt_compflow[op.n_scales], tt_tvopt[op.n_scales], tt_all[op.n_scales];
+    for (int sl = op.coarsest_scale; sl >= op.finest_scale; --sl) {
+
+      tt_patconstr[sl - op.finest_scale] = 0;
+      tt_patinit[sl - op.finest_scale] = 0;
+      tt_patoptim[sl - op.finest_scale] = 0;
+      tt_compflow[sl - op.finest_scale] = 0;
+      tt_tvopt[sl - op.finest_scale] = 0;
+      tt_all[sl - op.finest_scale] = 0;
+
     }
 
     if (op.verbosity>1) gettimeofday(&tv_start_all, nullptr);
 
+
     // Create grids on each scale
-    vector<OFC::PatGridClass*> grid_fw(op.noscales);
-    vector<float*> flow_fw(op.noscales);
-    cpl.resize(op.noscales);
-    cpr.resize(op.noscales);
-    for (int sl=op.sc_f; sl>=op.sc_l; --sl)
-    {
-      int i = sl-op.sc_l;
+    vector<OFC::PatGridClass*> grid(op.n_scales);
+    vector<float*> flow(op.n_scales);
+    iparams.resize(op.n_scales);
+    for (int sl = op.coarsest_scale; sl >= op.finest_scale; --sl) {
 
-      float sc_fct = pow(2,-sl); // scaling factor at current scale
-      cpl[i].sc_fct = sc_fct;
-      cpl[i].height = height_in * sc_fct;
-      cpl[i].width = width_in * sc_fct;
-      cpl[i].imgpadding = imgpadding_in;
-      cpl[i].tmp_lb = -(float)op.p_samp_s/2;
-      cpl[i].tmp_ubw = (float) (cpl[i].width +op.p_samp_s/2-2);
-      cpl[i].tmp_ubh = (float) (cpl[i].height+op.p_samp_s/2-2);
-      cpl[i].tmp_w = cpl[i].width + 2*imgpadding_in;
-      cpl[i].tmp_h = cpl[i].height+ 2*imgpadding_in;
-      cpl[i].curr_lv = sl;
-      cpl[i].camlr = 0;
+      int i = sl - op.finest_scale;
 
+      float scale_fact = pow(2, -sl); // scaling factor at current scale
+      iparams[i].scale_fact = scale_fact;
+      iparams[i].height = _iparams.height * scale_fact;
+      iparams[i].width = _iparams.width * scale_fact;
+      iparams[i].padding = _iparams.padding;
+      iparams[i].l_bound = -(float) op.patch_size / 2;
+      iparams[i].u_bound_width = (float) (iparams[i].width + op.patch_size / 2 - 2);
+      iparams[i].u_bound_height = (float) (iparams[i].height + op.patch_size / 2 - 2);
+      iparams[i].width_pad = iparams[i].width + 2 * _iparams.padding;
+      iparams[i].height_pad = iparams[i].height + 2 * _iparams.padding;
+      iparams[i].curr_lvl = sl;
 
-      cpr[i] = cpl[i];
-      cpr[i].camlr = 1;
-
-      flow_fw[i]   = new float[op.nop * cpl[i].width * cpl[i].height];
-      grid_fw[i]   = new OFC::PatGridClass(&(cpl[i]), &(cpr[i]), &op);
+      flow[i]   = new float[2 * iparams[i].width * iparams[i].height];
+      grid[i]   = new OFC::PatGridClass(&(iparams[i]), &op);
 
     }
 
 
     // Timing, Grid memory allocation
-    if (op.verbosity>1)
-    {
+    if (op.verbosity>1) {
+
       gettimeofday(&tv_end_all, nullptr);
       double tt_gridconst = (tv_end_all.tv_sec-tv_start_all.tv_sec)*1000.0f + (tv_end_all.tv_usec-tv_start_all.tv_usec)/1000.0f;
       printf("TIME (Grid Memo. Alloc. ) (ms): %3g\n", tt_gridconst);
+
     }
 
 
-    // *** Main loop; Operate over scales, coarse-to-fine
-    for (int sl=op.sc_f; sl>=op.sc_l; --sl)
-    {
-      int ii = sl-op.sc_l;
+    // Main loop; Operate over scales, coarse-to-fine
+    for (int sl = op.coarsest_scale; sl >= op.finest_scale; --sl) {
 
-      if (op.verbosity>1) gettimeofday(&tv_start_all, nullptr);
+      int ii = sl - op.finest_scale;
+      if (op.verbosity > 1) gettimeofday(&tv_start_all, nullptr);
+
 
       // Initialize grid (Step 1 in Algorithm 1 of paper)
-      grid_fw[ii]->  InitializeGrid(im_ao[sl], im_ao_dx[sl], im_ao_dy[sl]);
-      grid_fw[ii]->  SetTargetImage(im_bo[sl], im_bo_dx[sl], im_bo_dy[sl]);
+      grid[ii]->InitializeGrid(I0s[sl], I0xs[sl], I0ys[sl]);
+      grid[ii]->SetTargetImage(I1s[sl], I1xs[sl], I1ys[sl]);
 
       // Timing, Grid construction
-      if (op.verbosity>1)
-      {
+      if (op.verbosity > 1) {
+
         gettimeofday(&tv_end_all, nullptr);
         tt_patconstr[ii] = (tv_end_all.tv_sec-tv_start_all.tv_sec)*1000.0f + (tv_end_all.tv_usec-tv_start_all.tv_usec)/1000.0f;
         tt_all[ii] += tt_patconstr[ii];
         gettimeofday(&tv_start_all, nullptr);
+
       }
 
+
       // Initialization from previous scale, or to zero at first iteration. (Step 2 in Algorithm 1 of paper)
-      if (sl < op.sc_f)
-      {
-        grid_fw[ii]->InitializeFromCoarserOF(flow_fw[ii+1]); // initialize from flow at previous coarser scale
-      }
-      else if (sl == op.sc_f && initflow != nullptr) // initialization given input flow
-      {
-        grid_fw[ii]->InitializeFromCoarserOF(initflow); // initialize from flow at coarser scale
+      if (sl < op.coarsest_scale) {
+        // initialize from flow at previous coarser scale
+        grid[ii]->InitializeFromCoarserOF(flow[ii+1]);
+      } else if (sl == op.coarsest_scale && initflow != nullptr) {
+        // initialization given input flow
+        grid[ii]->InitializeFromCoarserOF(initflow);
       }
 
       // Timing, Grid initialization
-      if (op.verbosity>1)
-      {
+      if (op.verbosity > 1) {
+
         gettimeofday(&tv_end_all, nullptr);
         tt_patinit[ii] = (tv_end_all.tv_sec-tv_start_all.tv_sec)*1000.0f + (tv_end_all.tv_usec-tv_start_all.tv_usec)/1000.0f;
         tt_all[ii] += tt_patinit[ii];
         gettimeofday(&tv_start_all, nullptr);
+
       }
 
 
       // Dense Inverse Search. (Step 3 in Algorithm 1 of paper)
-      grid_fw[ii]->Optimize();
+      grid[ii]->Optimize();
 
       // Timing, DIS
-      if (op.verbosity>1)
-      {
+      if (op.verbosity>1) {
+
         gettimeofday(&tv_end_all, nullptr);
         tt_patoptim[ii] = (tv_end_all.tv_sec-tv_start_all.tv_sec)*1000.0f + (tv_end_all.tv_usec-tv_start_all.tv_usec)/1000.0f;
         tt_all[ii] += tt_patoptim[ii];
-
         gettimeofday(&tv_start_all, nullptr);
+
       }
 
 
       // Densification. (Step 4 in Algorithm 1 of paper)
-      float *tmp_ptr = flow_fw[ii];
-      if (sl == op.sc_l)
-        tmp_ptr = outflow;
+      float *out_ptr = flow[ii];
+      if (sl == op.finest_scale)
+        out_ptr = outflow;
 
-      grid_fw[ii]->AggregateFlowDense(tmp_ptr);
+      grid[ii]->AggregateFlowDense(out_ptr);
 
 
       // Timing, Densification
-      if (op.verbosity>1)
-      {
+      if (op.verbosity > 1) {
+
         gettimeofday(&tv_end_all, nullptr);
         tt_compflow[ii] = (tv_end_all.tv_sec-tv_start_all.tv_sec)*1000.0f + (tv_end_all.tv_usec-tv_start_all.tv_usec)/1000.0f;
         tt_all[ii] += tt_compflow[ii];
-
         gettimeofday(&tv_start_all, nullptr);
+
       }
 
 
       // Variational refinement, (Step 5 in Algorithm 1 of paper)
-      if (op.usetvref)
-      {
-        OFC::VarRefClass varref_fw(im_ao[sl], im_ao_dx[sl], im_ao_dy[sl],
-            im_bo[sl], im_bo_dx[sl], im_bo_dy[sl],
-            &(cpl[ii]), &(cpr[ii]), &op, tmp_ptr);
+      if (op.use_var_ref) {
+
+        OFC::VarRefClass var_ref(I0s[sl], I1s[sl], &(iparams[ii]), &op, out_ptr);
+
       }
 
       // Timing, Variational Refinement
-      if (op.verbosity>1)
+      if (op.verbosity > 1)
       {
+
         gettimeofday(&tv_end_all, nullptr);
         tt_tvopt[ii] = (tv_end_all.tv_sec-tv_start_all.tv_sec)*1000.0f + (tv_end_all.tv_usec-tv_start_all.tv_usec)/1000.0f;
         tt_all[ii] += tt_tvopt[ii];
-        printf("TIME (Sc: %i, #p:%6i, pconst, pinit, poptim, cflow, tvopt, total): %8.2f %8.2f %8.2f %8.2f %8.2f -> %8.2f ms.\n", sl, grid_fw[ii]->GetNoPatches(), tt_patconstr[ii], tt_patinit[ii], tt_patoptim[ii], tt_compflow[ii], tt_tvopt[ii], tt_all[ii]);
+        printf("TIME (Sc: %i, #p:%6i, pconst, pinit, poptim, cflow, tvopt, total): %8.2f %8.2f %8.2f %8.2f %8.2f -> %8.2f ms.\n", sl, grid[ii]->GetNumPatches(), tt_patconstr[ii], tt_patinit[ii], tt_patoptim[ii], tt_compflow[ii], tt_tvopt[ii], tt_all[ii]);
+
       }
 
     }
 
     // Clean up
-    for (int sl=op.sc_f; sl>=op.sc_l; --sl)
-    {
+    for (int sl = op.coarsest_scale; sl >= op.finest_scale; --sl) {
 
-      delete[] flow_fw[sl-op.sc_l];
-      delete grid_fw[sl-op.sc_l];
+      delete[] flow[sl - op.finest_scale];
+      delete grid[sl - op.finest_scale];
 
     }
 
 
     // Timing, total algorithm run-time
-    if (op.verbosity>0)
-    {
+    if (op.verbosity > 0) {
+
       gettimeofday(&tv_end_all_global, nullptr);
       double tt = (tv_end_all_global.tv_sec-tv_start_all_global.tv_sec)*1000.0f + (tv_end_all_global.tv_usec-tv_start_all_global.tv_usec)/1000.0f;
       printf("TIME (O.Flow Run-Time   ) (ms): %3g\n", tt);
-    }
 
+    }
 
   }
 
-
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-

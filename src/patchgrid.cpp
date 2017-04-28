@@ -20,247 +20,184 @@ using std::endl;
 using std::vector;
 
 
-namespace OFC
-{
+namespace OFC {
 
   PatGridClass::PatGridClass(
-      const camparam* cpt_in,
-      const camparam* cpo_in,
-      const optparam* op_in)
-    :
-      cpt(cpt_in),
-      cpo(cpo_in),
-      op(op_in)
-  {
+      const img_params* _i_params,
+      const opt_params* _op)
+    : i_params(_i_params), op(_op) {
 
     // Generate grid on current scale
     steps = op->steps;
-    nopw = ceil( (float)cpt->width /  (float)steps );
-    noph = ceil( (float)cpt->height / (float)steps );
-    const int offsetw = floor((cpt->width - (nopw-1)*steps)/2);
-    const int offseth = floor((cpt->height - (noph-1)*steps)/2);
+    n_patches_width = ceil((float) i_params->width /  (float) steps);
+    n_patches_height = ceil((float) i_params->height / (float) steps);
+    const int offsetw = floor((i_params->width - (n_patches_width - 1) * steps) / 2);
+    const int offseth = floor((i_params->height - (n_patches_height - 1) * steps) / 2);
 
-    nopatches = nopw*noph;
-    pt_ref.resize(nopatches);
-    p_init.resize(nopatches);
-    pat.reserve(nopatches);
+    n_patches = n_patches_width * n_patches_height;
+    midpoints_ref.resize(n_patches);
+    p_init.resize(n_patches);
+    patches.reserve(n_patches);
 
-    im_ao_eg = new Eigen::Map<const Eigen::MatrixXf>(nullptr,cpt->height,cpt->width);
-    im_ao_dx_eg = new Eigen::Map<const Eigen::MatrixXf>(nullptr,cpt->height,cpt->width);
-    im_ao_dy_eg = new Eigen::Map<const Eigen::MatrixXf>(nullptr,cpt->height,cpt->width);
+    I0_eg = new Eigen::Map<const Eigen::MatrixXf>(nullptr, i_params->height, i_params->width);
+    I0x_eg = new Eigen::Map<const Eigen::MatrixXf>(nullptr, i_params->height, i_params->width);
+    I0y_eg = new Eigen::Map<const Eigen::MatrixXf>(nullptr, i_params->height, i_params->width);
 
-    im_bo_eg = new Eigen::Map<const Eigen::MatrixXf>(nullptr,cpt->height,cpt->width);
-    im_bo_dx_eg = new Eigen::Map<const Eigen::MatrixXf>(nullptr,cpt->height,cpt->width);
-    im_bo_dy_eg = new Eigen::Map<const Eigen::MatrixXf>(nullptr,cpt->height,cpt->width);
+    I1_eg = new Eigen::Map<const Eigen::MatrixXf>(nullptr, i_params->height, i_params->width);
+    I1x_eg = new Eigen::Map<const Eigen::MatrixXf>(nullptr, i_params->height, i_params->width);
+    I1y_eg = new Eigen::Map<const Eigen::MatrixXf>(nullptr, i_params->height, i_params->width);
 
-    int patchid=0;
-    for (int x = 0; x < nopw; ++x)
-    {
-      for (int y = 0; y < noph; ++y)
-      {
-        int i = x*noph + y;
+    int patch_id = 0;
+    for (int x = 0; x < n_patches_width; ++x) {
+      for (int y = 0; y < n_patches_height; ++y) {
 
-        pt_ref[i][0] = x * steps + offsetw;
-        pt_ref[i][1] = y * steps + offseth;
+        int i = x * n_patches_height + y;
+
+        midpoints_ref[i][0] = x * steps + offsetw;
+        midpoints_ref[i][1] = y * steps + offseth;
         p_init[i].setZero();
 
-        pat.push_back(new OFC::PatClass(cpt, cpo, op, patchid));
-        patchid++;
+        patches.push_back(new OFC::PatClass(i_params, op, patch_id));
+        patch_id++;
+
       }
     }
+
   }
 
-  PatGridClass::~PatGridClass()
-  {
-    delete im_ao_eg;
-    delete im_ao_dx_eg;
-    delete im_ao_dy_eg;
+  PatGridClass::~PatGridClass() {
 
-    delete im_bo_eg;
-    delete im_bo_dx_eg;
-    delete im_bo_dy_eg;
+    delete I0_eg;
+    delete I0x_eg;
+    delete I0y_eg;
 
-    for (int i=0; i< nopatches; ++i)
-      delete pat[i];
+    delete I1_eg;
+    delete I1x_eg;
+    delete I1y_eg;
+
+    for (int i = 0; i < n_patches; ++i)
+      delete patches[i];
+
   }
 
-  void PatGridClass::InitializeGrid(const float * im_ao_in, const float * im_ao_dx_in, const float * im_ao_dy_in)
-  {
-    im_ao = im_ao_in;
-    im_ao_dx = im_ao_dx_in;
-    im_ao_dy = im_ao_dy_in;
+  void PatGridClass::InitializeGrid(const float * _I0, const float * _I0x, const float * _I0y) {
 
-    new (im_ao_eg) Eigen::Map<const Eigen::MatrixXf>(im_ao,cpt->height,cpt->width); // new placement operator
-    new (im_ao_dx_eg) Eigen::Map<const Eigen::MatrixXf>(im_ao_dx,cpt->height,cpt->width);
-    new (im_ao_dy_eg) Eigen::Map<const Eigen::MatrixXf>(im_ao_dy,cpt->height,cpt->width);
+    I0 = _I0;
+    I0x = _I0x;
+    I0y = _I0y;
 
+    new (I0_eg) Eigen::Map<const Eigen::MatrixXf>(I0, i_params->height, i_params->width);
+    new (I0x_eg) Eigen::Map<const Eigen::MatrixXf>(I0x, i_params->height, i_params->width);
+    new (I0y_eg) Eigen::Map<const Eigen::MatrixXf>(I0y, i_params->height, i_params->width);
 
-#pragma omp parallel for schedule(static)
-    for (int i = 0; i < nopatches; ++i)
-    {
-      pat[i]->InitializePatch(im_ao_eg, im_ao_dx_eg, im_ao_dy_eg, pt_ref[i]);
+    for (int i = 0; i < n_patches; ++i) {
+      patches[i]->InitializePatch(I0_eg, I0x_eg, I0y_eg, midpoints_ref[i]);
       p_init[i].setZero();
     }
 
   }
 
-  void PatGridClass::SetTargetImage(const float * im_bo_in, const float * im_bo_dx_in, const float * im_bo_dy_in)
-  {
-    im_bo = im_bo_in;
-    im_bo_dx = im_bo_dx_in;
-    im_bo_dy = im_bo_dy_in;
+  void PatGridClass::SetTargetImage(const float * _I1, const float * _I1x, const float * _I1y) {
 
-    new (im_bo_eg) Eigen::Map<const Eigen::MatrixXf>(im_bo,cpt->height,cpt->width); // new placement operator
-    new (im_bo_dx_eg) Eigen::Map<const Eigen::MatrixXf>(im_bo_dx,cpt->height,cpt->width); // new placement operator
-    new (im_bo_dy_eg) Eigen::Map<const Eigen::MatrixXf>(im_bo_dy,cpt->height,cpt->width); // new placement operator
+    I1 = _I1;
+    I1x = _I1x;
+    I1y = _I1y;
 
-#pragma omp parallel for schedule(static)
-    for (int i = 0; i < nopatches; ++i)
-      pat[i]->SetTargetImage(im_bo_eg, im_bo_dx_eg, im_bo_dy_eg);
+    new (I1_eg) Eigen::Map<const Eigen::MatrixXf>(I1, i_params->height, i_params->width);
+    new (I1x_eg) Eigen::Map<const Eigen::MatrixXf>(I1x, i_params->height, i_params->width);
+    new (I1y_eg) Eigen::Map<const Eigen::MatrixXf>(I1y, i_params->height, i_params->width);
 
-  }
-
-  void PatGridClass::Optimize()
-  {
-#pragma omp parallel for schedule(dynamic,10)
-    for (int i = 0; i < nopatches; ++i)
-    {
-      pat[i]->OptimizeIter(p_init[i], true); // optimize until convergence
+    for (int i = 0; i < n_patches; ++i) {
+      patches[i]->SetTargetImage(I1_eg, I1x_eg, I1y_eg);
     }
+
   }
 
-  // void PatGridClass::OptimizeAndVisualize(const float sc_fct_tmp) // needed for verbosity >= 3, DISVISUAL
-  // {
-  //   bool allconverged=0;
-  //   int cnt = 0;
-  //   while (!allconverged)
-  //   {
-  //     cnt++;
-  //
-  //     allconverged=1;
-  //
-  //     for (int i = 0; i < nopatches; ++i)
-  //     {
-  //       if (pat[i]->isConverged()==0)
-  //       {
-  //         pat[i]->OptimizeIter(p_init[i], false); // optimize, only one iterations
-  //         allconverged=0;
-  //       }
-  //     }
-  //
-  //
-  //     // Display original image
-  //     const cv::Mat src(cpt->height+2*cpt->imgpadding, cpt->width+2*cpt->imgpadding, CV_32FC1, (void*) im_ao);
-  //     cv::Mat img_ao_mat = src(cv::Rect(cpt->imgpadding,cpt->imgpadding,cpt->width,cpt->height));
-  //     cv::Mat outimg;
-  //     img_ao_mat.convertTo(outimg, CV_8UC1);
-  //     cv::cvtColor(outimg, outimg, CV_GRAY2RGB);
-  //     cv::resize(outimg, outimg, cv::Size(), sc_fct_tmp, sc_fct_tmp, cv::INTER_NEAREST);
-  //
-  //     for (int i = 0; i < nopatches; ++i)
-  //     {
-  //       // Show displacement vector
-  //       const Eigen::Vector2f pt_ret = pat[i]->GetPointPos();
-  //
-  //       Eigen::Vector2f pta, ptb;
-  //
-  //       cv::line(outimg, cv::Point( (pt_ref[i][0]+.5)*sc_fct_tmp, (pt_ref[i][1]+.5)*sc_fct_tmp ), cv::Point( (pt_ret[0]+.5)*sc_fct_tmp, (pt_ret[1]+.5)*sc_fct_tmp ), cv::Scalar(255*pat[i]->isConverged() ,255*(!pat[i]->isConverged()),0),  2);
-  //
-  //       cv::line(outimg, cv::Point( (cpt->cx+.5)*sc_fct_tmp, (cpt->cy+.5)*sc_fct_tmp ), cv::Point( (cpt->cx+.5)*sc_fct_tmp, (cpt->cy+.5)*sc_fct_tmp ), cv::Scalar(0,0, 255),  2);
-  //
-  //     }
-  //
-  //     char str[200];
-  //     sprintf(str,"Iter: %i",cnt);
-  //     cv::putText(outimg, str, cv::Point2f(20,20), cv::FONT_HERSHEY_PLAIN, 1,  cv::Scalar(0,0,255,255), 2);
-  //
-  //     cv::namedWindow( "Img_iter", cv::WINDOW_AUTOSIZE );
-  //     cv::imshow( "Img_iter", outimg);
-  //
-  //     cv::waitKey(500);
-  //   }
-  // }
+  void PatGridClass::Optimize() {
 
-  void PatGridClass::InitializeFromCoarserOF(const float * flow_prev)
-  {
-#pragma omp parallel for schedule(dynamic,10)
-    for (int ip = 0; ip < nopatches; ++ip)
-    {
-      int x = floor(pt_ref[ip][0] / 2); // better, but slower: use bil. interpolation here
-      int y = floor(pt_ref[ip][1] / 2);
-      int i = y*(cpt->width/2) + x;
-
-      p_init[ip](0) = flow_prev[2*i  ]*2;
-      p_init[ip](1) = flow_prev[2*i+1]*2;
+    for (int i = 0; i < n_patches; ++i) {
+      patches[i]->OptimizeIter(p_init[i]);
     }
+
   }
 
-  void PatGridClass::AggregateFlowDense(float *flowout) const
-  {
-    float* we = new float[cpt->width * cpt->height];
+  void PatGridClass::InitializeFromCoarserOF(const float * flow_prev) {
 
-    memset(flowout, 0, sizeof(float) * (op->nop * cpt->width * cpt->height) );
-    memset(we,      0, sizeof(float) * (          cpt->width * cpt->height) );
+    for (int ip = 0; ip < n_patches; ++ip) {
 
-#ifdef USE_PARALLEL_ON_FLOWAGGR // Using this enables OpenMP on flow aggregation. This can lead to race conditions. Experimentally we found that the result degrades only marginally. However, for our experiments we did not enable this.
-#pragma omp parallel for schedule(static)
-#endif
-    for (int ip = 0; ip < nopatches; ++ip)
-    {
+      int x = floor(midpoints_ref[ip][0] / 2);
+      int y = floor(midpoints_ref[ip][1] / 2);
+      int i = y * (i_params->width / 2) + x;
 
-      if (pat[ip]->IsValid())
-      {
-        const Eigen::Vector2f*            fl = pat[ip]->GetParam(); // flow displacement of this patch
+      p_init[ip](0) = flow_prev[2 * i] * 2;
+      p_init[ip](1) = flow_prev[2 * i + 1] * 2;
+
+    }
+
+  }
+
+  void PatGridClass::AggregateFlowDense(float *flowout) const {
+
+    float* weights = new float[i_params->width * i_params->height];
+
+    memset(flowout, 0, sizeof(float) * (2 * i_params->width * i_params->height));
+    memset(weights, 0, sizeof(float) * (i_params->width * i_params->height));
+
+    for (int ip = 0; ip < n_patches; ++ip) {
+
+      if (patches[ip]->IsValid()) {
+
+        const Eigen::Vector2f* fl = patches[ip]->GetCurP(); // flow displacement of this patch
         Eigen::Vector2f flnew;
 
-        const float * pweight = pat[ip]->GetpWeightPtr(); // use image error as weight
+        const float * pweight = patches[ip]->GetCostDiffPtr(); // use image error as weight
 
-        int lb = -op->p_samp_s/2;
-        int ub = op->p_samp_s/2-1;
+        int lower_bound = -op->patch_size / 2;
+        int upper_bound = op->patch_size / 2 - 1;
 
-        for (int y = lb; y <= ub; ++y)
-        {
-          for (int x = lb; x <= ub; ++x, ++pweight)
-          {
-            int yt = (y + pt_ref[ip][1]);
-            int xt = (x + pt_ref[ip][0]);
+        for (int y = lower_bound; y <= upper_bound; ++y) {
+          for (int x = lower_bound; x <= upper_bound; ++x, ++pweight) {
 
-            if (xt >= 0 && yt >= 0 && xt < cpt->width && yt < cpt->height)
-            {
+            int yt = (y + midpoints_ref[ip][1]);
+            int xt = (x + midpoints_ref[ip][0]);
 
-              int i = yt*cpt->width + xt;
+            if (xt >= 0 && yt >= 0 && xt < i_params->width && yt < i_params->height) {
 
-              float absw = 1.0f /  (float)(std::max(op->minerrval  ,*pweight));
+              int i = yt * i_params->width + xt;
+
+              // Weight contribution RGB
+              float absw = 1.0f /  (float)(std::max(op->min_errval, *pweight)); ++pweight;
+              absw += 1.0f /  (float)(std::max(op->min_errval, *pweight)); ++pweight;
+              absw += 1.0f /  (float)(std::max(op->min_errval, *pweight));
 
               flnew = (*fl) * absw;
-              we[i] += absw;
+              weights[i] += absw;
 
-              flowout[2*i]   += flnew[0];
-              flowout[2*i+1] += flnew[1];
+              flowout[2 * i] += flnew[0];
+              flowout[2 * i + 1] += flnew[1];
             }
+
           }
         }
+
       }
+
     }
 
-#pragma omp parallel for schedule(static, 100)
     // normalize each pixel by dividing displacement by aggregated weights from all patches
-    for (int yi = 0; yi < cpt->height; ++yi)
-    {
-      for (int xi = 0; xi < cpt->width; ++xi)
-      {
-        int i    = yi*cpt->width + xi;
-        if (we[i]>0)
-        {
-          flowout[2*i  ] /= we[i];
-          flowout[2*i+1] /= we[i];
+    for (int yi = 0; yi < i_params->height; ++yi) {
+      for (int xi = 0; xi < i_params->width; ++xi) {
+
+        int i = yi * i_params->width + xi;
+        if (weights[i] > 0) {
+          flowout[2 * i] /= weights[i];
+          flowout[2 * i + 1] /= weights[i];
         }
+
       }
     }
 
-    delete[] we;
+    delete[] weights;
   }
 
 }
-
-

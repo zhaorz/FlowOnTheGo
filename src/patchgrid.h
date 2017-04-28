@@ -1,4 +1,3 @@
-
 // Class implements step (3.) in Algorithm 1 of the paper:
 // I holds all patch objects on a specific scale, and organizes 1) the dense inverse search, 2) densification
 
@@ -9,21 +8,17 @@
 #include "oflow.h" // For camera intrinsic and opt. parameter struct
 
 
-namespace OFC
-{
+namespace OFC {
 
-  class PatGridClass
-  {
+  class PatGridClass {
 
     public:
-      PatGridClass(const camparam* cpt_in,
-          const camparam* cpo_in,
-          const optparam* op_in);
+      PatGridClass(const img_params* _i_params, const opt_params* _op);
 
       ~PatGridClass();
 
-      void InitializeGrid(const float * im_ao_in, const float * im_ao_dx_in, const float * im_ao_dy_in);
-      void SetTargetImage(const float * im_bo_in, const float * im_bo_dx_in, const float * im_bo_dy_in);
+      void InitializeGrid(const float * _I0, const float * _I0x, const float * _I0y);
+      void SetTargetImage(const float * _I1, const float * _I1x, const float * _I1y);
       void InitializeFromCoarserOF(const float * flow_prev);
 
       void AggregateFlowDense(float *flowout) const;
@@ -33,39 +28,35 @@ namespace OFC
       //Optimize each patch in grid for one iteration, visualize displacement vector, repeat
       //void OptimizeAndVisualize(const float sc_fct_tmp);  // needed for verbosity >= 3, DISVISUAL
 
-      inline const int GetNoPatches() const { return nopatches; }
-      inline const int GetNoph() const { return noph; }
-      inline const int GetNopw() const { return nopw; }
+      inline const int GetNumPatches() const { return n_patches; }
+      inline const int GetNumPatchesW() const { return n_patches_width; }
+      inline const int GetNumPatchesH() const { return n_patches_height; }
 
-      inline const Eigen::Vector2f GetRefPatchPos(int i) const { return pt_ref[i]; } // Get reference  patch position
-      inline const Eigen::Vector2f GetQuePatchPos(int i) const { return pat[i]->GetPointPos(); } // Get target/query patch position
-      inline const Eigen::Vector2f GetQuePatchDis(int i) const { return pt_ref[i]-pat[i]->GetPointPos(); } // Get query patch displacement from reference patch
+      inline const Eigen::Vector2f GetRefPatchPos(int i) const { return midpoints_ref[i]; } // Get reference  patch position
+      inline const Eigen::Vector2f GetQuePatchPos(int i) const { return patches[i]->GetTargMidpoint(); } // Get target/query patch position
+      inline const Eigen::Vector2f GetQuePatchDis(int i) const { return midpoints_ref[i]-patches[i]->GetTargMidpoint(); } // Get query patch displacement from reference patch
 
     private:
 
-      const float * im_ao, * im_ao_dx, * im_ao_dy;
-      const float * im_bo, * im_bo_dx, * im_bo_dy;
+      const float * I0, * I0x, * I0y;
+      const float * I1, * I1x, * I1y;
 
-      Eigen::Map<const Eigen::MatrixXf> * im_ao_eg, * im_ao_dx_eg, * im_ao_dy_eg;
-      Eigen::Map<const Eigen::MatrixXf> * im_bo_eg, * im_bo_dx_eg, * im_bo_dy_eg;
+      Eigen::Map<const Eigen::MatrixXf> * I0_eg, * I0x_eg, * I0y_eg;
+      Eigen::Map<const Eigen::MatrixXf> * I1_eg, * I1x_eg, * I1y_eg;
 
-      const camparam* cpt;
-      const camparam* cpo;
-      const optparam* op;
+      const img_params* i_params;
+      const opt_params* op;
 
       int steps;
-      int nopw;
-      int noph;
-      int nopatches;
+      int n_patches_width;
+      int n_patches_height;
+      int n_patches;
 
-      std::vector<OFC::PatClass*> pat; // Patch Objects
-      std::vector<Eigen::Vector2f> pt_ref; // Midpoints for reference patches
-      std::vector<Eigen::Vector2f>            p_init; // starting parameters for query patches
+      std::vector<OFC::PatClass*> patches; // Patch Objects
+      std::vector<Eigen::Vector2f> midpoints_ref; // Midpoints for reference patches
+      std::vector<Eigen::Vector2f> p_init; // starting parameters for query patches
   };
-
 
 }
 
 #endif /* PATGRID_HEADER */
-
-
