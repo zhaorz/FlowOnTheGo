@@ -12,11 +12,10 @@
 #ifndef __CUDA_HELPER_H__
 #define __CUDA_HELPER_H__
 
-// System includes
+
 #include <stdio.h>
 #include <assert.h>
 
-// CUDA runtime
 #include <cuda_runtime.h>
 
 #ifndef DEVICE_RESET
@@ -452,7 +451,7 @@ inline int findCudaDevice(int argc, const char **argv)
     return devID;
 }
 
-void initializeCuda(int argc, char** argv) {
+inline void initializeCuda(int argc, char** argv) {
   int devID;
   cudaDeviceProp props;
 
