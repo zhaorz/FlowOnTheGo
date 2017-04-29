@@ -10,17 +10,17 @@
 
 #include <opencv2/opencv.hpp>
 
-class rgbMat {
+class RgbMat {
 
   /**
-   * rgbMat represents 2D RGB (3 channel) images as flat arrays of floats.
+   * RgbMat represents 2D RGB (3 channel) images as flat arrays of floats.
    */
 
   public:
 
-    rgbMat(int height, int width);
-    rgbMat(cv::Mat cvMat);
-    ~rgbMat();
+    RgbMat(int height, int width);
+    RgbMat(cv::Mat cvMat);
+    ~RgbMat();
 
     int height;
     int width;

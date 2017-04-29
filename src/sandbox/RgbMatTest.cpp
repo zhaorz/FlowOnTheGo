@@ -13,7 +13,7 @@
 
 // Local
 #include "../common/timer.h"
-#include "../common/rgbMat.h"
+#include "../common/RgbMat.h"
 #include "process.h"
 
 using namespace timer;
@@ -37,16 +37,16 @@ void process(const char* input_file, const char* output_file) {
 
   auto start_convert = now();
 
-  rgbMat rgbI0(I0);
+  RgbMat rgbI0(I0);
 
-  calc_print_elapsed("Mat -> rgbMat", start_convert);
+  calc_print_elapsed("Mat -> RgbMat", start_convert);
 
 
   auto start_toMat = now();
 
-  I1 = rgbI0.toMat();
+  I1 = RgbI0.toMat();
 
-  calc_print_elapsed("rgbMat -> Mat", start_toMat);
+  calc_print_elapsed("RgbMat -> Mat", start_toMat);
 
 
   auto start_write = now();

@@ -46,7 +46,7 @@ set(KERNELS
   kernels/sobel.cpp)
 
 set(COMMON
-  common/rgbMat.cpp)
+  common/RgbMat.cpp)
 
 set(CODEFILES
   run_dense.cpp
@@ -67,7 +67,7 @@ target_link_libraries(flow ${OpenCV_LIBS})
 # CUDA sandbox
 set(SANDBOX_FILES
   kernels/sobel.cpp
-  # sandbox/rgbMatTest.cpp
+  # sandbox/RgbMatTest.cpp
   sandbox/sandbox.cpp)
 cuda_add_executable(sandbox ${COMMON} ${SANDBOX_FILES})
 target_link_libraries(sandbox ${OpenCV_LIBS})
