@@ -69,22 +69,41 @@ GpuRgbMat::GpuRgbMat(int _height, int _width) : height(_height), width(_width) {
   checkCudaErrors( cudaMalloc((void**) &data, height * width * elemSize) );
 }
 
-GpuRgbMat::GpuRgbMat(RgbMat cpuMat) {
+GpuRgbMat::GpuRgbMat(RgbMat cpuMat) : height(cpuMat.height), width(cpuMat.width) {
+  std::cout << "GpuRgbMat allocating " << width << "x" << height << " elemSize = " << elemSize
+    << " to " << data << std::endl;
   checkCudaErrors( cudaMalloc((void**) &data, height * width * elemSize) );
-  checkCudaErrors(
-      cudaMemcpy(data, cpuMat.data, width * height * elemSize, cudaMemcpyHostToDevice) );
+  std::cout << "GpuRgbMat allocated to " << data << std::endl;
+
+  upload(cpuMat);
 }
 
 GpuRgbMat::~GpuRgbMat() {
+  std::cout << "GpuRgbMat destructor called" << std::endl;
   checkCudaErrors( cudaFree(data) );
 }
 
 void GpuRgbMat::upload(RgbMat cpuMat) {
-  checkCudaErrors(
-      cudaMemcpy(data, cpuMat.data, width * height * elemSize, cudaMemcpyHostToDevice) );
+  if ((cpuMat.width != width || cpuMat.height != height)) {
+    throw std::invalid_argument("GpuRgbMat::upload dimension mismatch");
+  }
+
+  std::cout << "uploading " << width << "x" << height << " elemSize = " << elemSize
+    << " from " << cpuMat.data << " to " << data << std::endl;
+
+  cudaMemcpy(data, cpuMat.data, width * height * elemSize, cudaMemcpyHostToDevice);
+
+  // checkCudaErrors(
+  //     cudaMemcpy(data, cpuMat.data, width * height * elemSize, cudaMemcpyHostToDevice) );
 }
 
 void GpuRgbMat::download(RgbMat cpuMat) {
+  if ((cpuMat.width != width || cpuMat.height != height)) {
+    throw std::invalid_argument("GpuRgbMat::upload dimension mismatch");
+  }
+
+  std::cout << "downloading " << width << "x" << height << " elemSize = " << elemSize
+    << " from " << data << " to " << cpuMat.data << std::endl;
   checkCudaErrors(
       cudaMemcpy(cpuMat.data, data, width * height * elemSize, cudaMemcpyDeviceToHost) );
 }
