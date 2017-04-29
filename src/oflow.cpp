@@ -20,6 +20,7 @@
 #include "refine_variational.h"
 
 #include "kernels/sobel.h"
+#include "common/rgbMat.h"
 
 
 using std::cout;

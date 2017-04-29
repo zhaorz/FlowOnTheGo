@@ -55,6 +55,9 @@ set(CODEFILES
   FDF1.0.1/opticalflow_aux.c
   FDF1.0.1/solver.c)
 
+set(CODEFILES ${CODEFILES}
+  common/rgbMat.cpp)
+
 # GrayScale, Optical Flow
 cuda_add_executable(flow ${CODEFILES} ${KERNELS})
 set_target_properties (flow PROPERTIES COMPILE_DEFINITIONS "SELECTMODE=1")
