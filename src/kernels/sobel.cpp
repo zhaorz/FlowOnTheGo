@@ -62,7 +62,8 @@ namespace cu {
     double compute_time = 0.0;
 
     // CV_32FC3 is made up of RGB floats
-    unsigned int pixel_width = 3 * sizeof(float);
+    int channels = 3;
+    size_t elemSize = 3 * sizeof(float);
 
     cv::Size sz = src.size();
     int width   = sz.width;
@@ -74,7 +75,7 @@ namespace cu {
     Npp32f* pHostSrc = (float*) src.data;
 
     // The width, in bytes, of the image, sometimes referred to as pitch
-    unsigned int nSrcStep = width * pixel_width;
+    unsigned int nSrcStep = width * elemSize;
     unsigned int nDstStep = nSrcStep;
 
     NppiSize oSizeROI = { width, height };
@@ -84,8 +85,8 @@ namespace cu {
 
     // Allocate device memory
     Npp32f* pDeviceSrc, *pDeviceDst;
-    checkCudaErrors( cudaMalloc((void**) &pDeviceSrc, width * height * pixel_width) );
-    checkCudaErrors( cudaMalloc((void**) &pDeviceDst, width * height * pixel_width) );
+    checkCudaErrors( cudaMalloc((void**) &pDeviceSrc, width * height * elemSize) );
+    checkCudaErrors( cudaMalloc((void**) &pDeviceDst, width * height * elemSize) );
 
     calc_print_elapsed("cudaMalloc", start_cuda_malloc);
 
@@ -94,7 +95,7 @@ namespace cu {
 
     // Copy image to device
     checkCudaErrors(
-        cudaMemcpy(pDeviceSrc, pHostSrc, width * height * pixel_width, cudaMemcpyHostToDevice) );
+        cudaMemcpy(pDeviceSrc, pHostSrc, width * height * elemSize, cudaMemcpyHostToDevice) );
 
     calc_print_elapsed("cudaMemcpy H->D", start_memcpy_hd);
 
@@ -115,16 +116,14 @@ namespace cu {
 
 
     // Copy result to host
-    // float* pHostDst = (float*) dest.data;
-    float* pHostDst = new float[width * height * pixel_width];
+    float* pHostDst = new float[width * height * channels];
 
     checkCudaErrors(
-        cudaMemcpy(pHostDst, pDeviceDst, width * height * pixel_width, cudaMemcpyDeviceToHost) );
+        cudaMemcpy(pHostDst, pDeviceDst, width * height * elemSize, cudaMemcpyDeviceToHost) );
 
     calc_print_elapsed("cudaMemcpy H<-D", start_memcpy_dh);
 
-    cv::Mat dest_wrapper(height, width, CV_32F, pHostDst);
-    // dest  = dest_wrapper.clone();
+    cv::Mat dest_wrapper(height, width, CV_32FC3, pHostDst);
     dest_wrapper.copyTo(dest);
 
     cudaFree((void*) pDeviceSrc);
