@@ -25,9 +25,7 @@ class rgbMat {
     int height;
     int width;
 
-    cv::Mat toCVMat();
-
-  private:
+    cv::Mat toMat();
 
     const int channels = 3;
     const size_t elemSize = channels * sizeof(float);

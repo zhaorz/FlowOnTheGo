@@ -44,7 +44,7 @@ void process(const char* input_file, const char* output_file) {
 
   auto start_toMat = now();
 
-  I1 = rgbI0.toCVMat();
+  I1 = rgbI0.toMat();
 
   calc_print_elapsed("rgbMat -> Mat", start_toMat);
 

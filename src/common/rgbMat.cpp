@@ -47,7 +47,7 @@ rgbMat::~rgbMat() {
   delete[] data;
 }
 
-cv::Mat rgbMat::toCVMat() {
+cv::Mat rgbMat::toMat() {
   cv::Mat I(height, width, CV_32FC3);
   std::memcpy(I.data, data, height * width * elemSize);
   return I;
