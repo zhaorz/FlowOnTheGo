@@ -45,6 +45,9 @@ set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS}; -std=c++11 -arch=compute_61 -code=sm_61)
 set(KERNELS
   kernels/sobel.cpp)
 
+set(COMMON
+  common/rgbMat.cpp)
+
 set(CODEFILES
   run_dense.cpp
   oflow.cpp
@@ -55,11 +58,8 @@ set(CODEFILES
   FDF1.0.1/opticalflow_aux.c
   FDF1.0.1/solver.c)
 
-set(CODEFILES ${CODEFILES}
-  common/rgbMat.cpp)
-
 # GrayScale, Optical Flow
-cuda_add_executable(flow ${CODEFILES} ${KERNELS})
+cuda_add_executable(flow ${COMMON} ${CODEFILES} ${KERNELS})
 set_target_properties (flow PROPERTIES COMPILE_DEFINITIONS "SELECTMODE=1")
 set_property(TARGET flow APPEND PROPERTY COMPILE_DEFINITIONS "SELECTCHANNEL=3") # use RGB image
 target_link_libraries(flow ${OpenCV_LIBS})
@@ -67,8 +67,9 @@ target_link_libraries(flow ${OpenCV_LIBS})
 # CUDA sandbox
 set(SANDBOX_FILES
   # sandbox/sobel.cpp
-  kernels/sobel.cpp
+  # kernels/sobel.cpp
+  sandbox/rgbMatTest.cpp
   sandbox/sandbox.cpp)
-cuda_add_executable(sandbox ${SANDBOX_FILES})
+cuda_add_executable(sandbox ${COMMON} ${SANDBOX_FILES})
 target_link_libraries(sandbox ${OpenCV_LIBS})
 

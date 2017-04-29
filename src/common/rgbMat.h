@@ -29,7 +29,8 @@ class rgbMat {
 
   private:
 
-    const int pixel_width = 3 * sizeof(float);
+    const int channels = 3;
+    const size_t elemSize = channels * sizeof(float);
     float* data;
 
 };
