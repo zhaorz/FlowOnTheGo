@@ -78,8 +78,12 @@ namespace cu {
     unsigned int nSrcStep = width * elemSize;
     unsigned int nDstStep = nSrcStep;
 
+    NppiSize oSrcSize = { width, height };
+    NppiPoint oSrcOffset = { 0, 0 };
     NppiSize oSizeROI = { width, height };
 
+    // NppiBorderType eBorderType = NPP_BORDER_MIRROR;        ** raises NPP_NOT_SUPPORTED_MODE_ERROR(-9999)
+    NppiBorderType eBorderType = NPP_BORDER_REPLICATE;
 
     auto start_cuda_malloc = now();
 
@@ -106,8 +110,11 @@ namespace cu {
 
     NPP_CHECK_NPP(
         (useHoriz)
-        ? nppiFilterSobelHoriz_32f_C3R (pDeviceSrc, nSrcStep, pDeviceDst, nDstStep, oSizeROI)
-        : nppiFilterSobelVert_32f_C3R  (pDeviceSrc, nSrcStep, pDeviceDst, nDstStep, oSizeROI) );
+        // ? nppiFilterSobelHoriz_32f_C3R (pDeviceSrc, nSrcStep, pDeviceDst, nDstStep, oSizeROI)
+        // : nppiFilterSobelVert_32f_C3R  (pDeviceSrc, nSrcStep, pDeviceDst, nDstStep, oSizeROI)
+        ? nppiFilterSobelHorizBorder_32f_C3R (pDeviceSrc, nSrcStep, oSrcSize, oSrcOffset, pDeviceDst, nDstStep, oSizeROI, eBorderType)
+        : nppiFilterSobelVertBorder_32f_C3R  (pDeviceSrc, nSrcStep, oSrcSize, oSrcOffset, pDeviceDst, nDstStep, oSizeROI, eBorderType)
+        );
 
     compute_time += calc_print_elapsed("sobel", start_sobel);
 
