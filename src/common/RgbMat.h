@@ -33,6 +33,26 @@ class RgbMat {
 
 };
 
+class GpuRgbMat {
+
+  public:
+
+    GpuRgbMat(int height, int width);
+    GpuRgbMat(RgbMat cpuMat);
+    ~GpuRgbMat();
+
+    void upload(RgbMat I);
+    void download(RgbMat I);
+
+    int height;
+    int width;
+
+    const int channels = 3;
+    const size_t elemSize = channels * sizeof(float);
+    float* data;
+
+};
+
 #endif // end __RGB_MAT_H__
 
 
