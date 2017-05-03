@@ -82,9 +82,9 @@ namespace cu {
     NppiSize oSizeROI = { width, height };
 
     // For 1D convolution
-    const Npp32f pKernel[3] = { -1, 0, 1 };
-    Npp32s nMaskSize =  3;
-    Npp32s nAnchor   = -1;  // Kernel is centered over pixel
+    // const Npp32f pKernel[3] = { -1, 0, 1 };
+    // Npp32s nMaskSize =  3;
+    // Npp32s nAnchor   = -1;  // Kernel is centered over pixel
     // const Npp32f pKernel[9] = { -1, -1, -1, 0, 0, 0, 1, 1, 1 };
     // Npp32s nMaskSize =  9;
     // Npp32s nAnchor   = -3;  // Kernel is centered over pixel
@@ -96,10 +96,14 @@ namespace cu {
     auto start_cuda_malloc = now();
 
     // Allocate device memory
-    Npp32f* pDeviceSrc, *pDeviceDst, *pDeviceKernel;
+    Npp32f* pDeviceSrc, *pDeviceDst;
+
     checkCudaErrors( cudaMalloc((void**) &pDeviceSrc, width * height * elemSize) );
     checkCudaErrors( cudaMalloc((void**) &pDeviceDst, width * height * elemSize) );
-    checkCudaErrors( cudaMalloc((void**) &pDeviceKernel, nMaskSize * sizeof(Npp32f)) );
+
+    // For custom row/col kernel
+    // Npp32f* pDeviceKernel;
+    // checkCudaErrors( cudaMalloc((void**) &pDeviceKernel, nMaskSize * sizeof(Npp32f)) );
 
     calc_print_elapsed("cudaMalloc", start_cuda_malloc);
 
@@ -110,9 +114,9 @@ namespace cu {
     checkCudaErrors(
         cudaMemcpy(pDeviceSrc, pHostSrc, width * height * elemSize, cudaMemcpyHostToDevice) );
 
-    // Copy kernel to device
-    checkCudaErrors(
-        cudaMemcpy(pDeviceKernel, pKernel, nMaskSize * sizeof(Npp32f), cudaMemcpyHostToDevice) );
+    // Copy kernel to device (only for custom row/col filter)
+    // checkCudaErrors(
+    //     cudaMemcpy(pDeviceKernel, pKernel, nMaskSize * sizeof(Npp32f), cudaMemcpyHostToDevice) );
 
     calc_print_elapsed("cudaMemcpy H->D", start_memcpy_hd);
 
@@ -123,12 +127,13 @@ namespace cu {
 
     NPP_CHECK_NPP(
         (useHoriz)
-        // ? nppiFilterSobelHoriz_32f_C3R (pDeviceSrc, nSrcStep, pDeviceDst, nDstStep, oSizeROI)
-        // : nppiFilterSobelVert_32f_C3R  (pDeviceSrc, nSrcStep, pDeviceDst, nDstStep, oSizeROI)
-        // ? nppiFilterSobelHorizBorder_32f_C3R (pDeviceSrc, nSrcStep, oSrcSize, oSrcOffset, pDeviceDst, nDstStep, oSizeROI, eBorderType)
-        // : nppiFilterSobelVertBorder_32f_C3R  (pDeviceSrc, nSrcStep, oSrcSize, oSrcOffset, pDeviceDst, nDstStep, oSizeROI, eBorderType)
-        ? nppiFilterRowBorder_32f_C3R    (pDeviceSrc, nSrcStep, oSrcSize, oSrcOffset, pDeviceDst, nDstStep, oSizeROI, pDeviceKernel, nMaskSize, nAnchor, eBorderType)
-        : nppiFilterColumnBorder_32f_C3R (pDeviceSrc, nSrcStep, oSrcSize, oSrcOffset, pDeviceDst, nDstStep, oSizeROI, pDeviceKernel, nMaskSize, nAnchor, eBorderType)
+        // For built in sobel
+        ? nppiFilterSobelHorizBorder_32f_C3R (pDeviceSrc, nSrcStep, oSrcSize, oSrcOffset, pDeviceDst, nDstStep, oSizeROI, eBorderType)
+        : nppiFilterSobelVertBorder_32f_C3R  (pDeviceSrc, nSrcStep, oSrcSize, oSrcOffset, pDeviceDst, nDstStep, oSizeROI, eBorderType)
+
+        // Custom row filter
+        // ? nppiFilterRowBorder_32f_C3R    (pDeviceSrc, nSrcStep, oSrcSize, oSrcOffset, pDeviceDst, nDstStep, oSizeROI, pDeviceKernel, nMaskSize, nAnchor, eBorderType)
+        // : nppiFilterColumnBorder_32f_C3R (pDeviceSrc, nSrcStep, oSrcSize, oSrcOffset, pDeviceDst, nDstStep, oSizeROI, pDeviceKernel, nMaskSize, nAnchor, eBorderType)
         );
 
     compute_time += calc_print_elapsed("sobel", start_sobel);
@@ -150,7 +155,9 @@ namespace cu {
 
     cudaFree((void*) pDeviceSrc);
     cudaFree((void*) pDeviceDst);
-    cudaFree((void*) pDeviceKernel);
+
+    // Only for custom row/col filter
+    // cudaFree((void*) pDeviceKernel);
 
     delete[] pHostDst;
 
