@@ -19,6 +19,9 @@
 #include "patchgrid.h"
 #include "refine_variational.h"
 
+#include "kernels/sobel.h"
+#include "common/RgbMat.h"
+
 
 using std::cout;
 using std::endl;
@@ -78,20 +81,22 @@ namespace OFC {
         cv::resize(I1_mats[i-1], I1_mats[i], cv::Size(), .5, .5, cv::INTER_LINEAR);
       }
 
-      // RGB
-      I0_mats[i].convertTo(I0_mats[i], CV_32FC3);
-      I1_mats[i].convertTo(I1_mats[i], CV_32FC3);
+      // TODO: See if there's a way to allocate the array without cloning
+      I0x_mats[i] = I0_mats[i].clone();
+      I0y_mats[i] = I0_mats[i].clone();
+      I1x_mats[i] = I0_mats[i].clone();
+      I1y_mats[i] = I0_mats[i].clone();
 
       // Generate gradients
-      cv::Sobel(I0_mats[i], I0x_mats[i], CV_32F, 1, 0, 1, 1, 0, cv::BORDER_DEFAULT);
-      cv::Sobel(I0_mats[i], I0y_mats[i], CV_32F, 0, 1, 1, 1, 0, cv::BORDER_DEFAULT);
-      I0x_mats[i].convertTo(I0x_mats[i], CV_32F);
-      I0y_mats[i].convertTo(I0y_mats[i], CV_32F);
+      cu::sobel(I0_mats[i], I0x_mats[i], CV_32F, 1, 0, 1, 1, 0, cv::BORDER_DEFAULT);
+      cu::sobel(I0_mats[i], I0y_mats[i], CV_32F, 0, 1, 1, 1, 0, cv::BORDER_DEFAULT);
+      // cv::Sobel(I0_mats[i], I0x_mats[i], CV_32F, 1, 0, 1, 1, 0, cv::BORDER_DEFAULT);
+      // cv::Sobel(I0_mats[i], I0y_mats[i], CV_32F, 0, 1, 1, 1, 0, cv::BORDER_DEFAULT);
 
-      cv::Sobel(I1_mats[i], I1x_mats[i], CV_32F, 1, 0, 1, 1, 0, cv::BORDER_DEFAULT);
-      cv::Sobel(I1_mats[i], I1y_mats[i], CV_32F, 0, 1, 1, 1, 0, cv::BORDER_DEFAULT);
-      I1x_mats[i].convertTo(I1x_mats[i], CV_32F);
-      I1y_mats[i].convertTo(I1y_mats[i], CV_32F);
+      cu::sobel(I1_mats[i], I1x_mats[i], CV_32F, 1, 0, 1, 1, 0, cv::BORDER_DEFAULT);
+      cu::sobel(I1_mats[i], I1y_mats[i], CV_32F, 0, 1, 1, 1, 0, cv::BORDER_DEFAULT);
+      // cv::Sobel(I1_mats[i], I1x_mats[i], CV_32F, 1, 0, 1, 1, 0, cv::BORDER_DEFAULT);
+      // cv::Sobel(I1_mats[i], I1y_mats[i], CV_32F, 0, 1, 1, 1, 0, cv::BORDER_DEFAULT);
     }
 
 
@@ -140,6 +145,9 @@ namespace OFC {
 
     I0 = _I0;
     I1 = _I1;
+
+    std::cout << "I0 " << I0.size() << " channels: " << I0.channels()
+      << " type: " << I0.type() << std::endl;
 
     printf("Constructing pyramids\n");
     ConstructImgPyramids();

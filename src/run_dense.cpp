@@ -10,8 +10,6 @@
 
 // CUDA
 #include <cuda_runtime.h>
-#include "kernels/hello.h"
-#include "kernels/get_device.h"
 
 using namespace std;
 using namespace OFC;
