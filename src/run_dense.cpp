@@ -8,6 +8,7 @@
 
 #include "oflow.h"
 #include "kernels/warmup.h"
+#include "kernels/pad.h"
 
 // CUDA
 #include <cuda_runtime.h>
@@ -195,6 +196,10 @@ int main( int argc, char** argv ) {
   }
 
 
+  // convert to float
+  I0_mat.convertTo(I0_fmat, CV_32F);
+  I1_mat.convertTo(I1_fmat, CV_32F);
+
   // Pad image such that width and height are restless divisible on all scales (except last)
   int padw = 0, padh = 0;
   int max_scale = pow(2, op.coarsest_scale); // enforce restless division by this number on coarsest scale
@@ -205,10 +210,10 @@ int main( int argc, char** argv ) {
 
   if (padh > 0 || padw > 0) {
 
-    copyMakeBorder(I0_mat, I0_mat, floor((float) padh / 2.0f), ceil((float) padh / 2.0f),
-        floor((float) padw / 2.0f), ceil((float) padw / 2.0f), cv::BORDER_REPLICATE);
-    copyMakeBorder(I1_mat, I1_mat, floor((float) padh / 2.0f), ceil((float) padh / 2.0f),
-        floor((float) padw / 2.0f), ceil((float) padw / 2.0f), cv::BORDER_REPLICATE);
+    cu::pad(I0_fmat, I0_fmat, floor((float) padh / 2.0f), ceil((float) padh / 2.0f),
+        floor((float) padw / 2.0f), ceil((float) padw / 2.0f), true);
+    cu::pad(I1_fmat, I1_fmat, floor((float) padh / 2.0f), ceil((float) padh / 2.0f),
+        floor((float) padw / 2.0f), ceil((float) padw / 2.0f), true);
 
   }
 
@@ -216,13 +221,10 @@ int main( int argc, char** argv ) {
   img_params iparams;
 
   // padded image size, ensures divisibility by 2 on all scales (except last)
-  iparams.width = I0_mat.size().width;
-  iparams.height = I0_mat.size().height;
+  iparams.width = I0_fmat.size().width;
+  iparams.height = I0_fmat.size().height;
   iparams.padding = op.patch_size;
 
-  // convert to float
-  I0_mat.convertTo(I0_fmat, CV_32F);
-  I1_mat.convertTo(I1_fmat, CV_32F);
 
   // Timing, image loading
   if (op.verbosity > 1) {

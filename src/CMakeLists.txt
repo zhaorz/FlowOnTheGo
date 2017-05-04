@@ -46,6 +46,7 @@ set(KERNELS
   kernels/warmup.cpp
   kernels/sobel.cpp
   kernels/pyramid.cpp
+  kernels/pad.cpp
   kernels/resizeGrad.cpp
   kernels/resize.cpp)
 
@@ -70,9 +71,10 @@ target_link_libraries(flow ${OpenCV_LIBS})
 
 # CUDA sandbox
 set(SANDBOX_FILES
-  sandbox/process_sobel.cpp
+  # sandbox/process_sobel.cpp
   # sandbox/process_resize.cpp
   # sandbox/process_resizeGrad.cpp
+  sandbox/process_pad.cpp
   # sandbox/RgbMatTest.cpp
   sandbox/sandbox.cpp)
 cuda_add_executable(sandbox ${COMMON} ${KERNELS} ${SANDBOX_FILES})
