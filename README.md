@@ -44,9 +44,10 @@ make flow_ref
 | April 14 | Working OpenCV reference and testing harness                  |  ✔️   |
 | April 25 | **[Checkpoint]** Working implementation in C++                |  ✔️   |
 | April 27 | Cleaned up and optimized C++ version                          |  ✔️   |
-| May 1    | Working implementation in CUDA                                |      |
-| May 5    | CUDA implementation with same performance as C++ version      |      |
-| May 8    | Achieve performance better than published in [1]              |      |
+| May 1    | Working implementation in CUDA                                |  ✔️   |
+| May 2    | CUDA implementation with same performance as C++ version      |  ✔️   |
+| May 4    | Realtime performance (~30fps / < 33ms)                        |  ✔️   |
+| May 8    | Super-realtime performance (~30fps / < 10ms)                  |      |
 | May 9    | Running on example drone footage                              |      |
 | May 11   | Final writeup and demo preparation                            |      |
 | May 11   | (_Reach_) Hardware hooked up to drone                         |      |
