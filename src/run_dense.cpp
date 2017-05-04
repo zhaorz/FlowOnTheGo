@@ -7,11 +7,10 @@
 #include <fstream>
 
 #include "oflow.h"
+#include "kernels/warmup.h"
 
 // CUDA
 #include <cuda_runtime.h>
-#include "kernels/hello.h"
-#include "kernels/get_device.h"
 
 using namespace std;
 using namespace OFC;
@@ -106,6 +105,9 @@ int AutoFirstScaleSelect(int imgwidth, int fratio, int patchsize) {
 }
 
 int main( int argc, char** argv ) {
+
+  // Warmup GPU
+  cu::warmup();
 
   // Timing structures
   struct timeval start_time, end_time;

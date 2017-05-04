@@ -1,8 +1,8 @@
 cmake_minimum_required (VERSION 2.8)
 project (flow)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -Wno-unknown-pragmas -Wall -std=c++11 -msse4")  #-Wall
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -Wno-unknown-pragmas -Wall -msse4")  #-Wall
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O3 -Wno-unknown-pragmas -Wall -std=c++11 -msse4")  #-Wall
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O3 -Wno-unknown-pragmas -Wall -msse4")  #-Wall
 
 # For ghc machines
 set(OpenCV_DIR "/afs/cs/academic/class/15418-s17/public/sw/opencv/build")
@@ -40,10 +40,15 @@ message(STATUS "    nppi path: ${CUDA_nppi_LIBRARY}")
 ################################################################################
 
 set(CUDA_VERBOSE_BUILD ON)
-set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS}; -std=c++11 -arch=compute_61 -code=sm_61)
+set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS}; -g -std=c++11 -arch=compute_61 -code=sm_61)
 
-set(CUFILES
-  kernels/hello.cu)
+set(KERNELS
+  kernels/warmup.cpp
+  kernels/sobel.cpp
+  kernels/resize.cpp)
+
+set(COMMON
+  common/RgbMat.cpp)
 
 set(CODEFILES
   run_dense.cpp
@@ -56,15 +61,17 @@ set(CODEFILES
   FDF1.0.1/solver.c)
 
 # GrayScale, Optical Flow
-cuda_add_executable(flow ${CODEFILES} ${CUFILES})
+cuda_add_executable(flow ${COMMON} ${CODEFILES} ${KERNELS})
 set_target_properties (flow PROPERTIES COMPILE_DEFINITIONS "SELECTMODE=1")
 set_property(TARGET flow APPEND PROPERTY COMPILE_DEFINITIONS "SELECTCHANNEL=3") # use RGB image
 target_link_libraries(flow ${OpenCV_LIBS})
 
 # CUDA sandbox
 set(SANDBOX_FILES
-  sandbox/sobel.cpp
+  # sandbox/process_sobel.cpp
+  sandbox/process_resize.cpp
+  # sandbox/RgbMatTest.cpp
   sandbox/sandbox.cpp)
-cuda_add_executable(sandbox ${SANDBOX_FILES})
+cuda_add_executable(sandbox ${COMMON} ${KERNELS} ${SANDBOX_FILES})
 target_link_libraries(sandbox ${OpenCV_LIBS})
 
