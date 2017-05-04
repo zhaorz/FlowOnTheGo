@@ -42,16 +42,11 @@ namespace cu {
    *   interpolation  interpolation method, see cv::InterpolationFlags
    */
   void resize(
-      cv::Mat src, cv::Mat dest, cv::Size dsize,
+      const cv::Mat& src, cv::Mat& dest, cv::Size dsize,
       double fx, double fy, int interpolation) {
 
     if (src.type() != CV_32FC3) {
       throw std::invalid_argument("resize: invalid input matrix type");
-    }
-
-    if ( !((dx == 1 && dy == 0) ||
-          (dx == 0 && dy == 1)) ) {
-      throw std::invalid_argument("resize: only accepts first order derivatives");
     }
 
     // Compute time of relevant kernel
@@ -72,14 +67,29 @@ namespace cu {
 
     // The width, in bytes, of the image, sometimes referred to as pitch
     unsigned int nSrcStep = width * elemSize;
-    unsigned int nDstStep = nSrcStep;
 
     NppiSize oSrcSize = { width, height };
-    NppiPoint oSrcOffset = { 0, 0 };
-    NppiSize oSizeROI = { width, height };
+    NppiRect oSrcROI  = { 0, 0, width, height };
 
-    // NppiBorderType eBorderType = NPP_BORDER_MIRROR;        ** raises NPP_NOT_SUPPORTED_MODE_ERROR(-9999)
-    NppiBorderType eBorderType = NPP_BORDER_REPLICATE;
+    NppiRect dstRect;
+
+    double scaleX = 0.5;
+    double scaleY = 0.5;
+    double shiftX = 0.0;
+    double shiftY = 0.0;
+
+    int eInterpolation = NPPI_INTER_LINEAR;    // Linear interpolation
+
+
+    auto start_get_resize_rect = now();
+
+    // Get the destination size
+    NPP_CHECK_NPP(
+        nppiGetResizeRect (oSrcROI, &dstRect, scaleX, scaleY, shiftX, shiftY, eInterpolation) );
+
+    calc_print_elapsed("get_resize_rect", start_get_resize_rect);
+
+    unsigned int nDstStep = dstRect.width * elemSize;
 
     auto start_cuda_malloc = now();
 
@@ -87,11 +97,7 @@ namespace cu {
     Npp32f* pDeviceSrc, *pDeviceDst;
 
     checkCudaErrors( cudaMalloc((void**) &pDeviceSrc, width * height * elemSize) );
-    checkCudaErrors( cudaMalloc((void**) &pDeviceDst, width * height * elemSize) );
-
-    // For custom row/col kernel
-    // Npp32f* pDeviceKernel;
-    // checkCudaErrors( cudaMalloc((void**) &pDeviceKernel, nMaskSize * sizeof(Npp32f)) );
+    checkCudaErrors( cudaMalloc((void**) &pDeviceDst, dstRect.width * dstRect.height * elemSize) );
 
     calc_print_elapsed("cudaMalloc", start_cuda_malloc);
 
@@ -102,26 +108,18 @@ namespace cu {
     checkCudaErrors(
         cudaMemcpy(pDeviceSrc, pHostSrc, width * height * elemSize, cudaMemcpyHostToDevice) );
 
-    // Copy kernel to device (only for custom row/col filter)
-    // checkCudaErrors(
-    //     cudaMemcpy(pDeviceKernel, pKernel, nMaskSize * sizeof(Npp32f), cudaMemcpyHostToDevice) );
-
     calc_print_elapsed("cudaMemcpy H->D", start_memcpy_hd);
 
-
-    bool useHoriz = (dx == 1);
 
     auto start_resize = now();
 
     NPP_CHECK_NPP(
-        (useHoriz)
-        // For built in resize
-        ? nppiFilterSobelHorizBorder_32f_C3R (pDeviceSrc, nSrcStep, oSrcSize, oSrcOffset, pDeviceDst, nDstStep, oSizeROI, eBorderType)
-        : nppiFilterSobelVertBorder_32f_C3R  (pDeviceSrc, nSrcStep, oSrcSize, oSrcOffset, pDeviceDst, nDstStep, oSizeROI, eBorderType)
 
-        // Custom row filter
-        // ? nppiFilterRowBorder_32f_C3R    (pDeviceSrc, nSrcStep, oSrcSize, oSrcOffset, pDeviceDst, nDstStep, oSizeROI, pDeviceKernel, nMaskSize, nAnchor, eBorderType)
-        // : nppiFilterColumnBorder_32f_C3R (pDeviceSrc, nSrcStep, oSrcSize, oSrcOffset, pDeviceDst, nDstStep, oSizeROI, pDeviceKernel, nMaskSize, nAnchor, eBorderType)
+        nppiResizeSqrPixel_32f_C3R (
+          pDeviceSrc, oSrcSize, nSrcStep, oSrcROI,
+          pDeviceDst, nDstStep, dstRect,
+          scaleX, scaleY, shiftX, shiftY, eInterpolation)
+
         );
 
     compute_time += calc_print_elapsed("resize", start_resize);
@@ -129,23 +127,21 @@ namespace cu {
 
     auto start_memcpy_dh = now();
 
-
     // Copy result to host
-    float* pHostDst = new float[width * height * channels];
+    float* pHostDst = new float[dstRect.width * dstRect.height * channels];
 
     checkCudaErrors(
-        cudaMemcpy(pHostDst, pDeviceDst, width * height * elemSize, cudaMemcpyDeviceToHost) );
+        cudaMemcpy(pHostDst, pDeviceDst,
+          dstRect.width * dstRect.height * elemSize, cudaMemcpyDeviceToHost) );
 
     calc_print_elapsed("cudaMemcpy H<-D", start_memcpy_dh);
 
-    cv::Mat dest_wrapper(height, width, CV_32FC3, pHostDst);
-    dest_wrapper.copyTo(dest);
+    cv::Mat dstWrapper(dstRect.height, dstRect.width, CV_32FC3, pHostDst);
+
+    dstWrapper.copyTo(dest);
 
     cudaFree((void*) pDeviceSrc);
     cudaFree((void*) pDeviceDst);
-
-    // Only for custom row/col filter
-    // cudaFree((void*) pDeviceKernel);
 
     delete[] pHostDst;
 

@@ -43,7 +43,7 @@ namespace cu {
    *   interpolation  interpolation method, see cv::InterpolationFlags
    */
   void resize(
-      cv::Mat src, cv::Mat dest, cv::Size dsize,
+      const cv::Mat& src, cv::Mat& dest, cv::Size dsize,
       double fx, double fy, int interpolation);
 
 }

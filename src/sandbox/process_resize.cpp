@@ -23,7 +23,7 @@
 #include "../common/timer.h"
 #include "process.h"
 
-// #include "../kernels/resize.h"
+#include "../kernels/resize.h"
 
 using namespace timer;
 
@@ -52,7 +52,10 @@ void process(const char* input_file, const char* output_file) {
 
 
   auto start_resize = now();
-  cv::resize(I0_f, I1_f, cv::Size(), .5, .5, cv::INTER_LINEAR);
+
+  // cv::resize(I0_f, I1_f, cv::Size(), .5, .5, cv::INTER_LINEAR);
+  cu::resize(I0_f, I1_f, cv::Size(), .5, .5, cv::INTER_LINEAR);
+
   calc_print_elapsed("resize", start_resize);
 
 
