@@ -59,6 +59,7 @@ namespace cu {
 
     // Compute time of relevant kernel
     double compute_time = 0.0;
+    double total_time = 0.0;
 
     // CV_32FC3 is made up of RGB floats
     int channels = 3;
@@ -91,7 +92,7 @@ namespace cu {
     checkCudaErrors( cudaMalloc((void**) &pDeviceSrc, width * height * elemSize) );
     checkCudaErrors( cudaMalloc((void**) &pDeviceDst, width * height * elemSize) );
 
-    calc_print_elapsed("cudaMalloc", start_cuda_malloc);
+    total_time += calc_print_elapsed("cudaMalloc", start_cuda_malloc);
 
 
     auto start_memcpy_hd = now();
@@ -100,7 +101,7 @@ namespace cu {
     checkCudaErrors(
         cudaMemcpy(pDeviceSrc, pHostSrc, width * height * elemSize, cudaMemcpyHostToDevice) );
 
-    calc_print_elapsed("cudaMemcpy H->D", start_memcpy_hd);
+    total_time += calc_print_elapsed("cudaMemcpy H->D", start_memcpy_hd);
 
 
     bool useHoriz = (dx == 1);
@@ -130,7 +131,7 @@ namespace cu {
     checkCudaErrors(
         cudaMemcpy(pHostDst, pDeviceDst, width * height * elemSize, cudaMemcpyDeviceToHost) );
 
-    calc_print_elapsed("cudaMemcpy H<-D", start_memcpy_dh);
+    total_time += calc_print_elapsed("cudaMemcpy H<-D", start_memcpy_dh);
 
     cv::Mat dest_wrapper(height, width, CV_32FC3, pHostDst);
     dest_wrapper.copyTo(dest);
@@ -140,7 +141,9 @@ namespace cu {
 
     delete[] pHostDst;
 
-    std::cout << "[done] sobel: primary compute time: " << compute_time << " (ms)" << std::endl;
+    std::cout << "[done] sobel" << std::endl;
+    std::cout << "  primary compute time: " << compute_time << " (ms)" << std::endl;
+    std::cout << "  total compute time:   " << compute_time + total_time << " (ms)" << std::endl;
   }
 
 }

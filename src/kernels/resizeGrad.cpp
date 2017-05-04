@@ -194,7 +194,7 @@ namespace cu {
 
     std::cout << "[done] resizeGrad" << std::endl;
     std::cout << "  primary compute time: " << compute_time << " (ms)" << std::endl;
-    std::cout << "  total compute time:   " << total_time << " (ms)" << std::endl;
+    std::cout << "  total compute time:   " << total_time + compute_time << " (ms)" << std::endl;
   }
 
 }
