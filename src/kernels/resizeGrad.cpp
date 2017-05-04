@@ -44,6 +44,7 @@ namespace cu {
 
     // Compute time of relevant kernel
     double compute_time = 0.0;
+    double total_time = 0.0;
 
     // CV_32FC3 is made up of RGB floats
     int channels = 3;
@@ -78,7 +79,7 @@ namespace cu {
     NPP_CHECK_NPP(
         nppiGetResizeRect (oSrcROI, &dstRect, scaleX, scaleY, shiftX, shiftY, eInterpolation) );
 
-    calc_print_elapsed("get_resize_rect", start_get_resize_rect);
+    total_time += calc_print_elapsed("get_resize_rect", start_get_resize_rect);
 
     unsigned int dstSize = dstRect.width * dstRect.height;
     unsigned int nDstStep = dstRect.width * elemSize;
@@ -92,7 +93,7 @@ namespace cu {
     checkCudaErrors( cudaMalloc((void**) &pDeviceDst, dstSize * elemSize) );
     checkCudaErrors( cudaMalloc((void**) &pDeviceTmp, dstSize * elemSize) );
 
-    calc_print_elapsed("cudaMalloc", start_cuda_malloc);
+    total_time += calc_print_elapsed("cudaMalloc", start_cuda_malloc);
 
 
     // Host memory allocation
@@ -102,7 +103,7 @@ namespace cu {
     float* pHostDst_x = new float[dstSize * channels];
     float* pHostDst_y = new float[dstSize * channels];
 
-    calc_print_elapsed("host_alloc", start_host_alloc);
+    total_time += calc_print_elapsed("host_alloc", start_host_alloc);
 
 
     // Initial image memcpy H->D
@@ -111,7 +112,7 @@ namespace cu {
     checkCudaErrors(
         cudaMemcpy(pDeviceSrc, pHostSrc, width * height * elemSize, cudaMemcpyHostToDevice) );
 
-    calc_print_elapsed("cudaMemcpy H->D", start_memcpy_hd);
+    total_time += calc_print_elapsed("cudaMemcpy H->D", start_memcpy_hd);
 
     // Resize image
     auto start_resize = now();
@@ -130,7 +131,7 @@ namespace cu {
     checkCudaErrors(
         cudaMemcpy(pHostDst, pDeviceDst,
           dstSize * elemSize, cudaMemcpyDeviceToHost) );
-    calc_print_elapsed("resized cudaMemcpy D->H", start_cp_resize);
+    total_time += calc_print_elapsed("resized cudaMemcpy D->H", start_cp_resize);
 
     // Swap resized image into pDeviceTmp
     Npp32f* tmp = pDeviceTmp;
@@ -155,7 +156,7 @@ namespace cu {
     checkCudaErrors(
         cudaMemcpy(pHostDst_x, pDeviceDst,
           dstSize * elemSize, cudaMemcpyDeviceToHost) );
-    calc_print_elapsed("dx cudaMemcpy D->H", start_cp_dx);
+    total_time += calc_print_elapsed("dx cudaMemcpy D->H", start_cp_dx);
 
 
     // dy's
@@ -170,7 +171,7 @@ namespace cu {
     checkCudaErrors(
         cudaMemcpy(pHostDst_y, pDeviceDst,
           dstSize * elemSize, cudaMemcpyDeviceToHost) );
-    calc_print_elapsed("dy cudaMemcpy D->H", start_cp_dy);
+    total_time += calc_print_elapsed("dy cudaMemcpy D->H", start_cp_dy);
 
 
     auto start_cp_mat = now();
@@ -181,7 +182,7 @@ namespace cu {
     dstWrapper.copyTo(dst);
     dstXWrapper.copyTo(dst_x);
     dstYWrapper.copyTo(dst_y);
-    calc_print_elapsed("copy to cv::Mat's", start_cp_mat);
+    total_time += calc_print_elapsed("copy to cv::Mat's", start_cp_mat);
 
     cudaFree((void*) pDeviceSrc);
     cudaFree((void*) pDeviceDst);
@@ -191,7 +192,9 @@ namespace cu {
     delete[] pHostDst_x;
     delete[] pHostDst_y;
 
-    std::cout << "[done] resizeGrad: primary compute time: " << compute_time << " (ms)" << std::endl;
+    std::cout << "[done] resizeGrad" << std::endl;
+    std::cout << "  primary compute time: " << compute_time << " (ms)" << std::endl;
+    std::cout << "  total compute time:   " << total_time << " (ms)" << std::endl;
   }
 
 }
