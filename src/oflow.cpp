@@ -19,6 +19,7 @@
 #include "patchgrid.h"
 #include "refine_variational.h"
 
+#include "kernels/resize.h"
 #include "kernels/sobel.h"
 #include "common/RgbMat.h"
 
@@ -77,8 +78,10 @@ namespace OFC {
         I0_mats[i] = I0.clone();
         I1_mats[i] = I1.clone();
       } else {
-        cv::resize(I0_mats[i-1], I0_mats[i], cv::Size(), .5, .5, cv::INTER_LINEAR);
-        cv::resize(I1_mats[i-1], I1_mats[i], cv::Size(), .5, .5, cv::INTER_LINEAR);
+        cu::resize(I0_mats[i-1], I0_mats[i], cv::Size(), .5, .5, cv::INTER_LINEAR);
+        cu::resize(I1_mats[i-1], I1_mats[i], cv::Size(), .5, .5, cv::INTER_LINEAR);
+        // cv::resize(I0_mats[i-1], I0_mats[i], cv::Size(), .5, .5, cv::INTER_LINEAR);
+        // cv::resize(I1_mats[i-1], I1_mats[i], cv::Size(), .5, .5, cv::INTER_LINEAR);
       }
 
       // TODO: See if there's a way to allocate the array without cloning
