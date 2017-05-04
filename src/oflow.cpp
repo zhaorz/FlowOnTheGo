@@ -22,11 +22,14 @@
 #include "kernels/resize.h"
 #include "kernels/sobel.h"
 #include "common/RgbMat.h"
+#include "common/timer.h"
 
 
 using std::cout;
 using std::endl;
 using std::vector;
+
+using namespace timer;
 
 namespace OFC {
 
@@ -102,6 +105,7 @@ namespace OFC {
       // cv::Sobel(I1_mats[i], I1y_mats[i], CV_32F, 0, 1, 1, 1, 0, cv::BORDER_DEFAULT);
     }
 
+    auto start_pad = now();
 
     // Pad images
     for (int i = 0; i <= op.coarsest_scale; ++i) {
@@ -130,6 +134,8 @@ namespace OFC {
       I1ys[i] = (float*) I1y_mats[i].data;
 
     }
+
+    calc_print_elapsed("pad images", start_pad);
 
     // Timing, image gradients and pyramid
     if (op.verbosity > 1) {
