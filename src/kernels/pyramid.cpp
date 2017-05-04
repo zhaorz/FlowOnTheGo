@@ -32,7 +32,7 @@ namespace cu {
   void constructImgPyramids(
       const cv::Mat& I,
       cv::Mat* Is, cv::Mat* Ixs, cv::Mat* Iys,
-      int nLevels) {
+      int padding, int nLevels) {
 
     // Timing
     auto start_total = now();
@@ -69,16 +69,28 @@ namespace cu {
     double shiftX = 0.0;
     double shiftY = 0.0;
 
+    // Padding params
+    int padWidth = 2 * padding + width;
+    int padHeight = 2 * padding + height;
+    const Npp32f PAD_VAL[3] = { 0.0, 0.0, 0.0 };
+
     std::cout << "[start] constructImgPyramids: processing "
       << width << "x" << height << " image" << std::endl;
 
-    // Allocate device memory
+    // Allocate device memory (to account for padding too
     auto start_cuda_malloc = now();
-    Npp32f *pDeviceI, *pDeviceIx, *pDeviceIy, *pDeviceTmp, *pDeviceKernel;
+    Npp32f *pDeviceI, *pDeviceIx, *pDeviceIy;
+    Npp32f *pDevicePaddedI, *pDevicePaddedIx, *pDevicePaddedIy;
+    Npp32f *pDeviceTmp, *pDeviceKernel;
 
-    checkCudaErrors( cudaMalloc((void**) &pDeviceI,      width * height * elemSize)  );
-    checkCudaErrors( cudaMalloc((void**) &pDeviceIx,     width * height * elemSize)  );
-    checkCudaErrors( cudaMalloc((void**) &pDeviceIy,     width * height * elemSize)  );
+    checkCudaErrors( cudaMalloc((void**) &pDeviceI,  width * height * elemSize) );
+    checkCudaErrors( cudaMalloc((void**) &pDeviceIx, width * height * elemSize) );
+    checkCudaErrors( cudaMalloc((void**) &pDeviceIy, width * height * elemSize) );
+
+    checkCudaErrors( cudaMalloc((void**) &pDevicePaddedI,  padWidth * padHeight * elemSize) );
+    checkCudaErrors( cudaMalloc((void**) &pDevicePaddedIx, padWidth * padHeight * elemSize) );
+    checkCudaErrors( cudaMalloc((void**) &pDevicePaddedIy, padWidth * padHeight * elemSize) );
+
     checkCudaErrors( cudaMalloc((void**) &pDeviceTmp,    width * height * elemSize)  );
     checkCudaErrors( cudaMalloc((void**) &pDeviceKernel, nMaskSize * sizeof(Npp32f)) );
 
@@ -112,13 +124,6 @@ namespace cu {
         );
     compute_time += calc_print_elapsed("sobel: Ixs[0]", start_dx);
 
-    auto start_cp_dx = now();
-    Ixs[0].create(height, width, CV_32FC3);
-    checkCudaErrors(
-        cudaMemcpy(Ixs[0].data, pDeviceIx,
-          width * height * elemSize, cudaMemcpyDeviceToHost) );
-    compute_time += calc_print_elapsed("Ixs[0] cudaMemcpy D->H", start_cp_dx);
-
     // dy's
     auto start_dy = now();
     NPP_CHECK_NPP(
@@ -133,11 +138,53 @@ namespace cu {
         );
     compute_time += calc_print_elapsed("sobel: Iys[0]", start_dy);
 
-    auto start_cp_dy = now();
-    Iys[0].create(height, width, CV_32FC3);
+    ////////////////////////////////////////////////////////////////////////////////////////////////
+    // Pad Is[0] I, dx, dy
+    ////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+    NppiSize oPadSize = { padWidth, padHeight };
+    int nDstStep = oPadSize.width * elemSize;
+
+    // Pad original
+    NPP_CHECK_NPP(
+        nppiCopyReplicateBorder_32f_C3R (
+          pDeviceI, nSrcStep, oSize,
+          pDevicePaddedI, nDstStep, oPadSize, padding, padding) );
+
+    // Pad dx, dy
+    NPP_CHECK_NPP(
+        nppiCopyConstBorder_32f_C3R (
+          pDeviceIx, nSrcStep, oSize,
+          pDevicePaddedIx, nDstStep, oPadSize, padding, padding, PAD_VAL) );
+    NPP_CHECK_NPP(
+        nppiCopyConstBorder_32f_C3R (
+          pDeviceIy, nSrcStep, oSize,
+          pDevicePaddedIy, nDstStep, oPadSize, padding, padding, PAD_VAL) );
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////
+    // Copy Is[0] I, dx, dy
+    ////////////////////////////////////////////////////////////////////////////////////////////////
+
+    auto start_cp_Is0 = now();
+    Is[0].create(oPadSize.height, oPadSize.width, CV_32FC3);
     checkCudaErrors(
-        cudaMemcpy(Iys[0].data, pDeviceIy,
-          width * height * elemSize, cudaMemcpyDeviceToHost) );
+        cudaMemcpy(Is[0].data, pDevicePaddedI,
+          oPadSize.width * oPadSize.height * elemSize, cudaMemcpyDeviceToHost) );
+    compute_time += calc_print_elapsed("Is[0] cudaMemcpy D->H", start_cp_Is0);
+
+    auto start_cp_dx = now();
+    Ixs[0].create(oPadSize.height, oPadSize.width, CV_32FC3);
+    checkCudaErrors(
+        cudaMemcpy(Ixs[0].data, pDevicePaddedIx,
+          oPadSize.width * oPadSize.height * elemSize, cudaMemcpyDeviceToHost) );
+    compute_time += calc_print_elapsed("Ixs[0] cudaMemcpy D->H", start_cp_dx);
+
+    auto start_cp_dy = now();
+    Iys[0].create(oPadSize.height, oPadSize.width, CV_32FC3);
+    checkCudaErrors(
+        cudaMemcpy(Iys[0].data, pDevicePaddedIy,
+          oPadSize.width * oPadSize.height * elemSize, cudaMemcpyDeviceToHost) );
     compute_time += calc_print_elapsed("Iys[0] cudaMemcpy D->H", start_cp_dy);
 
 
@@ -203,28 +250,49 @@ namespace cu {
         );
       compute_time += calc_print_elapsed("sobel: Iys[i]", start_dy);
 
+      //////////////////////////////////////////////////////////////////////////////////////////////
+      // Pad I, dx, dy
+      //////////////////////////////////////////////////////////////////////////////////////////////
+
+      padWidth  = width + 2 * padding;
+      padHeight = height + 2 * padding;
+      NppiSize oPadSize = { padWidth, padHeight };
+      nDstStep = oPadSize.width * elemSize;
+
+      // Pad original
+      NPP_CHECK_NPP(
+          nppiCopyReplicateBorder_32f_C3R (
+            pDeviceI, nSrcStep, oSize,
+            pDevicePaddedI, nDstStep, oPadSize, padding, padding) );
+
+      // Pad dx, dy
+      NPP_CHECK_NPP(
+          nppiCopyConstBorder_32f_C3R (
+            pDeviceIx, nSrcStep, oSize,
+            pDevicePaddedIx, nDstStep, oPadSize, padding, padding, PAD_VAL) );
+      NPP_CHECK_NPP(
+          nppiCopyConstBorder_32f_C3R (
+            pDeviceIy, nSrcStep, oSize,
+            pDevicePaddedIy, nDstStep, oPadSize, padding, padding, PAD_VAL) );
+
       // Allocate host destinations
       auto start_host_alloc = now();
-      Is[i].create(dstRect.height, dstRect.width, CV_32FC3);
-      Ixs[i].create(dstRect.height, dstRect.width, CV_32FC3);
-      Iys[i].create(dstRect.height, dstRect.width, CV_32FC3);
-
-      std::cout << "Is[" << i << "]: "  << Is[i].size() << " channels: " << Is[i].channels()
-        << " type: " << Is[i].type() << std::endl;
-
+      Is[i].create(oPadSize.height, oPadSize.width, CV_32FC3);
+      Ixs[i].create(oPadSize.height, oPadSize.width, CV_32FC3);
+      Iys[i].create(oPadSize.height, oPadSize.width, CV_32FC3);
       compute_time += calc_print_elapsed("host alloc", start_host_alloc);
 
       // Copy over data
       auto start_cp = now();
       checkCudaErrors(
-          cudaMemcpy(Is[i].data, pDeviceI,
-            dstRect.width * dstRect.height * elemSize, cudaMemcpyDeviceToHost) );
+          cudaMemcpy(Is[i].data, pDevicePaddedI,
+            oPadSize.width * oPadSize.height * elemSize, cudaMemcpyDeviceToHost) );
       checkCudaErrors(
-          cudaMemcpy(Ixs[i].data, pDeviceIx,
-            dstRect.width * dstRect.height * elemSize, cudaMemcpyDeviceToHost) );
+          cudaMemcpy(Ixs[i].data, pDevicePaddedIx,
+            oPadSize.width * oPadSize.height * elemSize, cudaMemcpyDeviceToHost) );
       checkCudaErrors(
-          cudaMemcpy(Iys[i].data, pDeviceIy,
-            dstRect.width * dstRect.height * elemSize, cudaMemcpyDeviceToHost) );
+          cudaMemcpy(Iys[i].data, pDevicePaddedIy,
+            oPadSize.width * oPadSize.height * elemSize, cudaMemcpyDeviceToHost) );
       compute_time += calc_print_elapsed("pyramid cudaMemcpy D->H", start_cp);
 
     }
@@ -233,6 +301,9 @@ namespace cu {
     cudaFree(pDeviceI);
     cudaFree(pDeviceIx);
     cudaFree(pDeviceIy);
+    cudaFree(pDevicePaddedI);
+    cudaFree(pDevicePaddedIx);
+    cudaFree(pDevicePaddedIy);
     cudaFree(pDeviceTmp);
     cudaFree(pDeviceKernel);
 
