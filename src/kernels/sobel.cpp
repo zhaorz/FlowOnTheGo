@@ -155,8 +155,6 @@ namespace cu {
     // Only for custom row/col filter
     cudaFree((void*) pDeviceKernel);
 
-    delete[] pHostDst;
-
     std::cout << "[done] sobel" << std::endl;
     std::cout << "  primary compute time: " << compute_time << " (ms)" << std::endl;
     std::cout << "  total compute time:   " << compute_time + total_time << " (ms)" << std::endl;
