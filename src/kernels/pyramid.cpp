@@ -125,6 +125,7 @@ namespace cu {
     // For every finer level, resize and apply the gradients
     ////////////////////////////////////////////////////////////////////////////////////////////////
 
+
     for (int i = 1; i < nLevels; i++) {
 
       // Get the new size
@@ -175,6 +176,10 @@ namespace cu {
       Is[i].create(dstRect.height, dstRect.width, CV_32FC3);
       Ixs[i].create(dstRect.height, dstRect.width, CV_32FC3);
       Iys[i].create(dstRect.height, dstRect.width, CV_32FC3);
+
+      std::cout << "Is[" << i << "]: "  << Is[i].size() << " channels: " << Is[i].channels()
+        << " type: " << Is[i].type() << std::endl;
+
       compute_time += calc_print_elapsed("host alloc", start_host_alloc);
 
       // Copy over data
