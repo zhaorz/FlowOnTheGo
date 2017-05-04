@@ -127,8 +127,13 @@ namespace cu {
         // : nppiFilterPrewittVertBorder_32f_C3R  (pDeviceSrc, nSrcStep, oSrcSize, oSrcOffset, pDeviceDst, nDstStep, oSizeROI, eBorderType)
 
         // Custom row filter
-        ? nppiFilterRowBorder_32f_C3R    (pDeviceSrc, nSrcStep, oSrcSize, oSrcOffset, pDeviceDst, nDstStep, oSizeROI, pDeviceKernel, nMaskSize, nAnchor, eBorderType)
-        : nppiFilterColumnBorder_32f_C3R (pDeviceSrc, nSrcStep, oSrcSize, oSrcOffset, pDeviceDst, nDstStep, oSizeROI, pDeviceKernel, nMaskSize, nAnchor, eBorderType)
+        ? nppiFilterRowBorder_32f_C3R (
+          pDeviceSrc, nSrcStep, oSrcSize, oSrcOffset,
+          pDeviceDst, nDstStep, oSizeROI, pDeviceKernel, nMaskSize, nAnchor, eBorderType)
+
+        : nppiFilterColumnBorder_32f_C3R (
+          pDeviceSrc, nSrcStep, oSrcSize, oSrcOffset,
+          pDeviceDst, nDstStep, oSizeROI, pDeviceKernel, nMaskSize, nAnchor, eBorderType)
 
         // Sobel with mask
         // ? nppiFilterSobelHorizMaskBorder_32f_C1R (pDeviceSrc, nSrcStep, oSrcSize, oSrcOffset, pDeviceDst, nDstStep, oSizeROI, NPP_MASK_SIZE_1_X_3, eBorderType)
@@ -140,25 +145,20 @@ namespace cu {
 
     auto start_memcpy_dh = now();
 
-
     // Copy result to host
-    float* pHostDst = new float[width * height * channels];
+    dest.create(height, width, CV_32FC3);
+    float* pHostDst = (float*) dest.data;
 
     checkCudaErrors(
         cudaMemcpy(pHostDst, pDeviceDst, width * height * elemSize, cudaMemcpyDeviceToHost) );
 
     total_time += calc_print_elapsed("cudaMemcpy H<-D", start_memcpy_dh);
 
-    cv::Mat dest_wrapper(height, width, CV_32FC3, pHostDst);
-    dest_wrapper.copyTo(dest);
-
     cudaFree((void*) pDeviceSrc);
     cudaFree((void*) pDeviceDst);
 
     // Only for custom row/col filter
     cudaFree((void*) pDeviceKernel);
-
-    delete[] pHostDst;
 
     std::cout << "[done] sobel" << std::endl;
     std::cout << "  primary compute time: " << compute_time << " (ms)" << std::endl;

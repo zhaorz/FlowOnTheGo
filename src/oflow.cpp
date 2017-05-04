@@ -22,6 +22,7 @@
 #include "kernels/resize.h"
 #include "kernels/resizeGrad.h"
 #include "kernels/sobel.h"
+#include "kernels/pyramid.h"
 #include "common/RgbMat.h"
 #include "common/timer.h"
 
@@ -76,21 +77,8 @@ namespace OFC {
     gettimeofday(&start_time, NULL);
 
     // Construct image and gradient pyramides
-    for (int i = 0; i <= op.coarsest_scale; ++i)  {
-      // At finest scale: copy directly, for all other: downscale previous scale by .5
-      if (i == 0) {
-        I0_mats[i] = I0.clone();
-        I1_mats[i] = I1.clone();
-
-        cu::sobel(I0_mats[i], I0x_mats[i], CV_32F, 1, 0, 1, 1, 0, cv::BORDER_DEFAULT);
-        cu::sobel(I0_mats[i], I0y_mats[i], CV_32F, 0, 1, 1, 1, 0, cv::BORDER_DEFAULT);
-        cu::sobel(I1_mats[i], I1x_mats[i], CV_32F, 1, 0, 1, 1, 0, cv::BORDER_DEFAULT);
-        cu::sobel(I1_mats[i], I1y_mats[i], CV_32F, 0, 1, 1, 1, 0, cv::BORDER_DEFAULT);
-      } else {
-        cu::resizeGrad(I0_mats[i-1], I0_mats[i], I0x_mats[i], I0y_mats[i], .5, .5);
-        cu::resizeGrad(I1_mats[i-1], I1_mats[i], I1x_mats[i], I1y_mats[i], .5, .5);
-      }
-    }
+    cu::constructImgPyramids(I0, I0_mats, I0x_mats, I0y_mats, op.coarsest_scale + 1);
+    cu::constructImgPyramids(I1, I1_mats, I1x_mats, I1y_mats, op.coarsest_scale + 1);
 
     auto start_pad = now();
 

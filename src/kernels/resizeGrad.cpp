@@ -87,11 +87,12 @@ namespace cu {
     auto start_cuda_malloc = now();
 
     // Allocate device memory
-    Npp32f* pDeviceSrc, *pDeviceDst, *pDeviceTmp;
+    Npp32f* pDeviceSrc, *pDeviceDst, *pDeviceDstX, *pDeviceDstY;
 
     checkCudaErrors( cudaMalloc((void**) &pDeviceSrc, width * height * elemSize) );
     checkCudaErrors( cudaMalloc((void**) &pDeviceDst, dstSize * elemSize) );
-    checkCudaErrors( cudaMalloc((void**) &pDeviceTmp, dstSize * elemSize) );
+    checkCudaErrors( cudaMalloc((void**) &pDeviceDstX, dstSize * elemSize) );
+    checkCudaErrors( cudaMalloc((void**) &pDeviceDstY, dstSize * elemSize) );
 
     total_time += calc_print_elapsed("cudaMalloc", start_cuda_malloc);
 
@@ -100,8 +101,8 @@ namespace cu {
     auto start_host_alloc = now();
 
     float* pHostDst   = new float[dstSize * channels];
-    float* pHostDst_x = new float[dstSize * channels];
-    float* pHostDst_y = new float[dstSize * channels];
+    float* pHostDstX = new float[dstSize * channels];
+    float* pHostDstY = new float[dstSize * channels];
 
     total_time += calc_print_elapsed("host_alloc", start_host_alloc);
 
@@ -133,11 +134,6 @@ namespace cu {
           dstSize * elemSize, cudaMemcpyDeviceToHost) );
     total_time += calc_print_elapsed("resized cudaMemcpy D->H", start_cp_resize);
 
-    // Swap resized image into pDeviceTmp
-    Npp32f* tmp = pDeviceTmp;
-    pDeviceTmp  = pDeviceDst;
-    pDeviceDst  = tmp;
-
     // Do gradients
     NppiBorderType eBorderType = NPP_BORDER_REPLICATE;
     NppiSize  rSize   = { dstRect.width, dstRect.height };
@@ -148,13 +144,13 @@ namespace cu {
     auto start_dx = now();
     NPP_CHECK_NPP(
         nppiFilterSobelHorizBorder_32f_C3R (
-          pDeviceTmp, nDstStep, rSize, rOffset,
-          pDeviceDst, nDstStep, rROI, eBorderType) );
+          pDeviceDst, nDstStep, rSize, rOffset,
+          pDeviceDstX, nDstStep, rROI, eBorderType) );
     compute_time += calc_print_elapsed("dx", start_dx);
 
     auto start_cp_dx = now();
     checkCudaErrors(
-        cudaMemcpy(pHostDst_x, pDeviceDst,
+        cudaMemcpy(pHostDstX, pDeviceDstX,
           dstSize * elemSize, cudaMemcpyDeviceToHost) );
     total_time += calc_print_elapsed("dx cudaMemcpy D->H", start_cp_dx);
 
@@ -163,21 +159,21 @@ namespace cu {
     auto start_dy = now();
     NPP_CHECK_NPP(
         nppiFilterSobelVertBorder_32f_C3R  (
-          pDeviceTmp, nDstStep, rSize, rOffset,
-          pDeviceDst, nDstStep, rROI, eBorderType) );
+          pDeviceDst, nDstStep, rSize, rOffset,
+          pDeviceDstY, nDstStep, rROI, eBorderType) );
     compute_time += calc_print_elapsed("dy", start_dy);
 
     auto start_cp_dy = now();
     checkCudaErrors(
-        cudaMemcpy(pHostDst_y, pDeviceDst,
+        cudaMemcpy(pHostDstY, pDeviceDstY,
           dstSize * elemSize, cudaMemcpyDeviceToHost) );
     total_time += calc_print_elapsed("dy cudaMemcpy D->H", start_cp_dy);
 
 
     auto start_cp_mat = now();
     cv::Mat dstWrapper(dstRect.height, dstRect.width, CV_32FC3, pHostDst);
-    cv::Mat dstXWrapper(dstRect.height, dstRect.width, CV_32FC3, pHostDst_x);
-    cv::Mat dstYWrapper(dstRect.height, dstRect.width, CV_32FC3, pHostDst_y);
+    cv::Mat dstXWrapper(dstRect.height, dstRect.width, CV_32FC3, pHostDstX);
+    cv::Mat dstYWrapper(dstRect.height, dstRect.width, CV_32FC3, pHostDstY);
 
     dstWrapper.copyTo(dst);
     dstXWrapper.copyTo(dst_x);
@@ -186,11 +182,12 @@ namespace cu {
 
     cudaFree((void*) pDeviceSrc);
     cudaFree((void*) pDeviceDst);
-    cudaFree((void*) pDeviceTmp);
+    cudaFree((void*) pDeviceDstX);
+    cudaFree((void*) pDeviceDstY);
 
     delete[] pHostDst;
-    delete[] pHostDst_x;
-    delete[] pHostDst_y;
+    delete[] pHostDstX;
+    delete[] pHostDstY;
 
     std::cout << "[done] resizeGrad" << std::endl;
     std::cout << "  primary compute time: " << compute_time << " (ms)" << std::endl;
