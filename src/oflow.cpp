@@ -88,10 +88,10 @@ namespace OFC {
       }
 
       // TODO: See if there's a way to allocate the array without cloning
-      I0x_mats[i] = I0_mats[i].clone();
-      I0y_mats[i] = I0_mats[i].clone();
-      I1x_mats[i] = I0_mats[i].clone();
-      I1y_mats[i] = I0_mats[i].clone();
+      // I0x_mats[i] = I0_mats[i].clone();
+      // I0y_mats[i] = I0_mats[i].clone();
+      // I1x_mats[i] = I0_mats[i].clone();
+      // I1y_mats[i] = I0_mats[i].clone();
 
       // Generate gradients
       cu::sobel(I0_mats[i], I0x_mats[i], CV_32F, 1, 0, 1, 1, 0, cv::BORDER_DEFAULT);
