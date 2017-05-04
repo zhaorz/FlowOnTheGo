@@ -20,6 +20,7 @@
 #include "refine_variational.h"
 
 #include "kernels/resize.h"
+#include "kernels/pad.h"
 #include "kernels/resizeGrad.h"
 #include "kernels/sobel.h"
 #include "common/RgbMat.h"
@@ -98,22 +99,22 @@ namespace OFC {
     for (int i = 0; i <= op.coarsest_scale; ++i) {
 
       // Replicate padding for images
-      copyMakeBorder(I0_mats[i], I0_mats[i], op.patch_size, op.patch_size,
-          op.patch_size, op.patch_size, cv::BORDER_REPLICATE);
-      copyMakeBorder(I1_mats[i], I1_mats[i], op.patch_size, op.patch_size,
-          op.patch_size, op.patch_size, cv::BORDER_REPLICATE);
+      cu::pad(I0_mats[i], I0_mats[i], op.patch_size, op.patch_size,
+          op.patch_size, op.patch_size, true);
+      cu::pad(I1_mats[i], I1_mats[i], op.patch_size, op.patch_size,
+          op.patch_size, op.patch_size, true);
       I0s[i] = (float*) I0_mats[i].data;
       I1s[i] = (float*) I1_mats[i].data;
 
       // Zero pad for gradients
-      copyMakeBorder(I0x_mats[i], I0x_mats[i], op.patch_size, op.patch_size,
-          op.patch_size, op.patch_size, cv::BORDER_CONSTANT, 0);
-      copyMakeBorder(I0y_mats[i], I0y_mats[i], op.patch_size, op.patch_size,
-          op.patch_size, op.patch_size, cv::BORDER_CONSTANT, 0);
-      copyMakeBorder(I1x_mats[i], I1x_mats[i], op.patch_size, op.patch_size,
-          op.patch_size, op.patch_size, cv::BORDER_CONSTANT, 0);
-      copyMakeBorder(I1y_mats[i], I1y_mats[i], op.patch_size, op.patch_size,
-          op.patch_size, op.patch_size, cv::BORDER_CONSTANT, 0);
+      cu::pad(I0x_mats[i], I0x_mats[i], op.patch_size, op.patch_size,
+          op.patch_size, op.patch_size, false);
+      cu::pad(I0y_mats[i], I0y_mats[i], op.patch_size, op.patch_size,
+          op.patch_size, op.patch_size, false);
+      cu::pad(I1x_mats[i], I1x_mats[i], op.patch_size, op.patch_size,
+          op.patch_size, op.patch_size, false);
+      cu::pad(I1y_mats[i], I1y_mats[i], op.patch_size, op.patch_size,
+          op.patch_size, op.patch_size, false);
 
       I0xs[i] = (float*) I0x_mats[i].data;
       I0ys[i] = (float*) I0y_mats[i].data;
