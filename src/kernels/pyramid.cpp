@@ -57,6 +57,11 @@ namespace cu {
     NppiPoint oOffset = { 0, 0 };
     NppiSize  oROI    = { width, height };
 
+    // Mask params
+    const Npp32f pSrcKernel[3] = { 1, 0, -1 };
+    Npp32s nMaskSize = 3;
+    Npp32s nAnchor   = 1;  // Kernel is centered over pixel
+
     // Resize params
     int eInterpolation = NPPI_INTER_LINEAR;    // Linear interpolation
     double scaleX = 0.5;
@@ -69,20 +74,23 @@ namespace cu {
 
     // Allocate device memory
     auto start_cuda_malloc = now();
-    Npp32f *pDeviceI, *pDeviceIx, *pDeviceIy, *pDeviceTmp;
+    Npp32f *pDeviceI, *pDeviceIx, *pDeviceIy, *pDeviceTmp, *pDeviceKernel;
 
-    checkCudaErrors( cudaMalloc((void**) &pDeviceI,   width * height * elemSize) );
-    checkCudaErrors( cudaMalloc((void**) &pDeviceIx,  width * height * elemSize) );
-    checkCudaErrors( cudaMalloc((void**) &pDeviceIy,  width * height * elemSize) );
-    checkCudaErrors( cudaMalloc((void**) &pDeviceTmp, width * height * elemSize) );
+    checkCudaErrors( cudaMalloc((void**) &pDeviceI,      width * height * elemSize)  );
+    checkCudaErrors( cudaMalloc((void**) &pDeviceIx,     width * height * elemSize)  );
+    checkCudaErrors( cudaMalloc((void**) &pDeviceIy,     width * height * elemSize)  );
+    checkCudaErrors( cudaMalloc((void**) &pDeviceTmp,    width * height * elemSize)  );
+    checkCudaErrors( cudaMalloc((void**) &pDeviceKernel, nMaskSize * sizeof(Npp32f)) );
 
     calc_print_elapsed("cudaMalloc", start_cuda_malloc);
 
-    // Copy over initial image
+    // Copy over initial image and kernel
     auto start_memcpy_hd = now();
 
     checkCudaErrors(
         cudaMemcpy(pDeviceI, (float*) Is[0].data, width * height * elemSize, cudaMemcpyHostToDevice) );
+    checkCudaErrors(
+        cudaMemcpy(pDeviceKernel, pSrcKernel, nMaskSize * sizeof(Npp32f), cudaMemcpyHostToDevice) );
 
     calc_print_elapsed("cudaMemcpy I[0] H->D", start_memcpy_hd);
 
@@ -93,9 +101,15 @@ namespace cu {
     // dx's
     auto start_dx = now();
     NPP_CHECK_NPP(
-        nppiFilterSobelHorizBorder_32f_C3R (
+        // nppiFilterSobelHorizBorder_32f_C3R (
+        //   pDeviceI, nSrcStep, oSize, oOffset,
+        //   pDeviceIx, nSrcStep, oROI, eBorderType)
+
+        nppiFilterRowBorder_32f_C3R (
           pDeviceI, nSrcStep, oSize, oOffset,
-          pDeviceIx, nSrcStep, oROI, eBorderType) );
+          pDeviceIx, nSrcStep, oROI,
+          pDeviceKernel, nMaskSize, nAnchor, eBorderType)
+        );
     compute_time += calc_print_elapsed("sobel: Ixs[0]", start_dx);
 
     auto start_cp_dx = now();
@@ -108,9 +122,15 @@ namespace cu {
     // dy's
     auto start_dy = now();
     NPP_CHECK_NPP(
-        nppiFilterSobelVertBorder_32f_C3R (
+        // nppiFilterSobelVertBorder_32f_C3R (
+        //   pDeviceI, nSrcStep, oSize, oOffset,
+        //   pDeviceIy, nSrcStep, oROI, eBorderType)
+
+        nppiFilterColumnBorder_32f_C3R (
           pDeviceI, nSrcStep, oSize, oOffset,
-          pDeviceIy, nSrcStep, oROI, eBorderType) );
+          pDeviceIy, nSrcStep, oROI,
+          pDeviceKernel, nMaskSize, nAnchor, eBorderType)
+        );
     compute_time += calc_print_elapsed("sobel: Iys[0]", start_dy);
 
     auto start_cp_dy = now();
@@ -158,17 +178,29 @@ namespace cu {
       // dx's
       auto start_dx = now();
       NPP_CHECK_NPP(
-          nppiFilterSobelHorizBorder_32f_C3R (
-            pDeviceI,  nSrcStep, oSize, oOffset,
-            pDeviceIx, nSrcStep, oROI, eBorderType) );
+          // nppiFilterSobelHorizBorder_32f_C3R (
+          //   pDeviceI,  nSrcStep, oSize, oOffset,
+          //   pDeviceIx, nSrcStep, oROI, eBorderType)
+
+          nppiFilterRowBorder_32f_C3R (
+            pDeviceI, nSrcStep, oSize, oOffset,
+            pDeviceIx, nSrcStep, oROI,
+            pDeviceKernel, nMaskSize, nAnchor, eBorderType)
+          );
       compute_time += calc_print_elapsed("sobel: Ixs[i]", start_dx);
 
       // dy's
       auto start_dy = now();
       NPP_CHECK_NPP(
-          nppiFilterSobelVertBorder_32f_C3R (
+          // nppiFilterSobelVertBorder_32f_C3R (
+          //   pDeviceI, nSrcStep, oSize, oOffset,
+          //   pDeviceIy, nSrcStep, oROI, eBorderType)
+
+          nppiFilterColumnBorder_32f_C3R (
             pDeviceI, nSrcStep, oSize, oOffset,
-            pDeviceIy, nSrcStep, oROI, eBorderType) );
+            pDeviceIy, nSrcStep, oROI,
+            pDeviceKernel, nMaskSize, nAnchor, eBorderType)
+        );
       compute_time += calc_print_elapsed("sobel: Iys[i]", start_dy);
 
       // Allocate host destinations
@@ -196,6 +228,13 @@ namespace cu {
       compute_time += calc_print_elapsed("pyramid cudaMemcpy D->H", start_cp);
 
     }
+
+    // Clean up
+    cudaFree(pDeviceI);
+    cudaFree(pDeviceIx);
+    cudaFree(pDeviceIy);
+    cudaFree(pDeviceTmp);
+    cudaFree(pDeviceKernel);
 
     calc_print_elapsed("total time", start_total);
     std::cout << "[done] constructImgPyramids: primmary compute time: " << compute_time  << std::endl;

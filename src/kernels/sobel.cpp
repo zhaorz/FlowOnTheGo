@@ -127,8 +127,13 @@ namespace cu {
         // : nppiFilterPrewittVertBorder_32f_C3R  (pDeviceSrc, nSrcStep, oSrcSize, oSrcOffset, pDeviceDst, nDstStep, oSizeROI, eBorderType)
 
         // Custom row filter
-        ? nppiFilterRowBorder_32f_C3R    (pDeviceSrc, nSrcStep, oSrcSize, oSrcOffset, pDeviceDst, nDstStep, oSizeROI, pDeviceKernel, nMaskSize, nAnchor, eBorderType)
-        : nppiFilterColumnBorder_32f_C3R (pDeviceSrc, nSrcStep, oSrcSize, oSrcOffset, pDeviceDst, nDstStep, oSizeROI, pDeviceKernel, nMaskSize, nAnchor, eBorderType)
+        ? nppiFilterRowBorder_32f_C3R (
+          pDeviceSrc, nSrcStep, oSrcSize, oSrcOffset,
+          pDeviceDst, nDstStep, oSizeROI, pDeviceKernel, nMaskSize, nAnchor, eBorderType)
+
+        : nppiFilterColumnBorder_32f_C3R (
+          pDeviceSrc, nSrcStep, oSrcSize, oSrcOffset,
+          pDeviceDst, nDstStep, oSizeROI, pDeviceKernel, nMaskSize, nAnchor, eBorderType)
 
         // Sobel with mask
         // ? nppiFilterSobelHorizMaskBorder_32f_C1R (pDeviceSrc, nSrcStep, oSrcSize, oSrcOffset, pDeviceDst, nDstStep, oSizeROI, NPP_MASK_SIZE_1_X_3, eBorderType)
