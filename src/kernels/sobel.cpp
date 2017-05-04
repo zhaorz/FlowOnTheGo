@@ -124,22 +124,17 @@ namespace cu {
 
     auto start_memcpy_dh = now();
 
-
     // Copy result to host
-    float* pHostDst = new float[width * height * channels];
+    dest.create(height, width, CV_32FC3);
+    float* pHostDst = (float*) dest.data;
 
     checkCudaErrors(
         cudaMemcpy(pHostDst, pDeviceDst, width * height * elemSize, cudaMemcpyDeviceToHost) );
 
     total_time += calc_print_elapsed("cudaMemcpy H<-D", start_memcpy_dh);
 
-    cv::Mat dest_wrapper(height, width, CV_32FC3, pHostDst);
-    dest_wrapper.copyTo(dest);
-
     cudaFree((void*) pDeviceSrc);
     cudaFree((void*) pDeviceDst);
-
-    delete[] pHostDst;
 
     std::cout << "[done] sobel" << std::endl;
     std::cout << "  primary compute time: " << compute_time << " (ms)" << std::endl;
