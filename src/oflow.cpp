@@ -20,13 +20,17 @@
 #include "refine_variational.h"
 
 #include "kernels/resize.h"
+#include "kernels/resizeGrad.h"
 #include "kernels/sobel.h"
 #include "common/RgbMat.h"
+#include "common/timer.h"
 
 
 using std::cout;
 using std::endl;
 using std::vector;
+
+using namespace timer;
 
 namespace OFC {
 
@@ -77,31 +81,18 @@ namespace OFC {
       if (i == 0) {
         I0_mats[i] = I0.clone();
         I1_mats[i] = I1.clone();
+
+        cu::sobel(I0_mats[i], I0x_mats[i], CV_32F, 1, 0, 1, 1, 0, cv::BORDER_DEFAULT);
+        cu::sobel(I0_mats[i], I0y_mats[i], CV_32F, 0, 1, 1, 1, 0, cv::BORDER_DEFAULT);
+        cu::sobel(I1_mats[i], I1x_mats[i], CV_32F, 1, 0, 1, 1, 0, cv::BORDER_DEFAULT);
+        cu::sobel(I1_mats[i], I1y_mats[i], CV_32F, 0, 1, 1, 1, 0, cv::BORDER_DEFAULT);
       } else {
-        cu::resize(I0_mats[i-1], I0_mats[i], cv::Size(), .5, .5, cv::INTER_LINEAR);
-        cu::resize(I1_mats[i-1], I1_mats[i], cv::Size(), .5, .5, cv::INTER_LINEAR);
-        // cv::resize(I0_mats[i-1], I0_mats[i], cv::Size(), .5, .5, cv::INTER_LINEAR);
-        // cv::resize(I1_mats[i-1], I1_mats[i], cv::Size(), .5, .5, cv::INTER_LINEAR);
+        cu::resizeGrad(I0_mats[i-1], I0_mats[i], I0x_mats[i], I0y_mats[i], .5, .5);
+        cu::resizeGrad(I1_mats[i-1], I1_mats[i], I1x_mats[i], I1y_mats[i], .5, .5);
       }
-
-      // TODO: See if there's a way to allocate the array without cloning
-      I0x_mats[i] = I0_mats[i].clone();
-      I0y_mats[i] = I0_mats[i].clone();
-      I1x_mats[i] = I0_mats[i].clone();
-      I1y_mats[i] = I0_mats[i].clone();
-
-      // Generate gradients
-      cu::sobel(I0_mats[i], I0x_mats[i], CV_32F, 1, 0, 1, 1, 0, cv::BORDER_DEFAULT);
-      cu::sobel(I0_mats[i], I0y_mats[i], CV_32F, 0, 1, 1, 1, 0, cv::BORDER_DEFAULT);
-      // cv::Sobel(I0_mats[i], I0x_mats[i], CV_32F, 1, 0, 1, 1, 0, cv::BORDER_DEFAULT);
-      // cv::Sobel(I0_mats[i], I0y_mats[i], CV_32F, 0, 1, 1, 1, 0, cv::BORDER_DEFAULT);
-
-      cu::sobel(I1_mats[i], I1x_mats[i], CV_32F, 1, 0, 1, 1, 0, cv::BORDER_DEFAULT);
-      cu::sobel(I1_mats[i], I1y_mats[i], CV_32F, 0, 1, 1, 1, 0, cv::BORDER_DEFAULT);
-      // cv::Sobel(I1_mats[i], I1x_mats[i], CV_32F, 1, 0, 1, 1, 0, cv::BORDER_DEFAULT);
-      // cv::Sobel(I1_mats[i], I1y_mats[i], CV_32F, 0, 1, 1, 1, 0, cv::BORDER_DEFAULT);
     }
 
+    auto start_pad = now();
 
     // Pad images
     for (int i = 0; i <= op.coarsest_scale; ++i) {
@@ -130,6 +121,8 @@ namespace OFC {
       I1ys[i] = (float*) I1y_mats[i].data;
 
     }
+
+    calc_print_elapsed("pad images", start_pad);
 
     // Timing, image gradients and pyramid
     if (op.verbosity > 1) {

@@ -45,7 +45,7 @@ namespace cu {
    *   borderType  (unused) pixel extrapolation method, see cv::BorderTypes
    */
   void sobel(
-      cv::Mat src, cv::Mat dest, int ddepth, int dx, int dy,
+      const cv::Mat& src, cv::Mat& dest, int ddepth, int dx, int dy,
       int ksize, double scale, double delta, int borderType);
 
 }

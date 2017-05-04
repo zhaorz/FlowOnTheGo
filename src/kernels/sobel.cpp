@@ -45,7 +45,7 @@ namespace cu {
    *   borderType  (unused) pixel extrapolation method, see cv::BorderTypes
    */
   void sobel(
-      cv::Mat src, cv::Mat dest, int ddepth, int dx, int dy,
+      const cv::Mat& src, cv::Mat& dest, int ddepth, int dx, int dy,
       int ksize, double scale, double delta, int borderType) {
 
     if (src.type() != CV_32FC3) {
@@ -59,6 +59,7 @@ namespace cu {
 
     // Compute time of relevant kernel
     double compute_time = 0.0;
+    double total_time = 0.0;
 
     // CV_32FC3 is made up of RGB floats
     int channels = 3;
@@ -85,12 +86,6 @@ namespace cu {
     const Npp32f pKernel[3] = { 1, 0, -1 };
     Npp32s nMaskSize =  3;
     Npp32s nAnchor   = 1;  // Kernel is centered over pixel
-    // const Npp32f pKernel[9] = { -1, -1, -1, 0, 0, 0, 1, 1, 1 };
-    // Npp32s nMaskSize =  9;
-    // Npp32s nAnchor   = -3;  // Kernel is centered over pixel
-
-
-    // NppiBorderType eBorderType = NPP_BORDER_MIRROR;        ** raises NPP_NOT_SUPPORTED_MODE_ERROR(-9999)
     NppiBorderType eBorderType = NPP_BORDER_REPLICATE;
 
     auto start_cuda_malloc = now();
@@ -132,8 +127,8 @@ namespace cu {
         // : nppiFilterPrewittVertBorder_32f_C3R  (pDeviceSrc, nSrcStep, oSrcSize, oSrcOffset, pDeviceDst, nDstStep, oSizeROI, eBorderType)
 
         // Custom row filter
-        // ? nppiFilterRowBorder_32f_C3R    (pDeviceSrc, nSrcStep, oSrcSize, oSrcOffset, pDeviceDst, nDstStep, oSizeROI, pDeviceKernel, nMaskSize, nAnchor, eBorderType)
-        // : nppiFilterColumnBorder_32f_C3R (pDeviceSrc, nSrcStep, oSrcSize, oSrcOffset, pDeviceDst, nDstStep, oSizeROI, pDeviceKernel, nMaskSize, nAnchor, eBorderType)
+        ? nppiFilterRowBorder_32f_C3R    (pDeviceSrc, nSrcStep, oSrcSize, oSrcOffset, pDeviceDst, nDstStep, oSizeROI, pDeviceKernel, nMaskSize, nAnchor, eBorderType)
+        : nppiFilterColumnBorder_32f_C3R (pDeviceSrc, nSrcStep, oSrcSize, oSrcOffset, pDeviceDst, nDstStep, oSizeROI, pDeviceKernel, nMaskSize, nAnchor, eBorderType)
 
         // Sobel with mask
         // ? nppiFilterSobelHorizMaskBorder_32f_C1R (pDeviceSrc, nSrcStep, oSrcSize, oSrcOffset, pDeviceDst, nDstStep, oSizeROI, NPP_MASK_SIZE_1_X_3, eBorderType)
@@ -152,7 +147,7 @@ namespace cu {
     checkCudaErrors(
         cudaMemcpy(pHostDst, pDeviceDst, width * height * elemSize, cudaMemcpyDeviceToHost) );
 
-    calc_print_elapsed("cudaMemcpy H<-D", start_memcpy_dh);
+    total_time += calc_print_elapsed("cudaMemcpy H<-D", start_memcpy_dh);
 
     cv::Mat dest_wrapper(height, width, CV_32FC3, pHostDst);
     dest_wrapper.copyTo(dest);
@@ -165,7 +160,9 @@ namespace cu {
 
     delete[] pHostDst;
 
-    std::cout << "[done] sobel: primary compute time: " << compute_time << " (ms)" << std::endl;
+    std::cout << "[done] sobel" << std::endl;
+    std::cout << "  primary compute time: " << compute_time << " (ms)" << std::endl;
+    std::cout << "  total compute time:   " << compute_time + total_time << " (ms)" << std::endl;
   }
 
 }
