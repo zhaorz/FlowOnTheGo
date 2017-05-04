@@ -83,26 +83,14 @@ namespace OFC {
       } else {
         cu::resize(I0_mats[i-1], I0_mats[i], cv::Size(), .5, .5, cv::INTER_LINEAR);
         cu::resize(I1_mats[i-1], I1_mats[i], cv::Size(), .5, .5, cv::INTER_LINEAR);
-        // cv::resize(I0_mats[i-1], I0_mats[i], cv::Size(), .5, .5, cv::INTER_LINEAR);
-        // cv::resize(I1_mats[i-1], I1_mats[i], cv::Size(), .5, .5, cv::INTER_LINEAR);
       }
-
-      // TODO: See if there's a way to allocate the array without cloning
-      // I0x_mats[i] = I0_mats[i].clone();
-      // I0y_mats[i] = I0_mats[i].clone();
-      // I1x_mats[i] = I0_mats[i].clone();
-      // I1y_mats[i] = I0_mats[i].clone();
 
       // Generate gradients
       cu::sobel(I0_mats[i], I0x_mats[i], CV_32F, 1, 0, 1, 1, 0, cv::BORDER_DEFAULT);
       cu::sobel(I0_mats[i], I0y_mats[i], CV_32F, 0, 1, 1, 1, 0, cv::BORDER_DEFAULT);
-      // cv::Sobel(I0_mats[i], I0x_mats[i], CV_32F, 1, 0, 1, 1, 0, cv::BORDER_DEFAULT);
-      // cv::Sobel(I0_mats[i], I0y_mats[i], CV_32F, 0, 1, 1, 1, 0, cv::BORDER_DEFAULT);
 
       cu::sobel(I1_mats[i], I1x_mats[i], CV_32F, 1, 0, 1, 1, 0, cv::BORDER_DEFAULT);
       cu::sobel(I1_mats[i], I1y_mats[i], CV_32F, 0, 1, 1, 1, 0, cv::BORDER_DEFAULT);
-      // cv::Sobel(I1_mats[i], I1x_mats[i], CV_32F, 1, 0, 1, 1, 0, cv::BORDER_DEFAULT);
-      // cv::Sobel(I1_mats[i], I1y_mats[i], CV_32F, 0, 1, 1, 1, 0, cv::BORDER_DEFAULT);
     }
 
     auto start_pad = now();
