@@ -30,8 +30,8 @@
 namespace cu {
 
   /**
-   * Perform border padding with constant (0) or replication on src and store it in dest.
-   * Accepts 3-channel 32-bit float matrices.
+   * Perform border padding with constant (0) or replication on src.
+   * Accepts 3-channel 32-bit float matrices. Returns pointer to dest
    *
    * Params:
    *   src        input image.
@@ -43,9 +43,10 @@ namespace cu {
    *   right      right padding
    *   replicate  whether to replicate or constant pad
    */
-  void pad(
-      const cv::Mat& src, cv::Mat& dest, int top,
-      int bottom, int left, int right, bool replicate);
+  Npp32f *pad(
+      Npp32f* src,
+      int width, int height,
+      int top, int bottom, int left, int right, bool replicate);
 
 }
 

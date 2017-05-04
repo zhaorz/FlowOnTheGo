@@ -53,7 +53,8 @@ void process(const char* input_file, const char* output_file) {
 
   auto start_resize = now();
 
-  cu::pad(I0_f, I1_f, 20, 50, 100, 200, true);
+  I1_f.data = (uchar*) cu::pad((float*) I0_f.data, I0_f.size().width, I0_f.size().height,
+      20, 50, 100, 200, true);
 
   calc_print_elapsed("resize", start_resize);
 

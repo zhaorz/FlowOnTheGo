@@ -29,8 +29,8 @@
 namespace cu {
 
   void constructImgPyramids(
-      const cv::Mat& I,
-      cv::Mat* Is, cv::Mat* Ixs, cv::Mat* Iys,
+      Npp32f* I, float** Is, float** Ixs, float** Iys,
+      int width, int height,
       int padding, int nLevels);
 
 }

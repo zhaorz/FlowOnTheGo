@@ -9,12 +9,14 @@
 #include "oflow.h"
 #include "kernels/warmup.h"
 #include "kernels/pad.h"
+#include "common/timer.h"
 
 // CUDA
 #include <cuda_runtime.h>
 
 using namespace std;
 using namespace OFC;
+using namespace timer;
 
 // Save a Depth/OF/SF as .flo file
 void SaveFlowFile(cv::Mat& img, const char* filename) {
@@ -127,8 +129,31 @@ int main( int argc, char** argv ) {
   // Load images
   I0_mat = cv::imread(I0_file, CV_LOAD_IMAGE_COLOR);   // Read the file
   I1_mat = cv::imread(I1_file, CV_LOAD_IMAGE_COLOR);   // Read the file
+
   int width_org = I0_mat.size().width;   // unpadded original image size
   int height_org = I0_mat.size().height;  // unpadded original image size
+
+  // convert to float
+  I0_mat.convertTo(I0_fmat, CV_32F);
+  I1_mat.convertTo(I1_fmat, CV_32F);
+
+  int channels = 3;
+  int elemSize = channels * sizeof(Npp32f);
+
+  /* MEMCOPY to CUDA */
+  Npp32f* I0, *I1;
+  auto start_cuda_malloc = now();
+  checkCudaErrors( cudaMalloc((void**) &I0, width_org * height_org * elemSize) );
+  checkCudaErrors( cudaMalloc((void**) &I1, width_org * height_org * elemSize) );
+  calc_print_elapsed("I0, I1 cudaMalloc", start_cuda_malloc);
+
+  auto start_memcpy_hd = now();
+  checkCudaErrors(
+      cudaMemcpy(I0, (float*) I0_fmat.data, width_org * height_org * elemSize, cudaMemcpyHostToDevice) );
+  checkCudaErrors(
+      cudaMemcpy(I1, (float*) I1_fmat.data, width_org * height_org * elemSize, cudaMemcpyHostToDevice) );
+  calc_print_elapsed("cudaMemcpy I0, I1 H->D", start_memcpy_hd);
+
 
   // Parse rest of parameters
   opt_params op;
@@ -196,9 +221,6 @@ int main( int argc, char** argv ) {
   }
 
 
-  // convert to float
-  I0_mat.convertTo(I0_fmat, CV_32F);
-  I1_mat.convertTo(I1_fmat, CV_32F);
 
   // Pad image such that width and height are restless divisible on all scales (except last)
   int padw = 0, padh = 0;
@@ -209,20 +231,29 @@ int main( int argc, char** argv ) {
   if (div > 0) padh = max_scale - div;
 
   if (padh > 0 || padw > 0) {
-
-    cu::pad(I0_fmat, I0_fmat, floor((float) padh / 2.0f), ceil((float) padh / 2.0f),
-        floor((float) padw / 2.0f), ceil((float) padw / 2.0f), true);
-    cu::pad(I1_fmat, I1_fmat, floor((float) padh / 2.0f), ceil((float) padh / 2.0f),
+    Npp32f* I0Padded = cu::pad(
+        I0, width_org, height_org, floor((float) padh / 2.0f), ceil((float) padh / 2.0f),
         floor((float) padw / 2.0f), ceil((float) padw / 2.0f), true);
 
+    Npp32f* I1Padded = cu::pad(
+        I1, width_org, height_org, floor((float) padh / 2.0f), ceil((float) padh / 2.0f),
+        floor((float) padw / 2.0f), ceil((float) padw / 2.0f), true);
+
+    cudaFree(I0);
+    cudaFree(I1);
+
+    I0 = I0Padded;
+    I1 = I1Padded;
   }
+
+
 
   // Create image paramaters
   img_params iparams;
 
   // padded image size, ensures divisibility by 2 on all scales (except last)
-  iparams.width = I0_fmat.size().width;
-  iparams.height = I0_fmat.size().height;
+  iparams.width = width_org + padw;
+  iparams.height = height_org + padh;
   iparams.padding = op.patch_size;
 
 
@@ -243,7 +274,7 @@ int main( int argc, char** argv ) {
   float scale_fact = pow(2, op.finest_scale);
   cv::Mat flow_mat(iparams.height / scale_fact , iparams.width / scale_fact, CV_32FC2); // Optical Flow
 
-  ofc.calc(I0_fmat, I1_fmat, iparams, nullptr, (float*) flow_mat.data);
+  ofc.calc(I0, I1, iparams, nullptr, (float*) flow_mat.data);
 
 
   if (op.verbosity > 1) gettimeofday(&start_time, NULL);
