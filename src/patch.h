@@ -18,6 +18,8 @@ namespace OFC {
     Eigen::Matrix<float, Eigen::Dynamic, 1> raw_diff; // image error to reference image
     Eigen::Matrix<float, Eigen::Dynamic, 1> cost_diff; // absolute error image
 
+    float cost; // absolute error
+
     Eigen::Matrix<float, 2, 2> hessian; // Hessian for optimization
     Eigen::Vector2f p_org, p_cur, delta_p; // point position, displacement to starting position, iteration update
 
@@ -82,8 +84,12 @@ namespace OFC {
       Eigen::Matrix<float, Eigen::Dynamic, 1> patch_x;
       Eigen::Matrix<float, Eigen::Dynamic, 1> patch_y;
 
+      float* pDevicePatch;
       float* pDevicePatchX;
       float* pDevicePatchY;
+
+      float* pDeviceRawDiff;
+      float* pDeviceCostDiff;
 
       Eigen::Map<const Eigen::MatrixXf> * I0, * I0x, * I0y;
       Eigen::Map<const Eigen::MatrixXf> * I1, * I1x, * I1y;
