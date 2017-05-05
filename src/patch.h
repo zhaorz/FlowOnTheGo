@@ -4,6 +4,8 @@
 #ifndef PAT_HEADER
 #define PAT_HEADER
 
+#include <cublas_v2.h>
+
 #include "oflow.h" // For camera intrinsic and opt. parameter struct
 
 namespace OFC {
@@ -58,6 +60,9 @@ namespace OFC {
 
     private:
 
+      cublasHandle_t handle;
+      cublasStatus_t stat;
+
       void OptimizeStart(const Eigen::Vector2f p_prev);
 
       void OptimizeComputeErrImg();
@@ -76,6 +81,9 @@ namespace OFC {
       Eigen::Matrix<float, Eigen::Dynamic, 1> patch;
       Eigen::Matrix<float, Eigen::Dynamic, 1> patch_x;
       Eigen::Matrix<float, Eigen::Dynamic, 1> patch_y;
+
+      float* pDevicePatchX;
+      float* pDevicePatchY;
 
       Eigen::Map<const Eigen::MatrixXf> * I0, * I0x, * I0y;
       Eigen::Map<const Eigen::MatrixXf> * I1, * I1x, * I1y;

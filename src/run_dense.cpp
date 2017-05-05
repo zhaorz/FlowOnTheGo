@@ -13,6 +13,7 @@
 
 // CUDA
 #include <cuda_runtime.h>
+#include <cublas_v2.h>
 
 using namespace std;
 using namespace OFC;
@@ -165,6 +166,12 @@ int main( int argc, char** argv ) {
     op.var_ref_iter = 3; op.var_ref_sor_weight = 1.6;
     op.verbosity = 2; // Default: Plot detailed timings
 
+    cublasStatus_t stat = cublasCreate(&op.cublasHandle);
+    if (stat != CUBLAS_STATUS_SUCCESS) {
+      printf ("CUBLAS initialization failed\n");
+      exit(-1);
+    }
+
     int fratio = 5; // For automatic selection of coarsest scale: 1/fratio * width = maximum expected motion magnitude in image. Set lower to restrict search space.
 
     int op_point = 2; // Default operating point
@@ -276,6 +283,7 @@ int main( int argc, char** argv ) {
 
   ofc.calc(I0, I1, iparams, nullptr, (float*) flow_mat.data);
 
+  cublasDestroy(op.cublasHandle);
 
   if (op.verbosity > 1) gettimeofday(&start_time, NULL);
 

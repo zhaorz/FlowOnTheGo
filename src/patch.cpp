@@ -10,6 +10,11 @@
 
 #include <stdio.h>
 
+#include <cuda_runtime.h>
+#include <cublas_v2.h>
+#include "common/cuda_helper.h"
+#include "common/Exceptions.h"
+
 #include "patch.h"
 
 using std::cout;
@@ -47,6 +52,9 @@ namespace OFC {
 
   PatClass::~PatClass() {
 
+    cudaFree(pDevicePatchX);
+    cudaFree(pDevicePatchY);
+
     delete p_state;
 
   }
@@ -68,16 +76,30 @@ namespace OFC {
 
   void PatClass::ComputeHessian() {
 
-    p_state->hessian(0,0) = (patch_x.array() * patch_x.array()).sum();
-    p_state->hessian(0,1) = (patch_x.array() * patch_y.array()).sum();
-    p_state->hessian(1,1) = (patch_y.array() * patch_y.array()).sum();
+    CUBLAS_CHECK (
+        cublasSdot(op->cublasHandle, patch.size(),
+          pDevicePatchX, 1, pDevicePatchX, 1, &(p_state->hessian(0,0))) );
+    CUBLAS_CHECK (
+        cublasSdot(op->cublasHandle, patch.size(),
+          pDevicePatchX, 1, pDevicePatchY, 1, &(p_state->hessian(0,1))) );
+    CUBLAS_CHECK (
+        cublasSdot(op->cublasHandle, patch.size(),
+          pDevicePatchY, 1, pDevicePatchY, 1, &(p_state->hessian(1,1))) );
+
+
+    // p_state->hessian(0,0) = (patch_x.array() * patch_x.array()).sum();
+    // // p_state->hessian(0,1) = (patch_x.array() * patch_y.array()).sum();
+    // // p_state->hessian(0,1) = xy;
+    // p_state->hessian(1,1) = (patch_y.array() * patch_y.array()).sum();
     p_state->hessian(1,0) = p_state->hessian(0,1);
+
 
     // If not invertible adjust values
     if (p_state->hessian.determinant() == 0) {
       p_state->hessian(0,0) += 1e-10;
       p_state->hessian(1,1) += 1e-10;
     }
+
 
   }
 
@@ -310,6 +332,17 @@ namespace OFC {
     // Mean Normalization
     if (op->use_mean_normalization > 0)
       patch.array() -= (patch.sum() / op->n_vals);
+
+    // Copy to gpu
+
+    checkCudaErrors(
+        cudaMalloc ((void**) &pDevicePatchX, patch_x.size() * sizeof(float)) );
+    checkCudaErrors(
+        cudaMalloc ((void**) &pDevicePatchY, patch_y.size() * sizeof(float)) );
+    CUBLAS_CHECK (
+        cublasSetVector(patch.size(), sizeof(float), patch_x.data(), 1, pDevicePatchX, 1) );
+    CUBLAS_CHECK (
+        cublasSetVector(patch.size(), sizeof(float), patch_y.data(), 1, pDevicePatchY, 1) );
 
   }
 
