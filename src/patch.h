@@ -57,6 +57,8 @@ namespace OFC {
       inline const bool IsValid() const { return !p_state->invalid; }
       inline const float * GetCostDiffPtr() const { return (float*) p_state->cost_diff.data(); }
 
+      inline float * GetDeviceCostDiffPtr() const { return (float*) pDeviceCostDiff; }
+
       inline const Eigen::Vector2f* GetCurP() const { return &(p_state->p_cur); }
       inline const Eigen::Vector2f* GetOrgP() const { return &(p_state->p_org); }
 
