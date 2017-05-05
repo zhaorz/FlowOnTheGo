@@ -12,6 +12,8 @@
 #include <opencv2/highgui/highgui.hpp> // needed for verbosity >= 3, DISVISUAL
 #include <opencv2/imgproc/imgproc.hpp> // needed for verbosity >= 3, DISVISUAL
 
+#include <nppi.h>
+
 #include <sys/time.h>    // timeof day
 #include <stdio.h>
 
@@ -60,58 +62,21 @@ namespace OFC {
     I1xs = new float*[op.coarsest_scale+1];
     I1ys = new float*[op.coarsest_scale+1];
 
-    I0_mats = new cv::Mat[op.coarsest_scale+1];
-    I1_mats = new cv::Mat[op.coarsest_scale+1];
-    I0x_mats = new cv::Mat[op.coarsest_scale+1];
-    I0y_mats = new cv::Mat[op.coarsest_scale+1];
-    I1x_mats = new cv::Mat[op.coarsest_scale+1];
-    I1y_mats = new cv::Mat[op.coarsest_scale+1];
-
   }
 
 
 
-  void OFClass::ConstructImgPyramids() {
+  void OFClass::ConstructImgPyramids(img_params iparams) {
 
     // Timing structures
     struct timeval start_time, end_time;
     gettimeofday(&start_time, NULL);
 
     // Construct image and gradient pyramides
-    cu::constructImgPyramids(I0, I0_mats, I0x_mats, I0y_mats, op.patch_size, op.coarsest_scale + 1);
-    cu::constructImgPyramids(I1, I1_mats, I1x_mats, I1y_mats, op.patch_size, op.coarsest_scale + 1);
-
-    auto start_pad = now();
-
-    // Pad images
-    for (int i = 0; i <= op.coarsest_scale; ++i) {
-
-      // Replicate padding for images
-      // cu::pad(I0_mats[i], I0_mats[i], op.patch_size, op.patch_size,
-      //     op.patch_size, op.patch_size, true);
-      // cu::pad(I1_mats[i], I1_mats[i], op.patch_size, op.patch_size,
-      //     op.patch_size, op.patch_size, true);
-      I0s[i] = (float*) I0_mats[i].data;
-      I1s[i] = (float*) I1_mats[i].data;
-
-      // Zero pad for gradients
-      // cu::pad(I0x_mats[i], I0x_mats[i], op.patch_size, op.patch_size,
-      //     op.patch_size, op.patch_size, false);
-      // cu::pad(I0y_mats[i], I0y_mats[i], op.patch_size, op.patch_size,
-      //     op.patch_size, op.patch_size, false);
-      // cu::pad(I1x_mats[i], I1x_mats[i], op.patch_size, op.patch_size,
-      //     op.patch_size, op.patch_size, false);
-      // cu::pad(I1y_mats[i], I1y_mats[i], op.patch_size, op.patch_size,
-      //     op.patch_size, op.patch_size, false);
-
-      I0xs[i] = (float*) I0x_mats[i].data;
-      I0ys[i] = (float*) I0y_mats[i].data;
-      I1xs[i] = (float*) I1x_mats[i].data;
-      I1ys[i] = (float*) I1y_mats[i].data;
-
-    }
-
-    calc_print_elapsed("pad images", start_pad);
+    cu::constructImgPyramids(I0, I0s, I0xs, I0ys, iparams.width, iparams.height,
+        op.patch_size, op.coarsest_scale + 1);
+    cu::constructImgPyramids(I1, I1s, I1xs, I1ys, iparams.width, iparams.height,
+        op.patch_size, op.coarsest_scale + 1);
 
     // Timing, image gradients and pyramid
     if (op.verbosity > 1) {
@@ -126,16 +91,15 @@ namespace OFC {
 
 
 
-  void OFClass::calc(cv::Mat _I0, cv::Mat _I1, img_params _iparams, const float * initflow, float * outflow) {
+  void OFClass::calc(Npp32f* _I0, Npp32f* _I1, img_params _iparams, const float * initflow, float * outflow) {
 
     I0 = _I0;
     I1 = _I1;
 
-    std::cout << "I0 " << I0.size() << " channels: " << I0.channels()
-      << " type: " << I0.type() << std::endl;
+    std::cout << "I0 " << _iparams.height << "x" << _iparams.width << std::endl;
 
     printf("Constructing pyramids\n");
-    ConstructImgPyramids();
+    ConstructImgPyramids(_iparams);
 
     if (op.verbosity > 1) cout << ", cflow " << endl;
 
@@ -184,7 +148,6 @@ namespace OFC {
       grid[i]   = new OFC::PatGridClass(&(iparams[i]), &op);
 
     }
-
 
     // Timing, Grid memory allocation
     if (op.verbosity>1) {

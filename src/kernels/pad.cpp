@@ -29,8 +29,8 @@ using namespace timer;
 namespace cu {
 
   /**
-   * Perform border padding with constant (0) or replication on src and store it in dest.
-   * Accepts 3-channel 32-bit float matrices.
+   * Perform border padding with constant (0) or replication on src.
+   * Accepts 3-channel 32-bit float matrices. Returns pointer to device dest.
    *
    * Params:
    *   src          input image.
@@ -42,13 +42,10 @@ namespace cu {
    *   right        right padding
    *   replicate    whether to replicate or constant
    */
-  void pad(
-      const cv::Mat& src, cv::Mat& dest, int top,
-      int bottom, int left, int right, bool replicate) {
-
-    if (src.type() != CV_32FC3) {
-      throw std::invalid_argument("pad: invalid input matrix type");
-    }
+  Npp32f* pad(
+      Npp32f* src,
+      int width, int height,
+      int top, int bottom, int left, int right, bool replicate) {
 
     // Compute time of relevant kernel
     double compute_time = 0.0;
@@ -57,16 +54,10 @@ namespace cu {
     int channels = 3;
     size_t elemSize = 3 * sizeof(float);
 
-    cv::Size sz = src.size();
-    int width   = sz.width;
-    int height  = sz.height;
     int destWidth = left + width + right;
     int destHeight = top + height + bottom;
 
     std::cout << "[start] pad: processing " << width << "x" << height << " image" << std::endl;
-
-    // pSrc pointer to image data
-    Npp32f* pHostSrc = (float*) src.data;
 
     // The width, in bytes, of the image, sometimes referred to as pitch
     unsigned int nSrcStep = width * elemSize;
@@ -77,26 +68,15 @@ namespace cu {
     NppiSize oDstSizeROI = { destWidth, destHeight };
     const Npp32f padVal[3] = {0.0, 0.0, 0.0};
 
-    auto start_cuda_malloc = now();
-
     // Allocate device memory
-    Npp32f* pDeviceSrc, *pDeviceDst;
-
-    checkCudaErrors( cudaMalloc((void**) &pDeviceSrc, width * height * elemSize) );
+    auto start_cuda_malloc = now();
+    Npp32f* pDeviceDst;
     checkCudaErrors( cudaMalloc((void**) &pDeviceDst, destWidth * destHeight *  elemSize) );
-    checkCudaErrors( cudaMemset(pDeviceDst, 0, destWidth * destHeight * elemSize) );
-
+    if (!replicate)
+      checkCudaErrors( cudaMemset(pDeviceDst, 0, destWidth * destHeight * elemSize) );
     calc_print_elapsed("cudaMalloc", start_cuda_malloc);
 
-
-    auto start_memcpy_hd = now();
-
-    // Copy image to device
-    checkCudaErrors(
-        cudaMemcpy(pDeviceSrc, pHostSrc, width * height * elemSize, cudaMemcpyHostToDevice) );
-
-    calc_print_elapsed("cudaMemcpy H->D", start_memcpy_hd);
-
+    Npp32f* pDeviceSrc = src;
 
     auto start_pad = now();
 
@@ -112,22 +92,9 @@ namespace cu {
 
     compute_time += calc_print_elapsed("pad", start_pad);
 
-
-    auto start_memcpy_dh = now();
-
-    // Copy result to host
-    dest.create(destHeight, destWidth, CV_32FC3);
-
-    checkCudaErrors(
-        cudaMemcpy(dest.data, pDeviceDst,
-          destWidth * destHeight * elemSize, cudaMemcpyDeviceToHost) );
-
-    calc_print_elapsed("cudaMemcpy H<-D", start_memcpy_dh);
-
-    cudaFree((void*) pDeviceSrc);
-    cudaFree((void*) pDeviceDst);
-
     std::cout << "[done] pad: primary compute time: " << compute_time << " (ms)" << std::endl;
+
+    return pDeviceDst;
   }
 
 }

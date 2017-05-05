@@ -1,8 +1,8 @@
 cmake_minimum_required (VERSION 2.8)
 project (flow)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O3 -Wno-unknown-pragmas -Wall -std=c++11 -msse4")  #-Wall
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O3 -Wno-unknown-pragmas -Wall -msse4")  #-Wall
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O3 -Wno-unknown-pragmas -Wall -std=c++11 -msse4 -fopenmp")  #-Wall
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O3 -Wno-unknown-pragmas -Wall -msse4 -fopenmp")  #-Wall
 
 # For ghc machines
 set(OpenCV_DIR "/afs/cs/academic/class/15418-s17/public/sw/opencv/build")
@@ -17,7 +17,11 @@ set(EIGEN3_INCLUDE_DIR "/afs/cs.cmu.edu/academic/class/15418-s17/public/sw/eigen
 include_directories(${EIGEN3_INCLUDE_DIR})
 
 # Add extra cuda libraries
-set(CUDA_LIBRARIES ${CUDA_LIBRARIES} ${CUDA_nppi_LIBRARY})
+set(CUDA_CUSOLVER_LIBRARIES
+  "/usr/local/depot/cuda-8.0/lib64/libcusolver.so"
+  "/usr/local/depot/cuda-8.0/lib64/libcublas.so.8.0")
+
+set(CUDA_LIBRARIES ${CUDA_LIBRARIES} ${CUDA_nppi_LIBRARY} ${CUDA_CUSOLVER_LIBRARIES})
 
 message(STATUS "OpenCV library status:")
 message(STATUS "    version: ${OpenCV_VERSION}")
@@ -34,6 +38,8 @@ message(STATUS "    libraries: ${CUDA_LIBRARIES}")
 message(STATUS "    include path: ${CUDA_INCLUDE_DIRS}")
 message(STATUS "    toolkit path: ${CUDA_TOOLKIT_ROOT_DIR}")
 message(STATUS "    nppi path: ${CUDA_nppi_LIBRARY}")
+message(STATUS "    cuBLAS path: ${CUDA_CUBLAS_LIBRARIES}")
+message(STATUS "    cuSOLVER path: ${CUDA_CUSOLVER_LIBRARIES}")
 
 ################################################################################
 # CUDA                                                                         #
@@ -43,6 +49,7 @@ set(CUDA_VERBOSE_BUILD ON)
 set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS}; -g -std=c++11 -arch=compute_61 -code=sm_61)
 
 set(KERNELS
+  kernels/densify.cu
   kernels/warmup.cpp
   kernels/sobel.cpp
   kernels/pyramid.cpp

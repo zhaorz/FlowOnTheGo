@@ -17,6 +17,7 @@
 #include <assert.h>
 
 #include <cuda_runtime.h>
+#include <cublas_v2.h>
 
 #ifndef DEVICE_RESET
 #define DEVICE_RESET cudaDeviceReset();
@@ -296,6 +297,55 @@ void check(T result, char const *const func, const char *const file, int const l
 }
 
 #define checkCudaErrors(val)           check ( (val), #val, __FILE__, __LINE__ )
+
+// cuBLAS API errors
+static const char *_cublasGetErrorEnum(cublasStatus_t error)
+{
+    switch (error)
+    {
+        case CUBLAS_STATUS_SUCCESS:
+            return "CUBLAS_STATUS_SUCCESS";
+
+        case CUBLAS_STATUS_NOT_INITIALIZED:
+            return "CUBLAS_STATUS_NOT_INITIALIZED";
+
+        case CUBLAS_STATUS_ALLOC_FAILED:
+            return "CUBLAS_STATUS_ALLOC_FAILED";
+
+        case CUBLAS_STATUS_INVALID_VALUE:
+            return "CUBLAS_STATUS_INVALID_VALUE";
+
+        case CUBLAS_STATUS_ARCH_MISMATCH:
+            return "CUBLAS_STATUS_ARCH_MISMATCH";
+
+        case CUBLAS_STATUS_MAPPING_ERROR:
+            return "CUBLAS_STATUS_MAPPING_ERROR";
+
+        case CUBLAS_STATUS_EXECUTION_FAILED:
+            return "CUBLAS_STATUS_EXECUTION_FAILED";
+
+        case CUBLAS_STATUS_INTERNAL_ERROR:
+            return "CUBLAS_STATUS_INTERNAL_ERROR";
+    }
+
+    return "<unknown>";
+}
+
+template< typename T >
+void cublasCheck(T result, char const *const func, const char *const file, int const line)
+{
+    if (result)
+    {
+        fprintf(stderr, "CUBLAS error at %s:%d code=%d(%s) \"%s\" \n",
+                file, line, static_cast<unsigned int>(result), _cublasGetErrorEnum(result), func);
+        DEVICE_RESET
+        // Make sure we call CUDA Device Reset before exiting
+        exit(EXIT_FAILURE);
+    }
+}
+
+#define CUBLAS_CHECK(val)           cublasCheck ( (val), #val, __FILE__, __LINE__ )
+
 
 // Beginning of GPU Architecture definitions
 inline int _ConvertSMVer2Cores(int major, int minor)

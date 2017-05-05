@@ -10,7 +10,16 @@
 
 #include <stdio.h>
 
+#include <cuda_runtime.h>
+#include <cublas_v2.h>
+#include "common/cuda_helper.h"
+#include "common/Exceptions.h"
+#include "common/timer.h"
+
 #include "patch.h"
+#include "kernels/squareElem.h"
+
+using namespace timer;
 
 using std::cout;
 using std::endl;
@@ -36,6 +45,10 @@ namespace OFC {
         patch_x.resize(op->n_vals,1);
         patch_y.resize(op->n_vals,1);
 
+        checkCudaErrors(
+            cudaMalloc ((void**) &pDeviceRawDiff, patch.size() * sizeof(float)) );
+        checkCudaErrors(
+            cudaMalloc ((void**) &pDeviceCostDiff, patch.size() * sizeof(float)) );
       }
 
   void PatClass::InitializeError() {
@@ -46,6 +59,13 @@ namespace OFC {
   }
 
   PatClass::~PatClass() {
+
+    cudaFree(pDevicePatch);
+    cudaFree(pDevicePatchX);
+    cudaFree(pDevicePatchY);
+
+    cudaFree(pDeviceRawDiff);
+    cudaFree(pDeviceCostDiff);
 
     delete p_state;
 
@@ -68,16 +88,30 @@ namespace OFC {
 
   void PatClass::ComputeHessian() {
 
-    p_state->hessian(0,0) = (patch_x.array() * patch_x.array()).sum();
-    p_state->hessian(0,1) = (patch_x.array() * patch_y.array()).sum();
-    p_state->hessian(1,1) = (patch_y.array() * patch_y.array()).sum();
+    CUBLAS_CHECK (
+        cublasSdot(op->cublasHandle, patch.size(),
+          pDevicePatchX, 1, pDevicePatchX, 1, &(p_state->hessian(0,0))) );
+    CUBLAS_CHECK (
+        cublasSdot(op->cublasHandle, patch.size(),
+          pDevicePatchX, 1, pDevicePatchY, 1, &(p_state->hessian(0,1))) );
+    CUBLAS_CHECK (
+        cublasSdot(op->cublasHandle, patch.size(),
+          pDevicePatchY, 1, pDevicePatchY, 1, &(p_state->hessian(1,1))) );
+
+
+    // p_state->hessian(0,0) = (patch_x.array() * patch_x.array()).sum();
+    // // p_state->hessian(0,1) = (patch_x.array() * patch_y.array()).sum();
+    // // p_state->hessian(0,1) = xy;
+    // p_state->hessian(1,1) = (patch_y.array() * patch_y.array()).sum();
     p_state->hessian(1,0) = p_state->hessian(0,1);
+
 
     // If not invertible adjust values
     if (p_state->hessian.determinant() == 0) {
       p_state->hessian(0,0) += 1e-10;
       p_state->hessian(1,1) += 1e-10;
     }
+
 
   }
 
@@ -111,6 +145,8 @@ namespace OFC {
     p_state->mares_old = 1e20;
     p_state->count = 0;
     p_state->invalid = false;
+
+    p_state->cost = 0.0;
 
   }
 
@@ -166,9 +202,21 @@ namespace OFC {
 
       p_state->count++;
 
+      CUBLAS_CHECK (
+          cublasSetVector(p_state->raw_diff.size(), sizeof(float),
+            p_state->raw_diff.data(), 1, pDeviceRawDiff, 1) );
+
       // Projection onto sd_images
-      p_state->delta_p[0] = (patch_x.array() * p_state->raw_diff.array()).sum();
-      p_state->delta_p[1] = (patch_y.array() * p_state->raw_diff.array()).sum();
+      CUBLAS_CHECK (
+          cublasSdot(op->cublasHandle, patch.size(),
+            pDevicePatchX, 1, pDeviceRawDiff, 1, &(p_state->delta_p[0])) );
+      CUBLAS_CHECK (
+          cublasSdot(op->cublasHandle, patch.size(),
+            pDevicePatchY, 1, pDeviceRawDiff, 1, &(p_state->delta_p[1])) );
+
+      // Projection onto sd_images
+      // p_state->delta_p[0] = (patch_x.array() * p_state->raw_diff.array()).sum();
+      // p_state->delta_p[1] = (patch_y.array() * p_state->raw_diff.array()).sum();
 
       p_state->delta_p = p_state->hessian.llt().solve(p_state->delta_p); // solve linear system
 
@@ -246,10 +294,57 @@ namespace OFC {
       default:
         // L2-Norm
 
-        for (int i = op->n_vals / 4; i--; ++raw, ++img, ++templ, ++cost) {
-          (*raw) = (*img) - (*templ);  // difference image
-          (*cost) = __builtin_ia32_andnps(op->negzero, (*raw));
-        }
+        CUBLAS_CHECK (
+            cublasSetVector(p_state->raw_diff.size(), sizeof(float),
+              p_state->raw_diff.data(), 1, pDeviceRawDiff, 1) );
+
+        const float alpha = -1.0;
+
+        // raw = patch - raw
+        CUBLAS_CHECK (
+             cublasSaxpy(op->cublasHandle, patch.size(), &alpha,
+               pDevicePatch, 1, pDeviceRawDiff, 1) );
+
+        // p_state->raw_diff = p_state->raw_diff - patch;
+
+        // CUBLAS_CHECK (
+        //     cublasSetVector(p_state->raw_diff.size(), sizeof(float),
+        //       p_state->raw_diff.data(), 1, pDeviceRawDiff, 1) );
+
+        // CUBLAS_CHECK (
+        //     cublasSdot(op->cublasHandle, patch.size(),
+        //       pDeviceRawDiff, 1, pDeviceRawDiff, 1, &(p_state->cost)) );
+
+        // Element-wise multiplication
+        CUBLAS_CHECK (
+            cublasSdgmm(op->cublasHandle, CUBLAS_SIDE_RIGHT,
+              1, patch.size(), pDeviceRawDiff, 1, pDeviceRawDiff, 1, pDeviceCostDiff, 1) );
+
+        // Element-wise multiplication
+        // cu::squareElem(pDeviceRawDiff, pDeviceCostDiff, patch.size());
+
+        // Sum
+        /*CUBLAS_CHECK (
+            cublasSasum(op->cublasHandle, patch.size(),
+              pDeviceCostDiff, 1, &(p_state->cost)) );*/
+
+        CUBLAS_CHECK (
+            cublasGetVector(p_state->cost_diff.size(), sizeof(float),
+              pDeviceCostDiff, 1, p_state->cost_diff.data(), 1) );
+
+        CUBLAS_CHECK (
+            cublasGetVector(p_state->raw_diff.size(), sizeof(float),
+              pDeviceRawDiff, 1, p_state->raw_diff.data(), 1) );
+
+        // Element-wise multiplication
+        // p_state->cost_diff = p_state->raw_diff.cwiseProduct(p_state->raw_diff);
+        // p_state->cost = p_state->raw_diff.cwiseProduct(p_state->raw_diff).sum();
+
+
+        // for (int i = op->n_vals / 4; i--; ++raw, ++img, ++templ, ++cost) {
+        //   (*raw) = (*img) - (*templ);  // difference image
+        //   (*cost) = __builtin_ia32_andnps(op->negzero, (*raw));
+        // }
 
         break;
     }
@@ -269,6 +364,7 @@ namespace OFC {
     // Check early termination criterions
     p_state->mares_old = p_state->mares;
     p_state->mares = p_state->cost_diff.lpNorm<1>() / (op->n_vals);
+    //p_state->mares = p_state->cost / (op->n_vals);
 
     if (!((p_state->count < op->grad_descent_iter) & (p_state->mares > op->res_thresh)
           & ((p_state->count < op->grad_descent_iter) | (p_state->delta_p_sq_norm / p_state->delta_p_sq_norm_init >= op->dp_thresh))
@@ -310,6 +406,21 @@ namespace OFC {
     // Mean Normalization
     if (op->use_mean_normalization > 0)
       patch.array() -= (patch.sum() / op->n_vals);
+
+    // Copy to gpu
+
+    checkCudaErrors(
+        cudaMalloc ((void**) &pDevicePatch, patch_x.size() * sizeof(float)) );
+    checkCudaErrors(
+        cudaMalloc ((void**) &pDevicePatchX, patch_x.size() * sizeof(float)) );
+    checkCudaErrors(
+        cudaMalloc ((void**) &pDevicePatchY, patch_y.size() * sizeof(float)) );
+    CUBLAS_CHECK (
+        cublasSetVector(patch.size(), sizeof(float), patch.data(), 1, pDevicePatch, 1) );
+    CUBLAS_CHECK (
+        cublasSetVector(patch.size(), sizeof(float), patch_x.data(), 1, pDevicePatchX, 1) );
+    CUBLAS_CHECK (
+        cublasSetVector(patch.size(), sizeof(float), patch_y.data(), 1, pDevicePatchY, 1) );
 
   }
 

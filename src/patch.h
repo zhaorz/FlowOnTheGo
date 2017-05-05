@@ -4,6 +4,8 @@
 #ifndef PAT_HEADER
 #define PAT_HEADER
 
+#include <cublas_v2.h>
+
 #include "oflow.h" // For camera intrinsic and opt. parameter struct
 
 namespace OFC {
@@ -15,6 +17,8 @@ namespace OFC {
     // reference/template patch
     Eigen::Matrix<float, Eigen::Dynamic, 1> raw_diff; // image error to reference image
     Eigen::Matrix<float, Eigen::Dynamic, 1> cost_diff; // absolute error image
+
+    float cost; // absolute error
 
     Eigen::Matrix<float, 2, 2> hessian; // Hessian for optimization
     Eigen::Vector2f p_org, p_cur, delta_p; // point position, displacement to starting position, iteration update
@@ -53,10 +57,15 @@ namespace OFC {
       inline const bool IsValid() const { return !p_state->invalid; }
       inline const float * GetCostDiffPtr() const { return (float*) p_state->cost_diff.data(); }
 
+      inline float * GetDeviceCostDiffPtr() const { return (float*) pDeviceCostDiff; }
+
       inline const Eigen::Vector2f* GetCurP() const { return &(p_state->p_cur); }
       inline const Eigen::Vector2f* GetOrgP() const { return &(p_state->p_org); }
 
     private:
+
+      cublasHandle_t handle;
+      cublasStatus_t stat;
 
       void OptimizeStart(const Eigen::Vector2f p_prev);
 
@@ -76,6 +85,13 @@ namespace OFC {
       Eigen::Matrix<float, Eigen::Dynamic, 1> patch;
       Eigen::Matrix<float, Eigen::Dynamic, 1> patch_x;
       Eigen::Matrix<float, Eigen::Dynamic, 1> patch_y;
+
+      float* pDevicePatch;
+      float* pDevicePatchX;
+      float* pDevicePatchY;
+
+      float* pDeviceRawDiff;
+      float* pDeviceCostDiff;
 
       Eigen::Map<const Eigen::MatrixXf> * I0, * I0x, * I0y;
       Eigen::Map<const Eigen::MatrixXf> * I1, * I1x, * I1y;

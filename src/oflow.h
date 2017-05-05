@@ -3,6 +3,9 @@
 #ifndef OFC_HEADER
 #define OFC_HEADER
 
+#include <nppi.h>
+#include <cublas_v2.h>
+
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
@@ -60,6 +63,9 @@ namespace OFC {
     float min_errval = 2.0f;       // 1/max(this, error) for pixel averaging weight
     float norm_outlier = 5.0f;     // norm error threshold for huber norm
 
+    // cuBLAS
+    cublasHandle_t cublasHandle;
+
     // Helper variables
     v4sf zero     = (v4sf) {0.0f, 0.0f, 0.0f, 0.0f};
     v4sf negzero  = (v4sf) {-0.0f, -0.0f, -0.0f, -0.0f};
@@ -76,18 +82,15 @@ namespace OFC {
 
     public:
       OFClass(opt_params _op);
-      void calc(cv::Mat _I0, cv::Mat _I1, img_params _iparams, const float * initflow, float * outflow);
+      void calc(Npp32f* _I0, Npp32f* _I1, img_params _iparams, const float * initflow, float * outflow);
 
     private:
-      void ConstructImgPyramids();
+      void ConstructImgPyramids(img_params iparams);
 
-      cv::Mat I0, I1;
+      Npp32f* I0, * I1;
 
       float ** I0s, ** I0xs, ** I0ys;
       float ** I1s, ** I1xs, ** I1ys;
-
-      cv::Mat * I0_mats, * I0x_mats, * I0y_mats;
-      cv::Mat * I1_mats, * I1x_mats, * I1y_mats;
 
       opt_params op;                     // Struct for optimization parameters
       std::vector<img_params> iparams;    // Struct (for each scale) for image parameter
