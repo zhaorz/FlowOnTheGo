@@ -16,7 +16,7 @@ using std::endl;
 
 namespace OFC {
 
-  typedef __v4sf v4sf;
+  // typedef __v4sf v4sf;
 
 
   typedef struct {
@@ -67,7 +67,7 @@ namespace OFC {
 
     // TODO: Use AMD NEON vector intrinsics
     // Needed by refine variational
-    v4sf zero     = (v4sf) {0.0f, 0.0f, 0.0f, 0.0f};
+    // v4sf zero     = (v4sf) {0.0f, 0.0f, 0.0f, 0.0f};
 
   } opt_params;
 

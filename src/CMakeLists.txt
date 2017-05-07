@@ -15,8 +15,8 @@ if (ARCH STREQUAL "x86")
 # On NVIDIA Jetson
 elseif (ARCH STREQUAL "ARM")
 
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O3 -Wno-unknown-pragmas -Wall -std=c++11 -msse4 -fopenmp")  #-Wall
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O3 -Wno-unknown-pragmas -Wall -msse4 -fopenmp")  #-Wall
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O3 -Wno-unknown-pragmas -Wall -std=c++11 -fopenmp")  #-Wall
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O3 -Wno-unknown-pragmas -Wall -fopenmp")  #-Wall
 
 else()
   message(STATUS "specify using -DARCH=x86 or -DARCH=ARM")
@@ -86,10 +86,11 @@ set(CODEFILES
   oflow.cpp
   patch.cpp
   patchgrid.cpp
-  refine_variational.cpp
-  FDF1.0.1/image.c
-  FDF1.0.1/opticalflow_aux.c
-  FDF1.0.1/solver.c)
+  # refine_variational.cpp
+  # FDF1.0.1/image.c
+  # FDF1.0.1/opticalflow_aux.c
+  # FDF1.0.1/solver.c
+  )
 
 # GrayScale, Optical Flow
 cuda_add_executable(flow ${COMMON} ${CODEFILES} ${KERNELS})

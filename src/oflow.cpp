@@ -19,7 +19,7 @@
 
 #include "oflow.h"
 #include "patchgrid.h"
-#include "refine_variational.h"
+// #include "refine_variational.h"
 
 #include "kernels/resize.h"
 #include "kernels/pad.h"
@@ -234,7 +234,7 @@ namespace OFC {
       // Variational refinement, (Step 5 in Algorithm 1 of paper)
       if (op.use_var_ref) {
 
-        OFC::VarRefClass var_ref(I0s[sl], I1s[sl], &(iparams[ii]), &op, out_ptr);
+        // OFC::VarRefClass var_ref(I0s[sl], I1s[sl], &(iparams[ii]), &op, out_ptr);
 
       }
 
