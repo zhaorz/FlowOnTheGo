@@ -495,8 +495,10 @@ inline int findCudaDevice(int argc, const char **argv)
     devID = gpuGetMaxGflopsDeviceId();
     checkCudaErrors(cudaSetDevice(devID));
     checkCudaErrors(cudaGetDeviceProperties(&deviceProp, devID));
-    printf("Using GPU Device %d: \"%s\" with compute capability %d.%d\n\n",
+    printf("Using GPU Device %d: \"%s\" with compute capability %d.%d\n",
         devID, deviceProp.name, deviceProp.major, deviceProp.minor);
+    std::cout << "Device canMapHostMemory: " << deviceProp.canMapHostMemory << std::endl;
+    std::cout << std::endl;
 
     return devID;
 }
@@ -511,6 +513,12 @@ inline void initializeCuda(int argc, char** argv) {
   //Get GPU information
   checkCudaErrors(cudaGetDevice(&devID));
   checkCudaErrors(cudaGetDeviceProperties(&props, devID));
+
+  if (props.canMapHostMemory) {
+    std::cout << "Enabling page-locked memory mapping" << std::endl << std::endl;
+    checkCudaErrors( cudaSetDeviceFlags(cudaDeviceMapHost) );
+  }
+
 }
 
 #endif // end __CUDA_HELPER_H__

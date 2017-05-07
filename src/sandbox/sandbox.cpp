@@ -32,6 +32,8 @@ int main(int argc, char **argv)
   }
 
   else if (argc > 3) {
+    initializeCuda(argc, argv);
+
     int num_inputs = argc - 2;
     std::string output_prefix(argv[argc-1]);
 
