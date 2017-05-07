@@ -45,8 +45,6 @@ namespace OFC {
     float res_thresh;
     // Verbosity, 0: plot nothing, 1: final internal timing 2: complete iteration timing, (UNCOMMENTED -> 3: Display flow scales, 4: Display flow scale iterations)
     int verbosity;
-    // Cost function: 0: L2-Norm, 1: L1-Norm, 2: PseudoHuber-Norm
-    int cost_func;
     bool use_var_ref;
     int var_ref_iter;
     float var_ref_alpha;

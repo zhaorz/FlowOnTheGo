@@ -160,7 +160,7 @@ int main( int argc, char** argv ) {
 
   if (argc <= 5) {
 
-    op.use_mean_normalization = true; op.cost_func = 0;
+    op.use_mean_normalization = true;
     op.var_ref_alpha = 10.0; op.var_ref_gamma = 10.0; op.var_ref_delta = 5.0;
     op.var_ref_iter = 3; op.var_ref_sor_weight = 1.6;
     op.verbosity = 2; // Default: Plot detailed timings
@@ -209,7 +209,6 @@ int main( int argc, char** argv ) {
     op.patch_size = atoi(argv[acnt++]);
     op.patch_stride = atof(argv[acnt++]);
     op.use_mean_normalization = atoi(argv[acnt++]);
-    op.cost_func = atoi(argv[acnt++]);
     op.use_var_ref = atoi(argv[acnt++]);
     op.var_ref_alpha = atof(argv[acnt++]);
     op.var_ref_gamma = atof(argv[acnt++]);

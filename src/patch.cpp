@@ -226,46 +226,11 @@ namespace OFC {
          * templ = (v4sf*) patch.data(),
          * cost = (v4sf*) p_state->cost_diff.data();
 
-    switch (op->cost_func) {
-      case 1:
-        // L1-Norm
+    // L2-Norm
 
-        for (int i = op->n_vals / 4; i--; ++raw, ++img, ++templ, ++cost) {
-          (*raw) = (*img) - (*templ);   // difference image
-          // sign(raw_diff) * sqrt(abs(raw_diff))
-          (*raw) = __builtin_ia32_orps(__builtin_ia32_andps(op->negzero, (*raw)),
-              __builtin_ia32_sqrtps(__builtin_ia32_andnps(op->negzero, (*raw))));
-          (*cost) = __builtin_ia32_andnps(op->negzero,  (*raw));
-        }
-
-        break;
-      case 2:
-        // Pseudo Huber cost function
-
-        for (int i = op->n_vals / 4; i--; ++raw, ++img, ++templ, ++cost) {
-          (*raw) = (*img) - (*templ);   // difference image
-          // sign(raw_diff) * sqrt( 2*b^2*( sqrt(1+abs(raw_diff)^2/b^2)+1)  ))
-          (*raw) = __builtin_ia32_orps(__builtin_ia32_andps(op->negzero, (*raw)),
-              __builtin_ia32_sqrtps (
-                __builtin_ia32_mulps(
-                  __builtin_ia32_sqrtps(op->ones + __builtin_ia32_divps(__builtin_ia32_mulps((*raw),(*raw)),
-                      op->norm_outlier_tmpbsq)) - op->ones, op->norm_outlier_tmp2bsq)
-                )
-              );
-          (*cost) = __builtin_ia32_andnps(op->negzero,  (*raw) );
-        }
-
-        break;
-      case 0:
-      default:
-        // L2-Norm
-
-        for (int i = op->n_vals / 4; i--; ++raw, ++img, ++templ, ++cost) {
-          (*raw) = (*img) - (*templ);  // difference image
-          (*cost) = __builtin_ia32_andnps(op->negzero, (*raw));
-        }
-
-        break;
+    for (int i = op->n_vals / 4; i--; ++raw, ++img, ++templ, ++cost) {
+      (*raw) = (*img) - (*templ);  // difference image
+      (*cost) = __builtin_ia32_andnps(op->negzero, (*raw));
     }
 
   }
