@@ -60,6 +60,7 @@ namespace OFC {
 
       inline const Eigen::Vector2f* GetCurP() const { return &(p_state->p_cur); }
       inline const Eigen::Vector2f* GetOrgP() const { return &(p_state->p_org); }
+      inline const int GetPatchId() const { return patch_id; }
 
     private:
 

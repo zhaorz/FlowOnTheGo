@@ -9,6 +9,12 @@
 #include <Eigen/LU>
 #include <Eigen/Dense>
 
+// CUDA
+#include <cuda.h>
+#include <cuda_runtime.h>
+#include "common/cuda_helper.h"
+#include "kernels/densify.h"
+
 #include <stdio.h>
 
 #include "patch.h"
@@ -27,43 +33,43 @@ namespace OFC {
       const opt_params* _op)
     : i_params(_i_params), op(_op) {
 
-    // Generate grid on current scale
-    steps = op->steps;
-    n_patches_width = ceil((float) i_params->width /  (float) steps);
-    n_patches_height = ceil((float) i_params->height / (float) steps);
-    const int offsetw = floor((i_params->width - (n_patches_width - 1) * steps) / 2);
-    const int offseth = floor((i_params->height - (n_patches_height - 1) * steps) / 2);
+      // Generate grid on current scale
+      steps = op->steps;
+      n_patches_width = ceil((float) i_params->width /  (float) steps);
+      n_patches_height = ceil((float) i_params->height / (float) steps);
+      const int offsetw = floor((i_params->width - (n_patches_width - 1) * steps) / 2);
+      const int offseth = floor((i_params->height - (n_patches_height - 1) * steps) / 2);
 
-    n_patches = n_patches_width * n_patches_height;
-    midpoints_ref.resize(n_patches);
-    p_init.resize(n_patches);
-    patches.reserve(n_patches);
+      n_patches = n_patches_width * n_patches_height;
+      midpoints_ref.resize(n_patches);
+      p_init.resize(n_patches);
+      patches.reserve(n_patches);
 
-    I0_eg = new Eigen::Map<const Eigen::MatrixXf>(nullptr, i_params->height, i_params->width);
-    I0x_eg = new Eigen::Map<const Eigen::MatrixXf>(nullptr, i_params->height, i_params->width);
-    I0y_eg = new Eigen::Map<const Eigen::MatrixXf>(nullptr, i_params->height, i_params->width);
+      I0_eg = new Eigen::Map<const Eigen::MatrixXf>(nullptr, i_params->height, i_params->width);
+      I0x_eg = new Eigen::Map<const Eigen::MatrixXf>(nullptr, i_params->height, i_params->width);
+      I0y_eg = new Eigen::Map<const Eigen::MatrixXf>(nullptr, i_params->height, i_params->width);
 
-    I1_eg = new Eigen::Map<const Eigen::MatrixXf>(nullptr, i_params->height, i_params->width);
-    I1x_eg = new Eigen::Map<const Eigen::MatrixXf>(nullptr, i_params->height, i_params->width);
-    I1y_eg = new Eigen::Map<const Eigen::MatrixXf>(nullptr, i_params->height, i_params->width);
+      I1_eg = new Eigen::Map<const Eigen::MatrixXf>(nullptr, i_params->height, i_params->width);
+      I1x_eg = new Eigen::Map<const Eigen::MatrixXf>(nullptr, i_params->height, i_params->width);
+      I1y_eg = new Eigen::Map<const Eigen::MatrixXf>(nullptr, i_params->height, i_params->width);
 
-    int patch_id = 0;
-    for (int x = 0; x < n_patches_width; ++x) {
-      for (int y = 0; y < n_patches_height; ++y) {
+      int patch_id = 0;
+      for (int x = 0; x < n_patches_width; ++x) {
+        for (int y = 0; y < n_patches_height; ++y) {
 
-        int i = x * n_patches_height + y;
+          int i = x * n_patches_height + y;
 
-        midpoints_ref[i][0] = x * steps + offsetw;
-        midpoints_ref[i][1] = y * steps + offseth;
-        p_init[i].setZero();
+          midpoints_ref[i][0] = x * steps + offsetw;
+          midpoints_ref[i][1] = y * steps + offseth;
+          p_init[i].setZero();
 
-        patches.push_back(new OFC::PatClass(i_params, op, patch_id));
-        patch_id++;
+          patches.push_back(new OFC::PatClass(i_params, op, patch_id));
+          patch_id++;
 
+        }
       }
-    }
 
-  }
+    }
 
   PatGridClass::~PatGridClass() {
 
@@ -138,66 +144,46 @@ namespace OFC {
 
   void PatGridClass::AggregateFlowDense(float *flowout) const {
 
-    float* weights = new float[i_params->width * i_params->height];
-
     memset(flowout, 0, sizeof(float) * (2 * i_params->width * i_params->height));
-    memset(weights, 0, sizeof(float) * (i_params->width * i_params->height));
+
+    // Device mem
+    float* pDeviceWeights, *pDeviceFlowOut;
+    checkCudaErrors(
+        cudaMalloc ((void**) &pDeviceWeights, i_params->width * i_params->height * sizeof(float)) );
+    checkCudaErrors(
+        cudaMalloc ((void**) &pDeviceFlowOut, i_params->width * i_params->height * 2 * sizeof(float)) );
+    checkCudaErrors(
+        cudaMemset (pDeviceWeights, 0.0, i_params->width * i_params->height * sizeof(float)) );
+    checkCudaErrors(
+        cudaMemset (pDeviceFlowOut, 0.0, i_params->width * i_params->height * 2 * sizeof(float)) );
 
     for (int ip = 0; ip < n_patches; ++ip) {
-
       if (patches[ip]->IsValid()) {
 
         const Eigen::Vector2f* fl = patches[ip]->GetCurP(); // flow displacement of this patch
-        Eigen::Vector2f flnew;
 
-        const float * pweight = patches[ip]->GetCostDiffPtr(); // use image error as weight
+        float* pweight = patches[ip]->GetDeviceCostDiffPtr(); // use image error as weight
 
-        int lower_bound = -op->patch_size / 2;
-        int upper_bound = op->patch_size / 2 - 1;
+        if (patches[ip]->GetPatchId() == 0)
+          cout << "MIDPOINT: " << midpoints_ref[ip] << endl;
 
-        for (int y = lower_bound; y <= upper_bound; ++y) {
-          for (int x = lower_bound; x <= upper_bound; ++x, ++pweight) {
-
-            int yt = (y + midpoints_ref[ip][1]);
-            int xt = (x + midpoints_ref[ip][0]);
-
-            if (xt >= 0 && yt >= 0 && xt < i_params->width && yt < i_params->height) {
-
-              int i = yt * i_params->width + xt;
-
-              // Weight contribution RGB
-              float absw = 1.0f /  (float)(std::max(op->min_errval, *pweight)); ++pweight;
-              absw += 1.0f /  (float)(std::max(op->min_errval, *pweight)); ++pweight;
-              absw += 1.0f /  (float)(std::max(op->min_errval, *pweight));
-
-              flnew = (*fl) * absw;
-              weights[i] += absw;
-
-              flowout[2 * i] += flnew[0];
-              flowout[2 * i + 1] += flnew[1];
-            }
-
-          }
-        }
-
-      }
-
-    }
-
-    // normalize each pixel by dividing displacement by aggregated weights from all patches
-    for (int yi = 0; yi < i_params->height; ++yi) {
-      for (int xi = 0; xi < i_params->width; ++xi) {
-
-        int i = yi * i_params->width + xi;
-        if (weights[i] > 0) {
-          flowout[2 * i] /= weights[i];
-          flowout[2 * i + 1] /= weights[i];
-        }
+        cu::densifyPatch(
+            pweight, pDeviceFlowOut, pDeviceWeights,
+            (*fl)[0], (*fl)[1],
+            midpoints_ref[ip][0], midpoints_ref[ip][1],
+            i_params->width, i_params->height, (patches[ip]->GetPatchId() == 0),
+            op->patch_size, op->min_errval);
 
       }
     }
 
-    delete[] weights;
+    // Normalize all pixels
+    cu::normalizeFlow(pDeviceFlowOut, pDeviceWeights, i_params->width * i_params->height);
+
+    checkCudaErrors(
+        cudaMemcpy(flowout, pDeviceFlowOut,
+          i_params->width * i_params->height * 2 * sizeof(float), cudaMemcpyDeviceToHost) );
+
   }
 
 }

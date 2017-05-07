@@ -54,7 +54,6 @@ namespace OFC {
 
   void PatClass::InitializeError() {
 
-    p_state->raw_diff.resize(op->n_vals,1);
     p_state->cost_diff.resize(op->n_vals,1);
 
   }
@@ -165,7 +164,6 @@ namespace OFC {
         || p_state->midpoint_cur[1] > i_params->u_bound_height) {
 
       p_state->has_converged=1;
-      p_state->raw_diff = patch;
       p_state->has_opt_started=1;
 
     } else {
@@ -199,11 +197,6 @@ namespace OFC {
     while (!p_state->has_converged) {
 
       p_state->count++;
-
-      // Copy to GPU
-      CUBLAS_CHECK (
-          cublasSetVector(p_state->raw_diff.size(), sizeof(float),
-            p_state->raw_diff.data(), 1, pDeviceRawDiff, 1) );
 
       // Projection onto sd_images
       CUBLAS_CHECK (
@@ -252,11 +245,6 @@ namespace OFC {
 
     // L2-Norm
 
-    // Copy to GPU
-    CUBLAS_CHECK (
-        cublasSetVector(p_state->raw_diff.size(), sizeof(float),
-          p_state->raw_diff.data(), 1, pDeviceRawDiff, 1) );
-
     const float alpha = -1.0;
 
     // raw = patch - raw
@@ -278,10 +266,6 @@ namespace OFC {
     CUBLAS_CHECK (
         cublasGetVector(p_state->cost_diff.size(), sizeof(float),
           pDeviceCostDiff, 1, p_state->cost_diff.data(), 1) );
-
-    CUBLAS_CHECK (
-        cublasGetVector(p_state->raw_diff.size(), sizeof(float),
-          pDeviceRawDiff, 1, p_state->raw_diff.data(), 1) );
 
   }
 
@@ -383,10 +367,6 @@ namespace OFC {
     pos[1] += i_params->padding;
 
     checkCudaErrors(
-        cudaMemcpy(pDeviceRawDiff, p_state->raw_diff.data(),
-          patch.size() * sizeof(float), cudaMemcpyHostToDevice) );
-
-    checkCudaErrors(
         cudaMemcpy(pDeviceWeights, weight.data(),
           4 * sizeof(float), cudaMemcpyHostToDevice) );
 
@@ -409,10 +389,6 @@ namespace OFC {
       cu::normalizeMean(pDeviceRawDiff, mean, op->patch_size);
 
     }
-
-    CUBLAS_CHECK (
-        cublasGetVector(p_state->raw_diff.size(), sizeof(float),
-          pDeviceRawDiff, 1, p_state->raw_diff.data(), 1) );
 
   }
 

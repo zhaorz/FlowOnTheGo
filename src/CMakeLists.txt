@@ -49,7 +49,7 @@ set(CUDA_VERBOSE_BUILD ON)
 set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS}; -g -std=c++11 -arch=compute_61 -code=sm_61)
 
 set(KERNELS
-  # kernels/densify.cu
+  kernels/densify.cu
   kernels/interpolate.cu
   kernels/warmup.cpp
   kernels/sobel.cpp
