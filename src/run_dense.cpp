@@ -158,6 +158,12 @@ int main( int argc, char** argv ) {
   // Parse rest of parameters
   opt_params op;
 
+  cublasStatus_t stat = cublasCreate(&op.cublasHandle);
+  if (stat != CUBLAS_STATUS_SUCCESS) {
+    printf ("CUBLAS initialization failed\n");
+    exit(-1);
+  }
+
   if (argc <= 5) {
 
     op.use_mean_normalization = true;

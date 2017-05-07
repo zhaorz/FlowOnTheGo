@@ -221,17 +221,38 @@ namespace OFC {
 
   void PatClass::ComputeCostErr() {
 
-    v4sf * raw = (v4sf*) p_state->raw_diff.data(),
-         * img = (v4sf*) p_state->raw_diff.data(),
-         * templ = (v4sf*) patch.data(),
-         * cost = (v4sf*) p_state->cost_diff.data();
-
     // L2-Norm
 
-    for (int i = op->n_vals / 4; i--; ++raw, ++img, ++templ, ++cost) {
-      (*raw) = (*img) - (*templ);  // difference image
-      (*cost) = __builtin_ia32_andnps(op->negzero, (*raw));
-    }
+    // Copy to GPU
+    CUBLAS_CHECK (
+        cublasSetVector(p_state->raw_diff.size(), sizeof(float),
+          p_state->raw_diff.data(), 1, pDeviceRawDiff, 1) );
+
+    const float alpha = -1.0;
+
+    // raw = patch - raw
+    CUBLAS_CHECK (
+        cublasSaxpy(op->cublasHandle, patch.size(), &alpha,
+          pDevicePatch, 1, pDeviceRawDiff, 1) );
+
+    // Element-wise multiplication
+    CUBLAS_CHECK (
+        cublasSdgmm(op->cublasHandle, CUBLAS_SIDE_RIGHT,
+          1, patch.size(), pDeviceRawDiff, 1, pDeviceRawDiff, 1, pDeviceCostDiff, 1) );
+
+    // Sum
+    CUBLAS_CHECK (
+        cublasSasum(op->cublasHandle, patch.size(),
+          pDeviceCostDiff, 1, &(p_state->cost)) );
+
+    // Copy from GPU
+    CUBLAS_CHECK (
+        cublasGetVector(p_state->cost_diff.size(), sizeof(float),
+          pDeviceCostDiff, 1, p_state->cost_diff.data(), 1) );
+
+    CUBLAS_CHECK (
+        cublasGetVector(p_state->raw_diff.size(), sizeof(float),
+          pDeviceRawDiff, 1, p_state->raw_diff.data(), 1) );
 
   }
 
@@ -247,7 +268,8 @@ namespace OFC {
 
     // Check early termination criterions
     p_state->mares_old = p_state->mares;
-    p_state->mares = p_state->cost_diff.lpNorm<1>() / (op->n_vals);
+    //p_state->mares = p_state->cost_diff.lpNorm<1>() / (op->n_vals);
+    p_state->mares = p_state->cost / op->n_vals;
 
     if (!((p_state->count < op->grad_descent_iter) & (p_state->mares > op->res_thresh)
           & ((p_state->count < op->grad_descent_iter) | (p_state->delta_p_sq_norm / p_state->delta_p_sq_norm_init >= op->dp_thresh))

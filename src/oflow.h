@@ -4,6 +4,8 @@
 #define OFC_HEADER
 
 #include <nppi.h>
+#include <cublas_v2.h>
+
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
@@ -59,6 +61,9 @@ namespace OFC {
     int n_scales;                 // total number of scales
     float min_errval = 2.0f;       // 1/max(this, error) for pixel averaging weight
     float norm_outlier = 5.0f;     // norm error threshold for huber norm
+
+    // cuBLAS
+    cublasHandle_t cublasHandle;
 
     // Helper variables
     v4sf zero     = (v4sf) {0.0f, 0.0f, 0.0f, 0.0f};
