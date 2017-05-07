@@ -17,9 +17,11 @@
 #include <sstream>
 #include <iostream>
 
+#include <nppi.h>
+
 #include "cuda_helper.h"
 
-static const char *_cudaGetErrorEnum(NppStatus eStatusNPP)
+static const char *_nppGetErrorEnum(NppStatus eStatusNPP)
 {
   switch (eStatusNPP)
   {
@@ -372,7 +374,7 @@ namespace npp
   /// Macro for checking error return code for NPP calls.
 #define NPP_CHECK_NPP(S) do {NppStatus eStatusNPP; \
   eStatusNPP = S; \
-  if (eStatusNPP != NPP_SUCCESS) std::cout << "NPP_CHECK_NPP - eStatusNPP = " << _cudaGetErrorEnum(eStatusNPP) << "("<< eStatusNPP << ")" << std::endl; \
+  if (eStatusNPP != NPP_SUCCESS) std::cout << "NPP_CHECK_NPP - eStatusNPP = " << _nppGetErrorEnum(eStatusNPP) << "("<< eStatusNPP << ")" << std::endl; \
   NPP_ASSERT(eStatusNPP == NPP_SUCCESS);} while (false)
 
   /// Macro for checking error return codes from cuFFT calls.

@@ -30,6 +30,8 @@ namespace OFC {
     float mares_old = 1e20;
     int count = 0;
     bool invalid = false;
+
+    float cost = 0.0;
   } patch_state;
 
 
@@ -42,8 +44,9 @@ namespace OFC {
 
       ~PatClass();
 
-      void InitializePatch(Eigen::Map<const Eigen::MatrixXf> * _I0, Eigen::Map<const Eigen::MatrixXf> * _I0x, Eigen::Map<const Eigen::MatrixXf> * _I0y, const Eigen::Vector2f _midpoint);
-      void SetTargetImage(Eigen::Map<const Eigen::MatrixXf> * _I1, Eigen::Map<const Eigen::MatrixXf> * _I1x, Eigen::Map<const Eigen::MatrixXf> * _I1y);
+      void InitializePatch(const float * _I0, const float * _I0x,
+          const float * _I0y, const Eigen::Vector2f _midpoint);
+      void SetTargetImage(const float * _I1);
 
       void OptimizeIter(const Eigen::Vector2f p_prev);
 
@@ -52,6 +55,8 @@ namespace OFC {
       inline const Eigen::Vector2f GetTargMidpoint() const { return p_state->midpoint_cur; }
       inline const bool IsValid() const { return !p_state->invalid; }
       inline const float * GetCostDiffPtr() const { return (float*) p_state->cost_diff.data(); }
+      inline float * GetDeviceCostDiffPtr() const { return (float*) pDeviceCostDiff; }
+
 
       inline const Eigen::Vector2f* GetCurP() const { return &(p_state->p_cur); }
       inline const Eigen::Vector2f* GetOrgP() const { return &(p_state->p_org); }
@@ -72,13 +77,21 @@ namespace OFC {
       // Extract patch on float position with bilinear interpolation, no gradients.
       void InterpolatePatch();
 
+      float* pDevicePatch;
+      float* pDevicePatchX;
+      float* pDevicePatchY;
+
+      float* pDeviceRawDiff;
+      float* pDeviceCostDiff;
+
+
       Eigen::Vector2f midpoint; // reference point location
       Eigen::Matrix<float, Eigen::Dynamic, 1> patch;
       Eigen::Matrix<float, Eigen::Dynamic, 1> patch_x;
       Eigen::Matrix<float, Eigen::Dynamic, 1> patch_y;
 
-      Eigen::Map<const Eigen::MatrixXf> * I0, * I0x, * I0y;
-      Eigen::Map<const Eigen::MatrixXf> * I1, * I1x, * I1y;
+      const float * I0, * I0x, * I0y;
+      const float * I1;
 
       const img_params* i_params;
       const opt_params* op;

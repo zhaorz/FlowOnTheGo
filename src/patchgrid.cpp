@@ -91,7 +91,7 @@ namespace OFC {
     new (I0y_eg) Eigen::Map<const Eigen::MatrixXf>(I0y, i_params->height, i_params->width);
 
     for (int i = 0; i < n_patches; ++i) {
-      patches[i]->InitializePatch(I0_eg, I0x_eg, I0y_eg, midpoints_ref[i]);
+      patches[i]->InitializePatch(I0, I0x, I0y, midpoints_ref[i]);
       p_init[i].setZero();
     }
 
@@ -108,7 +108,7 @@ namespace OFC {
     new (I1y_eg) Eigen::Map<const Eigen::MatrixXf>(I1y, i_params->height, i_params->width);
 
     for (int i = 0; i < n_patches; ++i) {
-      patches[i]->SetTargetImage(I1_eg, I1x_eg, I1y_eg);
+      patches[i]->SetTargetImage(I1);
     }
 
   }

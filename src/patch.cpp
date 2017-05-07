@@ -10,6 +10,12 @@
 
 #include <stdio.h>
 
+#include <cuda_runtime.h>
+#include <cublas_v2.h>
+#include "common/cuda_helper.h"
+#include "common/Exceptions.h"
+#include "common/timer.h"
+
 #include "patch.h"
 
 using std::cout;
@@ -36,6 +42,10 @@ namespace OFC {
         patch_x.resize(op->n_vals,1);
         patch_y.resize(op->n_vals,1);
 
+        checkCudaErrors(
+            cudaMalloc ((void**) &pDeviceRawDiff, patch.size() * sizeof(float)) );
+        checkCudaErrors(
+            cudaMalloc ((void**) &pDeviceCostDiff, patch.size() * sizeof(float)) );
       }
 
   void PatClass::InitializeError() {
@@ -47,17 +57,24 @@ namespace OFC {
 
   PatClass::~PatClass() {
 
+    cudaFree(pDevicePatch);
+    cudaFree(pDevicePatchX);
+    cudaFree(pDevicePatchY);
+
+    cudaFree(pDeviceRawDiff);
+    cudaFree(pDeviceCostDiff);
+
     delete p_state;
 
   }
 
-  void PatClass::InitializePatch(Eigen::Map<const Eigen::MatrixXf> * _I0,
-      Eigen::Map<const Eigen::MatrixXf> * _I0x,
-      Eigen::Map<const Eigen::MatrixXf> * _I0y, const Eigen::Vector2f _midpoint) {
+  void PatClass::InitializePatch(const float * _I0,
+      const float * _I0x, const float * _I0y, const Eigen::Vector2f _midpoint) {
 
     I0 = _I0;
     I0x = _I0x;
     I0y = _I0y;
+
     midpoint = _midpoint;
 
     ResetPatchState();
@@ -81,13 +98,9 @@ namespace OFC {
 
   }
 
-  void PatClass::SetTargetImage(Eigen::Map<const Eigen::MatrixXf> * _I1,
-      Eigen::Map<const Eigen::MatrixXf> * _I1x,
-      Eigen::Map<const Eigen::MatrixXf> * _I1y) {
+  void PatClass::SetTargetImage(const float * _I1) {
 
     I1 = _I1;
-    I1x = _I1x;
-    I1y = _I1y;
 
     ResetPatchState();
 
@@ -112,6 +125,7 @@ namespace OFC {
     p_state->count = 0;
     p_state->invalid = false;
 
+    p_state->cost = 0.0;
   }
 
   void PatClass::OptimizeStart(const Eigen::Vector2f p_prev) {
@@ -300,9 +314,9 @@ namespace OFC {
         // RGB
         int idx = 3 * ((x + i) + (y + j) * i_params->width_pad);
 
-        patch_f[posxx] = I0->data()[idx]; patch_xf[posxx] = I0x->data()[idx]; patch_yf[posxx] = I0y->data()[idx]; ++posxx; ++idx;
-        patch_f[posxx] = I0->data()[idx]; patch_xf[posxx] = I0x->data()[idx]; patch_yf[posxx] = I0y->data()[idx]; ++posxx; ++idx;
-        patch_f[posxx] = I0->data()[idx]; patch_xf[posxx] = I0x->data()[idx]; patch_yf[posxx] = I0y->data()[idx];
+        patch_f[posxx] = I0[idx]; patch_xf[posxx] = I0x[idx]; patch_yf[posxx] = I0y[idx]; ++posxx; ++idx;
+        patch_f[posxx] = I0[idx]; patch_xf[posxx] = I0x[idx]; patch_yf[posxx] = I0y[idx]; ++posxx; ++idx;
+        patch_f[posxx] = I0[idx]; patch_xf[posxx] = I0x[idx]; patch_yf[posxx] = I0y[idx];
 
       }
     }
@@ -310,6 +324,20 @@ namespace OFC {
     // Mean Normalization
     if (op->use_mean_normalization > 0)
       patch.array() -= (patch.sum() / op->n_vals);
+
+    // Copy to gpu
+    checkCudaErrors(
+        cudaMalloc ((void**) &pDevicePatch, patch_x.size() * sizeof(float)) );
+    checkCudaErrors(
+        cudaMalloc ((void**) &pDevicePatchX, patch_x.size() * sizeof(float)) );
+    checkCudaErrors(
+        cudaMalloc ((void**) &pDevicePatchY, patch_y.size() * sizeof(float)) );
+    CUBLAS_CHECK (
+        cublasSetVector(patch.size(), sizeof(float), patch.data(), 1, pDevicePatch, 1) );
+    CUBLAS_CHECK (
+        cublasSetVector(patch.size(), sizeof(float), patch_x.data(), 1, pDevicePatchX, 1) );
+    CUBLAS_CHECK (
+        cublasSetVector(patch.size(), sizeof(float), patch_y.data(), 1, pDevicePatchY, 1) );
 
   }
 
@@ -343,7 +371,7 @@ namespace OFC {
     const float * img_a, * img_b, * img_c, * img_d, *img_e;
 
     // RGB
-    img_e = I1->data() + (pos[0] - op->patch_size / 2) * 3;
+    img_e = I1 + (pos[0] - op->patch_size / 2) * 3;
 
     int lb = -op->patch_size / 2;
     int ub = op->patch_size / 2 - 1;

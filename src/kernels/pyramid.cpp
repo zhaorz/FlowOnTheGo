@@ -250,7 +250,7 @@ namespace cu {
 
       padWidth  = width + 2 * padding;
       padHeight = height + 2 * padding;
-      NppiSize oPadSize = { padWidth, padHeight };
+      oPadSize = { padWidth, padHeight };
       nDstStep = oPadSize.width * elemSize;
 
       // Pad original
