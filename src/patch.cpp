@@ -17,6 +17,8 @@
 #include "common/timer.h"
 
 #include "patch.h"
+#include "kernels/interpolate.h"
+
 
 using std::cout;
 using std::endl;
@@ -46,6 +48,8 @@ namespace OFC {
             cudaMalloc ((void**) &pDeviceRawDiff, patch.size() * sizeof(float)) );
         checkCudaErrors(
             cudaMalloc ((void**) &pDeviceCostDiff, patch.size() * sizeof(float)) );
+        checkCudaErrors(
+            cudaMalloc ((void**) &pDeviceWeights, 4 * sizeof(float)) );
       }
 
   void PatClass::InitializeError() {
@@ -63,6 +67,7 @@ namespace OFC {
 
     cudaFree(pDeviceRawDiff);
     cudaFree(pDeviceCostDiff);
+    cudaFree(pDeviceWeights);
 
     delete p_state;
 
@@ -108,6 +113,14 @@ namespace OFC {
   void PatClass::SetTargetImage(const float * _I1) {
 
     I1 = _I1;
+
+    int size = i_params->width_pad * i_params->height_pad * 3;
+    checkCudaErrors(
+        cudaMalloc ((void**) &pDeviceI, size *  sizeof(float)) );
+
+    CUBLAS_CHECK (
+        cublasSetVector(size, sizeof(float),
+          I1, 1, pDeviceI, 1) );
 
     ResetPatchState();
 
@@ -347,8 +360,6 @@ namespace OFC {
   // Extract patch on float position with bilinear interpolation, no gradients.
   void PatClass::InterpolatePatch() {
 
-    float *raw = p_state->raw_diff.data();
-
     Eigen::Vector2f resid;
     Eigen::Vector4f weight; // bilinear weight vector
     Eigen::Vector4i pos;
@@ -371,39 +382,37 @@ namespace OFC {
     pos[0] += i_params->padding;
     pos[1] += i_params->padding;
 
-    const float * img_a, * img_b, * img_c, * img_d, *img_e;
+    checkCudaErrors(
+        cudaMemcpy(pDeviceRawDiff, p_state->raw_diff.data(),
+          patch.size() * sizeof(float), cudaMemcpyHostToDevice) );
 
-    // RGB
-    img_e = I1 + (pos[0] - op->patch_size / 2) * 3;
+    checkCudaErrors(
+        cudaMemcpy(pDeviceWeights, weight.data(),
+          4 * sizeof(float), cudaMemcpyHostToDevice) );
 
     int lb = -op->patch_size / 2;
-    int ub = op->patch_size / 2 - 1;
+    int startx = pos[0] + lb;
+    int starty = pos[1] + lb;
 
-    for (pos_iter[1] = pos[1] + lb; pos_iter[1] <= pos[1] + ub; ++pos_iter[1]) {
+    cu::interpolatePatch(pDeviceRawDiff, pDeviceI, pDeviceWeights,
+        i_params->width_pad, starty, startx, op->patch_size);
 
-      // RGB
-      img_a = img_e + pos_iter[1] * i_params->width_pad * 3;
-      img_c = img_e + (pos_iter[1] - 1) * i_params->width_pad * 3;
-      img_b = img_a - 3;
-      img_d = img_c - 3;
+    // Mean Normalization
+    if (op->use_mean_normalization > 0) {
 
-      for (pos_iter[0] = pos[0] + lb; pos_iter[0] <= pos[0] + ub; ++pos_iter[0],
-          ++raw, ++img_a, ++img_b, ++img_c, ++img_d) {
+      float mean;
+      CUBLAS_CHECK (
+          cublasSasum(op->cublasHandle, patch.size(),
+            pDeviceRawDiff, 1, &mean) );
+      mean = mean / op->n_vals;
 
-        // RGB
-        (*raw) = weight[0] * (*img_a) + weight[1] * (*img_b) + weight[2] * (*img_c) + weight[3] * (*img_d);
-        ++raw; ++img_a; ++img_b; ++img_c; ++img_d;
-        (*raw) = weight[0] * (*img_a) + weight[1] * (*img_b) + weight[2] * (*img_c) + weight[3] * (*img_d);
-        ++raw; ++img_a; ++img_b; ++img_c; ++img_d;
-        (*raw) = weight[0] * (*img_a) + weight[1] * (*img_b) + weight[2] * (*img_c) + weight[3] * (*img_d);
-
-      }
+      cu::normalizeMean(pDeviceRawDiff, mean, op->patch_size);
 
     }
 
-    // Mean Normalization
-    if (op->use_mean_normalization > 0)
-      p_state->raw_diff.array() -= (p_state->raw_diff.sum() / op->n_vals);
+    CUBLAS_CHECK (
+        cublasGetVector(p_state->raw_diff.size(), sizeof(float),
+          pDeviceRawDiff, 1, p_state->raw_diff.data(), 1) );
 
   }
 

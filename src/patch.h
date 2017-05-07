@@ -77,12 +77,16 @@ namespace OFC {
       // Extract patch on float position with bilinear interpolation, no gradients.
       void InterpolatePatch();
 
+
+      float* pDeviceI;
+
       float* pDevicePatch;
       float* pDevicePatchX;
       float* pDevicePatchY;
 
       float* pDeviceRawDiff;
       float* pDeviceCostDiff;
+      float* pDeviceWeights;
 
 
       Eigen::Vector2f midpoint; // reference point location
