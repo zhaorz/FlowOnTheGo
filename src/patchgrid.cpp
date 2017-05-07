@@ -182,8 +182,6 @@ namespace OFC {
         cudaMemcpy(flowout, pDeviceFlowOut,
           i_params->width * i_params->height * 2 * sizeof(float), cudaMemcpyDeviceToHost) );
 
-
-    delete[] weights;
   }
 
 }
