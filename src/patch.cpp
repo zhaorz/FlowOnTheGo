@@ -187,9 +187,18 @@ namespace OFC {
 
       p_state->count++;
 
+      // Copy to GPU
+      CUBLAS_CHECK (
+          cublasSetVector(p_state->raw_diff.size(), sizeof(float),
+            p_state->raw_diff.data(), 1, pDeviceRawDiff, 1) );
+
       // Projection onto sd_images
-      p_state->delta_p[0] = (patch_x.array() * p_state->raw_diff.array()).sum();
-      p_state->delta_p[1] = (patch_y.array() * p_state->raw_diff.array()).sum();
+      CUBLAS_CHECK (
+          cublasSdot(op->cublasHandle, patch.size(),
+            pDevicePatchX, 1, pDeviceRawDiff, 1, &(p_state->delta_p[0])) );
+      CUBLAS_CHECK (
+          cublasSdot(op->cublasHandle, patch.size(),
+            pDevicePatchY, 1, pDeviceRawDiff, 1, &(p_state->delta_p[1])) );
 
       p_state->delta_p = p_state->hessian.llt().solve(p_state->delta_p); // solve linear system
 
