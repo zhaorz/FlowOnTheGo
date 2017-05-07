@@ -47,9 +47,6 @@ namespace OFC {
     op.n_vals = 3 * pow(op.patch_size, 2);
     op.n_scales = op.coarsest_scale - op.finest_scale + 1;
     float norm_outlier2 = pow(op.norm_outlier, 2);
-    op.norm_outlier_tmpbsq = (v4sf) {norm_outlier2, norm_outlier2, norm_outlier2, norm_outlier2};
-    op.norm_outlier_tmp2bsq = __builtin_ia32_mulps(op.norm_outlier_tmpbsq, op.twos);
-    op.norm_outlier_tmp4bsq = __builtin_ia32_mulps(op.norm_outlier_tmpbsq, op.fours);
     op.dp_thresh = 0.05 * 0.05;
     op.dr_thresh = 0.95;
     op.res_thresh = 0.0;
