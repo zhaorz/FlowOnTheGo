@@ -85,9 +85,16 @@ namespace OFC {
 
   void PatClass::ComputeHessian() {
 
-    p_state->hessian(0,0) = (patch_x.array() * patch_x.array()).sum();
-    p_state->hessian(0,1) = (patch_x.array() * patch_y.array()).sum();
-    p_state->hessian(1,1) = (patch_y.array() * patch_y.array()).sum();
+    CUBLAS_CHECK (
+        cublasSdot(op->cublasHandle, patch.size(),
+          pDevicePatchX, 1, pDevicePatchX, 1, &(p_state->hessian(0,0))) );
+    CUBLAS_CHECK (
+        cublasSdot(op->cublasHandle, patch.size(),
+          pDevicePatchX, 1, pDevicePatchY, 1, &(p_state->hessian(0,1))) );
+    CUBLAS_CHECK (
+        cublasSdot(op->cublasHandle, patch.size(),
+          pDevicePatchY, 1, pDevicePatchY, 1, &(p_state->hessian(1,1))) );
+
     p_state->hessian(1,0) = p_state->hessian(0,1);
 
     // If not invertible adjust values
