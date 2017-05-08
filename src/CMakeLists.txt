@@ -71,7 +71,7 @@ set(CODEFILES
   FDF1.0.1/opticalflow_aux.c
   FDF1.0.1/solver.c)
 
-# GrayScale, Optical Flow
+# RGB, Optical Flow
 cuda_add_executable(flow ${COMMON} ${CODEFILES} ${KERNELS})
 set_target_properties (flow PROPERTIES COMPILE_DEFINITIONS "SELECTMODE=1")
 set_property(TARGET flow APPEND PROPERTY COMPILE_DEFINITIONS "SELECTCHANNEL=3") # use RGB image
@@ -87,4 +87,3 @@ set(SANDBOX_FILES
   sandbox/sandbox.cpp)
 cuda_add_executable(sandbox ${COMMON} ${KERNELS} ${SANDBOX_FILES})
 target_link_libraries(sandbox ${OpenCV_LIBS})
-

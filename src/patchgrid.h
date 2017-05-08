@@ -5,7 +5,7 @@
 #define PATGRID_HEADER
 
 #include "patch.h"
-#include "oflow.h" // For camera intrinsic and opt. parameter struct
+#include "params.h" // For camera intrinsic and opt. parameter struct
 
 
 namespace OFC {

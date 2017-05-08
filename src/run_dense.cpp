@@ -108,6 +108,7 @@ int AutoFirstScaleSelect(int imgwidth, int fratio, int patchsize) {
 
 }
 
+
 int main( int argc, char** argv ) {
 
   // Warmup GPU
@@ -141,7 +142,7 @@ int main( int argc, char** argv ) {
   int channels = 3;
   int elemSize = channels * sizeof(Npp32f);
 
-  /* MEMCOPY to CUDA */
+  /* memcpy to cuda */
   Npp32f* I0, *I1;
   auto start_cuda_malloc = now();
   checkCudaErrors( cudaMalloc((void**) &I0, width_org * height_org * elemSize) );
@@ -158,12 +159,6 @@ int main( int argc, char** argv ) {
 
   // Parse rest of parameters
   opt_params op;
-
-  cublasStatus_t stat = cublasCreate(&op.cublasHandle);
-  if (stat != CUBLAS_STATUS_SUCCESS) {
-    printf ("CUBLAS initialization failed\n");
-    exit(-1);
-  }
 
   if (argc <= 5) {
 
@@ -274,7 +269,7 @@ int main( int argc, char** argv ) {
 
 
   // Create Optical Flow object
-  OFClass ofc(op);
+  OFClass ofc(op, iparams);
 
   // Run main optical flow / depth algorithm
   float scale_fact = pow(2, op.finest_scale);
@@ -282,7 +277,6 @@ int main( int argc, char** argv ) {
 
   ofc.calc(I0, I1, iparams, nullptr, (float*) flow_mat.data);
 
-  cublasDestroy(op.cublasHandle);
 
   if (op.verbosity > 1) gettimeofday(&start_time, NULL);
 

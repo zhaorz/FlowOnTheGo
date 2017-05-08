@@ -295,7 +295,7 @@ namespace OFC {
     int lb = -op->patch_size / 2;
     int patch_offset = 3 * ((x + lb) + (y + lb) * i_params->width_pad);
 
-    float* pDeviceI0, *pDeviceI0x, *pDeviceI0y;
+    /*float* pDeviceI0, *pDeviceI0x, *pDeviceI0y;
     int size = i_params->width_pad * i_params->height_pad * 3;
     checkCudaErrors(
         cudaMalloc ((void**) &pDeviceI0, size * sizeof(float)) );
@@ -308,20 +308,20 @@ namespace OFC {
     CUBLAS_CHECK (
         cublasSetVector(size, sizeof(float), I0x, 1, pDeviceI0x, 1) );
     CUBLAS_CHECK (
-        cublasSetVector(size, sizeof(float), I0y, 1, pDeviceI0y, 1) );
+        cublasSetVector(size, sizeof(float), I0y, 1, pDeviceI0y, 1) );*/
 
     // Extract patch
     checkCudaErrors(
         cudaMemcpy2D (pDevicePatch, 3 * op->patch_size * sizeof(float),
-          pDeviceI0 + patch_offset, 3 * i_params->width_pad * sizeof(float),
+          I0 + patch_offset, 3 * i_params->width_pad * sizeof(float),
           3 * op->patch_size * sizeof(float), op->patch_size, cudaMemcpyDeviceToDevice) );
     checkCudaErrors(
         cudaMemcpy2D (pDevicePatchX, 3 * op->patch_size * sizeof(float),
-          pDeviceI0x + patch_offset, 3 * i_params->width_pad * sizeof(float),
+          I0x + patch_offset, 3 * i_params->width_pad * sizeof(float),
           3 * op->patch_size * sizeof(float), op->patch_size, cudaMemcpyDeviceToDevice) );
     checkCudaErrors(
         cudaMemcpy2D (pDevicePatchY, 3 * op->patch_size * sizeof(float),
-          pDeviceI0y + patch_offset, 3 * i_params->width_pad * sizeof(float),
+          I0y + patch_offset, 3 * i_params->width_pad * sizeof(float),
           3 * op->patch_size * sizeof(float), op->patch_size, cudaMemcpyDeviceToDevice) );
 
     // Mean Normalization
@@ -369,9 +369,7 @@ namespace OFC {
 
     // Mean Normalization
     if (op->use_mean_normalization > 0) {
-
       cu::normalizeMean(pDeviceRawDiff, op->cublasHandle, op->patch_size);
-
     }
 
   }
