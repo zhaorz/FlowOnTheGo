@@ -172,12 +172,6 @@ int main( int argc, char** argv ) {
     op.var_ref_iter = 3; op.var_ref_sor_weight = 1.6;
     op.verbosity = 2; // Default: Plot detailed timings
 
-    cublasStatus_t stat = cublasCreate(&op.cublasHandle);
-    if (stat != CUBLAS_STATUS_SUCCESS) {
-      printf ("CUBLAS initialization failed\n");
-      exit(-1);
-    }
-
     int fratio = 5; // For automatic selection of coarsest scale: 1/fratio * width = maximum expected motion magnitude in image. Set lower to restrict search space.
 
     int op_point = 2; // Default operating point
