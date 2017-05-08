@@ -110,6 +110,46 @@ int AutoFirstScaleSelect(int imgwidth, int fratio, int patchsize) {
 
 int main( int argc, char** argv ) {
 
+
+  // CV mats original and float
+  cv::Mat I0_mat, I1_mat;
+  char *flow_file;
+
+  // Usage: ./flow <img0> <img1> <flow_out> [op_point] [...params]
+  if (argc >= 4) {
+    // Parse input images
+    char *I0_file = argv[1];
+    char *I1_file = argv[2];
+    flow_file     = argv[3];
+
+    // Load images
+    I0_mat = cv::imread(I0_file, CV_LOAD_IMAGE_COLOR);   // Read the file
+    I1_mat = cv::imread(I1_file, CV_LOAD_IMAGE_COLOR);   // Read the file
+  }
+
+  // Usage: ./flow <video> <flow_out>
+  else if (argc == 3) {
+    char* video_file = argv[1];
+    flow_file = argv[2];
+
+    cv::VideoCapture cap;
+    cap.open(video_file);
+
+    if (!cap.isOpened()) {
+      std::cerr << "Aborting: unable to open video file: " << video_file << std::endl;
+      return -1;
+    }
+
+    // TODO: setup a stream of some sort
+    // Get two frames
+    cap >> I0_mat;
+    cap >> I1_mat;
+
+  } else {
+    std::cout << "aborting: not enough arguments" << std::endl;
+    return -1;
+  }
+
   // Warmup GPU
   cu::warmup();
 
@@ -118,23 +158,11 @@ int main( int argc, char** argv ) {
   gettimeofday(&start_time, NULL);
 
 
-  // Parse input images
-  char *I0_file = argv[1];
-  char *I1_file = argv[2];
-  char *flow_file = argv[3];
-
-  // CV mats original and float
-  cv::Mat I0_mat, I1_mat;
-  cv::Mat I0_fmat, I1_fmat;
-
-  // Load images
-  I0_mat = cv::imread(I0_file, CV_LOAD_IMAGE_COLOR);   // Read the file
-  I1_mat = cv::imread(I1_file, CV_LOAD_IMAGE_COLOR);   // Read the file
-
   int width_org = I0_mat.size().width;   // unpadded original image size
   int height_org = I0_mat.size().height;  // unpadded original image size
 
   // convert to float
+  cv::Mat I0_fmat, I1_fmat;
   I0_mat.convertTo(I0_fmat, CV_32F);
   I1_mat.convertTo(I1_fmat, CV_32F);
 
