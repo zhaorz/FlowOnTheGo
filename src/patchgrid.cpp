@@ -123,8 +123,6 @@ namespace OFC {
 
   void PatGridClass::AggregateFlowDense(float *flowout) const {
 
-    memset(flowout, 0, sizeof(float) * (2 * i_params->width * i_params->height));
-
     // Device mem
     checkCudaErrors(
         cudaMemset (pDeviceWeights, 0.0, i_params->width * i_params->height * sizeof(float)) );

@@ -77,7 +77,7 @@ namespace OFC {
       void InterpolatePatch();
 
 
-      float* pDeviceI;
+      const float* pDeviceI;
 
       float* pDevicePatch;
       float* pDevicePatchX;
@@ -94,7 +94,6 @@ namespace OFC {
       Eigen::Matrix<float, Eigen::Dynamic, 1> patch_y;
 
       const float * I0, * I0x, * I0y;
-      const float * I1;
 
       const img_params* i_params;
       const opt_params* op;

@@ -19,7 +19,7 @@
 #include "interpolate.h"
 
 __global__ void kernelInterpolatePatch(
-    float* pDeviceRawDiff, float* pDeviceI, float* weight,
+    float* pDeviceRawDiff, const float* pDeviceI, float* weight,
     int width_pad, int starty, int startx, int patchSize) {
 
   int x = threadIdx.x + startx;
@@ -27,16 +27,13 @@ __global__ void kernelInterpolatePatch(
   int patchIdx = threadIdx.x + blockIdx.x * patchSize;
 
   if (x < startx + patchSize && y < starty + patchSize) {
-    float* img_e = pDeviceI + x * 3;
-    float* img_a = img_e + y * width_pad * 3;
-    float* img_c = img_e + (y - 1) * width_pad * 3;
-    float* img_b = img_a - 3;
-    float* img_d = img_c - 3;
+    const float* img_e = pDeviceI + x * 3;
+    const float* img_a = img_e + y * width_pad * 3;
+    const float* img_c = img_e + (y - 1) * width_pad * 3;
+    const float* img_b = img_a - 3;
+    const float* img_d = img_c - 3;
 
     int diff = x * 3 + y * width_pad * 3;
-    if (diff < 0 || patchIdx >= patchSize * patchSize) {
-      printf("DEVICE: uh oh. patchIdx %d, x %d, y %d, startx %d, starty %d\n", patchIdx, x, y, startx, starty);
-    }
     pDeviceRawDiff[3 * patchIdx] =
       weight[0] * (*img_a) + weight[1] * (*img_b) + weight[2] * (*img_c) + weight[3] * (*img_d);
     ++img_a; ++img_b; ++img_c; ++img_d;
@@ -64,7 +61,7 @@ __global__ void kernelNormalizeMean(
 namespace cu {
 
   void interpolatePatch(
-      float* pDeviceRawDiff, float* pDeviceI, float* weight,
+      float* pDeviceRawDiff, const float* pDeviceI, float* weight,
       int width_pad, int starty, int startx, int patchSize) {
 
     int nBlocks = patchSize;

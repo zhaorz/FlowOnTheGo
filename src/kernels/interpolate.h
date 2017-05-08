@@ -24,7 +24,7 @@
 namespace cu {
 
   void interpolatePatch(
-      float* pDeviceRawDiff, float* pDeviceI, float* weight,
+      float* pDeviceRawDiff, const float* pDeviceI, float* weight,
       int width_pad, int starty, int startx, int patchSize);
 
   void normalizeMean(

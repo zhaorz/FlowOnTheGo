@@ -111,15 +111,7 @@ namespace OFC {
 
   void PatClass::SetTargetImage(const float * _I1) {
 
-    I1 = _I1;
-
-    int size = i_params->width_pad * i_params->height_pad * 3;
-    checkCudaErrors(
-        cudaMalloc ((void**) &pDeviceI, size *  sizeof(float)) );
-
-    CUBLAS_CHECK (
-        cublasSetVector(size, sizeof(float),
-          I1, 1, pDeviceI, 1) );
+    pDeviceI = _I1;
 
     ResetPatchState();
 
@@ -294,21 +286,6 @@ namespace OFC {
 
     int lb = -op->patch_size / 2;
     int patch_offset = 3 * ((x + lb) + (y + lb) * i_params->width_pad);
-
-    /*float* pDeviceI0, *pDeviceI0x, *pDeviceI0y;
-    int size = i_params->width_pad * i_params->height_pad * 3;
-    checkCudaErrors(
-        cudaMalloc ((void**) &pDeviceI0, size * sizeof(float)) );
-    checkCudaErrors(
-        cudaMalloc ((void**) &pDeviceI0x, size * sizeof(float)) );
-    checkCudaErrors(
-        cudaMalloc ((void**) &pDeviceI0y, size * sizeof(float)) );
-    CUBLAS_CHECK (
-        cublasSetVector(size, sizeof(float), I0, 1, pDeviceI0, 1) );
-    CUBLAS_CHECK (
-        cublasSetVector(size, sizeof(float), I0x, 1, pDeviceI0x, 1) );
-    CUBLAS_CHECK (
-        cublasSetVector(size, sizeof(float), I0y, 1, pDeviceI0y, 1) );*/
 
     // Extract patch
     checkCudaErrors(
