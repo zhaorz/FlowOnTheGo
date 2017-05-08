@@ -70,7 +70,6 @@ namespace OFC {
       void UpdateMidpoint();
       void ResetPatchState();
       void ComputeHessian();
-      void InitializeError();
       void ComputeCostErr();
 
       // Extract patch on integer position, and gradients, No Bilinear interpolation

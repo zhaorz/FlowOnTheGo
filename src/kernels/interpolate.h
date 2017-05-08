@@ -14,6 +14,7 @@
 // CUDA
 #include <cuda.h>
 #include <cuda_runtime.h>
+#include <cublas_v2.h>
 
 // Local
 #include "../common/Exceptions.h"
@@ -27,7 +28,7 @@ namespace cu {
       int width_pad, int starty, int startx, int patchSize);
 
   void normalizeMean(
-      float* pDeviceRawDiff, float mean, int patchSize);
+      float* pDeviceRawDiff, cublasHandle_t handle, int patchSize);
 
 }
 

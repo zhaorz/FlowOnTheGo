@@ -45,14 +45,6 @@ namespace OFC {
       p_init.resize(n_patches);
       patches.reserve(n_patches);
 
-      I0_eg = new Eigen::Map<const Eigen::MatrixXf>(nullptr, i_params->height, i_params->width);
-      I0x_eg = new Eigen::Map<const Eigen::MatrixXf>(nullptr, i_params->height, i_params->width);
-      I0y_eg = new Eigen::Map<const Eigen::MatrixXf>(nullptr, i_params->height, i_params->width);
-
-      I1_eg = new Eigen::Map<const Eigen::MatrixXf>(nullptr, i_params->height, i_params->width);
-      I1x_eg = new Eigen::Map<const Eigen::MatrixXf>(nullptr, i_params->height, i_params->width);
-      I1y_eg = new Eigen::Map<const Eigen::MatrixXf>(nullptr, i_params->height, i_params->width);
-
       int patch_id = 0;
       for (int x = 0; x < n_patches_width; ++x) {
         for (int y = 0; y < n_patches_height; ++y) {
@@ -69,17 +61,14 @@ namespace OFC {
         }
       }
 
+      checkCudaErrors(
+          cudaMalloc ((void**) &pDeviceWeights, i_params->width * i_params->height * sizeof(float)) );
+      checkCudaErrors(
+          cudaMalloc ((void**) &pDeviceFlowOut, i_params->width * i_params->height * 2 * sizeof(float)) );
+
     }
 
   PatGridClass::~PatGridClass() {
-
-    delete I0_eg;
-    delete I0x_eg;
-    delete I0y_eg;
-
-    delete I1_eg;
-    delete I1x_eg;
-    delete I1y_eg;
 
     for (int i = 0; i < n_patches; ++i)
       delete patches[i];
@@ -92,10 +81,6 @@ namespace OFC {
     I0x = _I0x;
     I0y = _I0y;
 
-    new (I0_eg) Eigen::Map<const Eigen::MatrixXf>(I0, i_params->height, i_params->width);
-    new (I0x_eg) Eigen::Map<const Eigen::MatrixXf>(I0x, i_params->height, i_params->width);
-    new (I0y_eg) Eigen::Map<const Eigen::MatrixXf>(I0y, i_params->height, i_params->width);
-
     for (int i = 0; i < n_patches; ++i) {
       patches[i]->InitializePatch(I0, I0x, I0y, midpoints_ref[i]);
       p_init[i].setZero();
@@ -103,15 +88,9 @@ namespace OFC {
 
   }
 
-  void PatGridClass::SetTargetImage(const float * _I1, const float * _I1x, const float * _I1y) {
+  void PatGridClass::SetTargetImage(const float * _I1) {
 
     I1 = _I1;
-    I1x = _I1x;
-    I1y = _I1y;
-
-    new (I1_eg) Eigen::Map<const Eigen::MatrixXf>(I1, i_params->height, i_params->width);
-    new (I1x_eg) Eigen::Map<const Eigen::MatrixXf>(I1x, i_params->height, i_params->width);
-    new (I1y_eg) Eigen::Map<const Eigen::MatrixXf>(I1y, i_params->height, i_params->width);
 
     for (int i = 0; i < n_patches; ++i) {
       patches[i]->SetTargetImage(I1);
@@ -147,11 +126,6 @@ namespace OFC {
     memset(flowout, 0, sizeof(float) * (2 * i_params->width * i_params->height));
 
     // Device mem
-    float* pDeviceWeights, *pDeviceFlowOut;
-    checkCudaErrors(
-        cudaMalloc ((void**) &pDeviceWeights, i_params->width * i_params->height * sizeof(float)) );
-    checkCudaErrors(
-        cudaMalloc ((void**) &pDeviceFlowOut, i_params->width * i_params->height * 2 * sizeof(float)) );
     checkCudaErrors(
         cudaMemset (pDeviceWeights, 0.0, i_params->width * i_params->height * sizeof(float)) );
     checkCudaErrors(
@@ -164,14 +138,11 @@ namespace OFC {
 
         float* pweight = patches[ip]->GetDeviceCostDiffPtr(); // use image error as weight
 
-        if (patches[ip]->GetPatchId() == 0)
-          cout << "MIDPOINT: " << midpoints_ref[ip] << endl;
-
         cu::densifyPatch(
             pweight, pDeviceFlowOut, pDeviceWeights,
             (*fl)[0], (*fl)[1],
             midpoints_ref[ip][0], midpoints_ref[ip][1],
-            i_params->width, i_params->height, (patches[ip]->GetPatchId() == 0),
+            i_params->width, i_params->height,
             op->patch_size, op->min_errval);
 
       }

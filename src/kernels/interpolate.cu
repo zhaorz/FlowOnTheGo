@@ -9,8 +9,12 @@
 #include <stdexcept>
 
 // CUDA
-#include <cuda.h>
 #include <cuda_runtime.h>
+#include <cublas_v2.h>
+#include "../common/cuda_helper.h"
+#include "../common/Exceptions.h"
+#include "../common/timer.h"
+
 
 #include "interpolate.h"
 
@@ -46,13 +50,13 @@ __global__ void kernelInterpolatePatch(
 }
 
 __global__ void kernelNormalizeMean(
-    float* pDeviceRawDiff, float mean, int patch_size) {
+    float* src, float mean, int patch_size) {
 
   int i = blockIdx.x * patch_size + threadIdx.x;
 
-  pDeviceRawDiff[3 * i]     -= mean;
-  pDeviceRawDiff[3 * i + 1] -= mean;
-  pDeviceRawDiff[3 * i + 2] -= mean;
+  src[3 * i]     -= mean;
+  src[3 * i + 1] -= mean;
+  src[3 * i + 2] -= mean;
 
 }
 
@@ -73,13 +77,18 @@ namespace cu {
   }
 
   void normalizeMean(
-      float* pDeviceRawDiff, float mean, int patchSize) {
+      float* src, cublasHandle_t handle, int patchSize) {
 
     int nBlocks = patchSize;
     int nThreadsPerBlock = patchSize;
 
+    float mean;
+    CUBLAS_CHECK (
+        cublasSasum(handle, patchSize * patchSize * 3, src, 1, &mean) );
+    mean = mean / (patchSize * patchSize * 3);
+
     kernelNormalizeMean<<<nBlocks, nThreadsPerBlock>>>(
-        pDeviceRawDiff, mean, patchSize);
+        src, mean, patchSize);
 
   }
 

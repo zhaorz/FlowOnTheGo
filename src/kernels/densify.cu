@@ -18,7 +18,7 @@ __global__ void kernelDensifyPatch(
     float* pDeviceCostDiff, float* pDeviceFlowOut, float* pDeviceWeights,
     float flowX, float flowY,
     int midpointX, int midpointY,
-    int width, int height, bool verbose,
+    int width, int height,
     int patchSize, float minErrVal) {
 
   int lower_bound = -patchSize / 2;
@@ -39,8 +39,6 @@ __global__ void kernelDensifyPatch(
     absw += (float) (fmaxf(minErrVal, pDeviceCostDiff[3 * j + 2]));
     absw = 1.0 / absw;
 
-    if (verbose)
-      printf("i %d, j %d, absw %.2f\n", i, j, absw);
     // Weight contribution RGB
     pDeviceWeights[i] += absw;
 
@@ -68,7 +66,7 @@ namespace cu {
       float* pDeviceCostDiff, float* pDeviceFlowOut, float* pDeviceWeights,
       float flowX, float flowY,
       int midpointX, int midpointY,
-      int width, int height, bool verbose,
+      int width, int height,
       int patchSize, float minErrVal) {
 
     int nBlocks = patchSize;
@@ -78,7 +76,7 @@ namespace cu {
         pDeviceCostDiff, pDeviceFlowOut, pDeviceWeights,
         flowX, flowY,
         midpointX, midpointY,
-        width, height, verbose,
+        width, height,
         patchSize, minErrVal);
   }
 

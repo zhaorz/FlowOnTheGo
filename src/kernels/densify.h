@@ -26,7 +26,7 @@ namespace cu {
       float* pDeviceCostDiff, float* pDeviceFlowOut, float* pDeviceWeights,
       float flowX, float flowY,
       int midpointX, int midpointY,
-      int width, int height, bool verbose,
+      int width, int height,
       int patchSize, float minErrVal);
 
   void normalizeFlow(
