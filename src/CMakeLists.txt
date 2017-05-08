@@ -72,6 +72,7 @@ set(KERNELS
   # kernels/densify.cu
   # kernels/interpolate.cu
   kernels/warmup.cpp
+  # kernels/sobelUnifiedMem.cpp
   kernels/sobel.cpp
   kernels/pyramid.cpp
   kernels/pad.cpp
