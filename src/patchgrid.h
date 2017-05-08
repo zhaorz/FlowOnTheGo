@@ -5,7 +5,7 @@
 #define PATGRID_HEADER
 
 #include "patch.h"
-#include "oflow.h" // For camera intrinsic and opt. parameter struct
+#include "params.h" // For camera intrinsic and opt. parameter struct
 
 
 namespace OFC {
@@ -18,7 +18,7 @@ namespace OFC {
       ~PatGridClass();
 
       void InitializeGrid(const float * _I0, const float * _I0x, const float * _I0y);
-      void SetTargetImage(const float * _I1, const float * _I1x, const float * _I1y);
+      void SetTargetImage(const float * _I1);
       void InitializeFromCoarserOF(const float * flow_prev);
 
       void AggregateFlowDense(float *flowout) const;
@@ -39,10 +39,9 @@ namespace OFC {
     private:
 
       const float * I0, * I0x, * I0y;
-      const float * I1, * I1x, * I1y;
+      const float * I1;
 
-      Eigen::Map<const Eigen::MatrixXf> * I0_eg, * I0x_eg, * I0y_eg;
-      Eigen::Map<const Eigen::MatrixXf> * I1_eg, * I1x_eg, * I1y_eg;
+      float* pDeviceWeights, *pDeviceFlowOut;
 
       const img_params* i_params;
       const opt_params* op;

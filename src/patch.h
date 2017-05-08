@@ -4,17 +4,17 @@
 #ifndef PAT_HEADER
 #define PAT_HEADER
 
-#include "oflow.h" // For camera intrinsic and opt. parameter struct
+#include <Eigen/Core>
+#include <Eigen/LU>
+#include <Eigen/Dense>
+
+#include "params.h" // For camera intrinsic and opt. parameter struct
 
 namespace OFC {
 
   typedef struct {
     bool has_converged;
     bool has_opt_started;
-
-    // reference/template patch
-    Eigen::Matrix<float, Eigen::Dynamic, 1> raw_diff; // image error to reference image
-    Eigen::Matrix<float, Eigen::Dynamic, 1> cost_diff; // absolute error image
 
     Eigen::Matrix<float, 2, 2> hessian; // Hessian for optimization
     Eigen::Vector2f p_org, p_cur, delta_p; // point position, displacement to starting position, iteration update
@@ -54,12 +54,12 @@ namespace OFC {
       inline const bool HasOptStarted() const { return p_state->has_opt_started; }
       inline const Eigen::Vector2f GetTargMidpoint() const { return p_state->midpoint_cur; }
       inline const bool IsValid() const { return !p_state->invalid; }
-      inline const float * GetCostDiffPtr() const { return (float*) p_state->cost_diff.data(); }
       inline float * GetDeviceCostDiffPtr() const { return (float*) pDeviceCostDiff; }
 
 
       inline const Eigen::Vector2f* GetCurP() const { return &(p_state->p_cur); }
       inline const Eigen::Vector2f* GetOrgP() const { return &(p_state->p_org); }
+      inline const int GetPatchId() const { return patch_id; }
 
     private:
 
@@ -69,7 +69,6 @@ namespace OFC {
       void UpdateMidpoint();
       void ResetPatchState();
       void ComputeHessian();
-      void InitializeError();
       void ComputeCostErr();
 
       // Extract patch on integer position, and gradients, No Bilinear interpolation
@@ -77,12 +76,16 @@ namespace OFC {
       // Extract patch on float position with bilinear interpolation, no gradients.
       void InterpolatePatch();
 
+
+      const float* pDeviceI;
+
       float* pDevicePatch;
       float* pDevicePatchX;
       float* pDevicePatchY;
 
       float* pDeviceRawDiff;
       float* pDeviceCostDiff;
+      float* pDeviceWeights;
 
 
       Eigen::Vector2f midpoint; // reference point location
@@ -91,7 +94,6 @@ namespace OFC {
       Eigen::Matrix<float, Eigen::Dynamic, 1> patch_y;
 
       const float * I0, * I0x, * I0y;
-      const float * I1;
 
       const img_params* i_params;
       const opt_params* op;

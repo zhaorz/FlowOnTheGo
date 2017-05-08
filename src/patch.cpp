@@ -17,6 +17,8 @@
 #include "common/timer.h"
 
 #include "patch.h"
+#include "kernels/interpolate.h"
+
 
 using std::cout;
 using std::endl;
@@ -24,7 +26,7 @@ using std::vector;
 
 namespace OFC {
 
-  // typedef __v4sf v4sf;
+  typedef __v4sf v4sf;
 
   PatClass::PatClass(
       const img_params* _i_params,
@@ -36,24 +38,25 @@ namespace OFC {
       patch_id(_patch_id) {
 
         p_state = new patch_state;
-        InitializeError();
 
         patch.resize(op->n_vals,1);
         patch_x.resize(op->n_vals,1);
         patch_y.resize(op->n_vals,1);
 
         checkCudaErrors(
+            cudaMalloc ((void**) &pDevicePatch, patch.size() * sizeof(float)) );
+        checkCudaErrors(
+            cudaMalloc ((void**) &pDevicePatchX, patch_x.size() * sizeof(float)) );
+        checkCudaErrors(
+            cudaMalloc ((void**) &pDevicePatchY, patch_y.size() * sizeof(float)) );
+        checkCudaErrors(
             cudaMalloc ((void**) &pDeviceRawDiff, patch.size() * sizeof(float)) );
         checkCudaErrors(
             cudaMalloc ((void**) &pDeviceCostDiff, patch.size() * sizeof(float)) );
+        checkCudaErrors(
+            cudaMalloc ((void**) &pDeviceWeights, 4 * sizeof(float)) );
       }
 
-  void PatClass::InitializeError() {
-
-    p_state->raw_diff.resize(op->n_vals,1);
-    p_state->cost_diff.resize(op->n_vals,1);
-
-  }
 
   PatClass::~PatClass() {
 
@@ -63,6 +66,7 @@ namespace OFC {
 
     cudaFree(pDeviceRawDiff);
     cudaFree(pDeviceCostDiff);
+    cudaFree(pDeviceWeights);
 
     delete p_state;
 
@@ -107,7 +111,7 @@ namespace OFC {
 
   void PatClass::SetTargetImage(const float * _I1) {
 
-    I1 = _I1;
+    pDeviceI = _I1;
 
     ResetPatchState();
 
@@ -152,7 +156,6 @@ namespace OFC {
         || p_state->midpoint_cur[1] > i_params->u_bound_height) {
 
       p_state->has_converged=1;
-      p_state->raw_diff = patch;
       p_state->has_opt_started=1;
 
     } else {
@@ -188,8 +191,12 @@ namespace OFC {
       p_state->count++;
 
       // Projection onto sd_images
-      p_state->delta_p[0] = (patch_x.array() * p_state->raw_diff.array()).sum();
-      p_state->delta_p[1] = (patch_y.array() * p_state->raw_diff.array()).sum();
+      CUBLAS_CHECK (
+          cublasSdot(op->cublasHandle, patch.size(),
+            pDevicePatchX, 1, pDeviceRawDiff, 1, &(p_state->delta_p[0])) );
+      CUBLAS_CHECK (
+          cublasSdot(op->cublasHandle, patch.size(),
+            pDevicePatchY, 1, pDeviceRawDiff, 1, &(p_state->delta_p[1])) );
 
       p_state->delta_p = p_state->hessian.llt().solve(p_state->delta_p); // solve linear system
 
@@ -230,11 +237,6 @@ namespace OFC {
 
     // L2-Norm
 
-    // Copy to GPU
-    CUBLAS_CHECK (
-        cublasSetVector(p_state->raw_diff.size(), sizeof(float),
-          p_state->raw_diff.data(), 1, pDeviceRawDiff, 1) );
-
     const float alpha = -1.0;
 
     // raw = patch - raw
@@ -252,15 +254,6 @@ namespace OFC {
         cublasSasum(op->cublasHandle, patch.size(),
           pDeviceCostDiff, 1, &(p_state->cost)) );
 
-    // Copy from GPU
-    CUBLAS_CHECK (
-        cublasGetVector(p_state->cost_diff.size(), sizeof(float),
-          pDeviceCostDiff, 1, p_state->cost_diff.data(), 1) );
-
-    CUBLAS_CHECK (
-        cublasGetVector(p_state->raw_diff.size(), sizeof(float),
-          pDeviceRawDiff, 1, p_state->raw_diff.data(), 1) );
-
   }
 
   void PatClass::OptimizeComputeErrImg() {
@@ -275,7 +268,6 @@ namespace OFC {
 
     // Check early termination criterions
     p_state->mares_old = p_state->mares;
-    //p_state->mares = p_state->cost_diff.lpNorm<1>() / (op->n_vals);
     p_state->mares = p_state->cost / op->n_vals;
 
     if (!((p_state->count < op->grad_descent_iter) & (p_state->mares > op->res_thresh)
@@ -289,56 +281,35 @@ namespace OFC {
   // Extract patch on integer position, and gradients, No Bilinear interpolation
   void PatClass::ExtractPatch() {
 
-    float *patch_f = patch.data();
-    float *patch_xf = patch_x.data();
-    float *patch_yf = patch_y.data();
-
-    int x, y;
-    x = round(midpoint[0]) + i_params->padding;
-    y = round(midpoint[1]) + i_params->padding;
-
-    int posxx = 0;
+    int x = round(midpoint[0]) + i_params->padding;
+    int y = round(midpoint[1]) + i_params->padding;
 
     int lb = -op->patch_size / 2;
-    int ub = op->patch_size / 2 - 1;
+    int patch_offset = 3 * ((x + lb) + (y + lb) * i_params->width_pad);
 
-    for (int j = lb; j <= ub; ++j) {
-      for (int i = lb; i <= ub; ++i, ++posxx) {
-
-        // RGB
-        int idx = 3 * ((x + i) + (y + j) * i_params->width_pad);
-
-        patch_f[posxx] = I0[idx]; patch_xf[posxx] = I0x[idx]; patch_yf[posxx] = I0y[idx]; ++posxx; ++idx;
-        patch_f[posxx] = I0[idx]; patch_xf[posxx] = I0x[idx]; patch_yf[posxx] = I0y[idx]; ++posxx; ++idx;
-        patch_f[posxx] = I0[idx]; patch_xf[posxx] = I0x[idx]; patch_yf[posxx] = I0y[idx];
-
-      }
-    }
+    // Extract patch
+    checkCudaErrors(
+        cudaMemcpy2D (pDevicePatch, 3 * op->patch_size * sizeof(float),
+          I0 + patch_offset, 3 * i_params->width_pad * sizeof(float),
+          3 * op->patch_size * sizeof(float), op->patch_size, cudaMemcpyDeviceToDevice) );
+    checkCudaErrors(
+        cudaMemcpy2D (pDevicePatchX, 3 * op->patch_size * sizeof(float),
+          I0x + patch_offset, 3 * i_params->width_pad * sizeof(float),
+          3 * op->patch_size * sizeof(float), op->patch_size, cudaMemcpyDeviceToDevice) );
+    checkCudaErrors(
+        cudaMemcpy2D (pDevicePatchY, 3 * op->patch_size * sizeof(float),
+          I0y + patch_offset, 3 * i_params->width_pad * sizeof(float),
+          3 * op->patch_size * sizeof(float), op->patch_size, cudaMemcpyDeviceToDevice) );
 
     // Mean Normalization
-    if (op->use_mean_normalization > 0)
-      patch.array() -= (patch.sum() / op->n_vals);
-
-    // Copy to gpu
-    checkCudaErrors(
-        cudaMalloc ((void**) &pDevicePatch, patch_x.size() * sizeof(float)) );
-    checkCudaErrors(
-        cudaMalloc ((void**) &pDevicePatchX, patch_x.size() * sizeof(float)) );
-    checkCudaErrors(
-        cudaMalloc ((void**) &pDevicePatchY, patch_y.size() * sizeof(float)) );
-    CUBLAS_CHECK (
-        cublasSetVector(patch.size(), sizeof(float), patch.data(), 1, pDevicePatch, 1) );
-    CUBLAS_CHECK (
-        cublasSetVector(patch.size(), sizeof(float), patch_x.data(), 1, pDevicePatchX, 1) );
-    CUBLAS_CHECK (
-        cublasSetVector(patch.size(), sizeof(float), patch_y.data(), 1, pDevicePatchY, 1) );
+    if (op->use_mean_normalization > 0) {
+      cu::normalizeMean(pDevicePatch, op->cublasHandle, op->patch_size);
+    }
 
   }
 
   // Extract patch on float position with bilinear interpolation, no gradients.
   void PatClass::InterpolatePatch() {
-
-    float *raw = p_state->raw_diff.data();
 
     Eigen::Vector2f resid;
     Eigen::Vector4f weight; // bilinear weight vector
@@ -362,39 +333,21 @@ namespace OFC {
     pos[0] += i_params->padding;
     pos[1] += i_params->padding;
 
-    const float * img_a, * img_b, * img_c, * img_d, *img_e;
-
-    // RGB
-    img_e = I1 + (pos[0] - op->patch_size / 2) * 3;
+    checkCudaErrors(
+        cudaMemcpy(pDeviceWeights, weight.data(),
+          4 * sizeof(float), cudaMemcpyHostToDevice) );
 
     int lb = -op->patch_size / 2;
-    int ub = op->patch_size / 2 - 1;
+    int startx = pos[0] + lb;
+    int starty = pos[1] + lb;
 
-    for (pos_iter[1] = pos[1] + lb; pos_iter[1] <= pos[1] + ub; ++pos_iter[1]) {
-
-      // RGB
-      img_a = img_e + pos_iter[1] * i_params->width_pad * 3;
-      img_c = img_e + (pos_iter[1] - 1) * i_params->width_pad * 3;
-      img_b = img_a - 3;
-      img_d = img_c - 3;
-
-      for (pos_iter[0] = pos[0] + lb; pos_iter[0] <= pos[0] + ub; ++pos_iter[0],
-          ++raw, ++img_a, ++img_b, ++img_c, ++img_d) {
-
-        // RGB
-        (*raw) = weight[0] * (*img_a) + weight[1] * (*img_b) + weight[2] * (*img_c) + weight[3] * (*img_d);
-        ++raw; ++img_a; ++img_b; ++img_c; ++img_d;
-        (*raw) = weight[0] * (*img_a) + weight[1] * (*img_b) + weight[2] * (*img_c) + weight[3] * (*img_d);
-        ++raw; ++img_a; ++img_b; ++img_c; ++img_d;
-        (*raw) = weight[0] * (*img_a) + weight[1] * (*img_b) + weight[2] * (*img_c) + weight[3] * (*img_d);
-
-      }
-
-    }
+    cu::interpolatePatch(pDeviceRawDiff, pDeviceI, pDeviceWeights,
+        i_params->width_pad, starty, startx, op->patch_size);
 
     // Mean Normalization
-    if (op->use_mean_normalization > 0)
-      p_state->raw_diff.array() -= (p_state->raw_diff.sum() / op->n_vals);
+    if (op->use_mean_normalization > 0) {
+      cu::normalizeMean(pDeviceRawDiff, op->cublasHandle, op->patch_size);
+    }
 
   }
 

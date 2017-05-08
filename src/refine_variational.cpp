@@ -199,6 +199,77 @@ namespace OFC {
   }
 
 
+  void VarRefClass::RefLevelDE(image_t *wx, const color_image_t *im1, const color_image_t *im2) {
+
+    int i_inner_iteration;
+    int width  = wx->width;
+    int height = wx->height;
+    int stride = wx->stride;
+
+    image_t *du = image_new(width,height), *wy_dummy = image_new(width,height), // the flow increment
+            *mask = image_new(width,height), // mask containing 0 if a point goes outside image boundary, 1 otherwise
+            *smooth_horiz = image_new(width,height), *smooth_vert = image_new(width,height), // horiz: (i,j) contains the diffusivity coeff. from (i,j) to (i+1,j)
+            *uu = image_new(width,height), // flow plus flow increment
+            *a11 = image_new(width,height), // system matrix A of Ax=b for each pixel
+            *b1 = image_new(width,height); // system matrix b of Ax=b for each pixel
+
+    image_erase(wy_dummy);
+
+    color_image_t *w_im2 = color_image_new(width,height), // warped second image
+                  *Ix = color_image_new(width,height), *Iy = color_image_new(width,height), *Iz = color_image_new(width,height), // first order derivatives
+                  *Ixx = color_image_new(width,height), *Ixy = color_image_new(width,height), *Iyy = color_image_new(width,height), *Ixz = color_image_new(width,height), *Iyz = color_image_new(width,height); // second order derivatives
+
+    // warp second image
+    image_warp(w_im2, mask, im2, wx, wy_dummy);
+    // compute derivatives
+    get_derivatives(im1, w_im2, deriv, Ix, Iy, Iz, Ixx, Ixy, Iyy, Ixz, Iyz);
+    // erase du and dv
+    image_erase(du);
+
+    // initialize uu and vv
+    memcpy(uu->c1,wx->c1,wx->stride*wx->height*sizeof(float));
+
+    // inner fixed point iterations
+    for(i_inner_iteration = 0 ; i_inner_iteration < vr.inner_iter ; i_inner_iteration++) {
+
+      //  compute robust function and system
+      compute_smoothness(smooth_horiz, smooth_vert, uu, wy_dummy, deriv_flow, vr.tmp_quarter_alpha );
+      compute_data_DE(a11, b1, mask, wx, du, uu, Ix, Iy, Iz, Ixx, Ixy, Iyy, Ixz, Iyz, vr.tmp_half_delta_over3, vr.tmp_half_beta, vr.tmp_half_gamma_over3);
+      sub_laplacian(b1, wx, smooth_horiz, smooth_vert);
+
+      // solve system
+      sor_coupled_slow_but_readable_DE(du, a11, b1, smooth_horiz, smooth_vert, vr.solve_iter, vr.sor_omega);
+
+      // update flow plus flow increment
+      int i;
+      v4sf *uup = (v4sf*) uu->c1, *wxp = (v4sf*) wx->c1, *dup = (v4sf*) du->c1;
+
+      for( i=0 ; i<height*stride/4 ; i++)
+      {
+        (*uup) = __builtin_ia32_minps(   (*wxp) + (*dup)   ,  op->zero);
+        uup+=1; wxp+=1; dup+=1;
+      }
+
+    }
+
+    // add flow increment to current flow
+    memcpy(wx->c1,uu->c1,uu->stride*uu->height*sizeof(float));
+
+    // free memory
+    image_delete(du); image_delete(wy_dummy);
+    image_delete(mask);
+    image_delete(smooth_horiz); image_delete(smooth_vert);
+    image_delete(uu);
+    image_delete(a11);
+    image_delete(b1);
+
+    color_image_delete(w_im2);
+    color_image_delete(Ix); color_image_delete(Iy); color_image_delete(Iz);
+    color_image_delete(Ixx); color_image_delete(Ixy); color_image_delete(Iyy); color_image_delete(Ixz); color_image_delete(Iyz);
+
+  }
+
+
   VarRefClass::~VarRefClass() { }
 
 }
