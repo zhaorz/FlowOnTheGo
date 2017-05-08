@@ -168,7 +168,7 @@ namespace OFC {
 
       // Initialize grid (Step 1 in Algorithm 1 of paper)
       grid[ii]->InitializeGrid(I0s[sl], I0xs[sl], I0ys[sl]);
-      grid[ii]->SetTargetImage(I1s[sl], I1xs[sl], I1ys[sl]);
+      grid[ii]->SetTargetImage(I1s[sl]);
 
       // Timing, Grid construction
       if (op.verbosity > 1) {

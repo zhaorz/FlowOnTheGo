@@ -275,8 +275,8 @@ static const char *_cudaGetErrorEnum(cudaError_t error)
         case cudaErrorApiFailureBase:
             return "cudaErrorApiFailureBase";
 
-        /* Since CUDA 8.0*/        
-        case cudaErrorNvlinkUncorrectable :   
+        /* Since CUDA 8.0*/
+        case cudaErrorNvlinkUncorrectable :
             return "cudaErrorNvlinkUncorrectable";
     }
 
@@ -326,6 +326,12 @@ static const char *_cublasGetErrorEnum(cublasStatus_t error)
 
         case CUBLAS_STATUS_INTERNAL_ERROR:
             return "CUBLAS_STATUS_INTERNAL_ERROR";
+
+        case CUBLAS_STATUS_NOT_SUPPORTED:
+            return "CUBLAS_STATUS_NOT_SUPPORTED";
+
+        case CUBLAS_STATUS_LICENSE_ERROR:
+            return "CUBLAS_STATUS_LICENSE_ERROR";
     }
 
     return "<unknown>";

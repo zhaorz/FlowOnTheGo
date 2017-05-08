@@ -50,6 +50,7 @@ set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS}; -g -std=c++11 -arch=compute_61 -code=sm_
 
 set(KERNELS
   kernels/densify.cu
+  kernels/interpolate.cu
   kernels/warmup.cpp
   kernels/sobel.cpp
   kernels/pyramid.cpp

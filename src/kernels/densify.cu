@@ -1,5 +1,5 @@
 /**
- * Implements an element wise square kernel
+ * Implements kernels for flow densification
  */
 
 // System
@@ -32,12 +32,14 @@ __global__ void kernelDensifyPatch(
   if (xt >= 0 && yt >= 0 && xt < width && yt < height) {
 
     int i = yt * width + xt;
+    int j = blockIdx.x * patchSize + threadIdx.x;
+
+    float absw = (float) (fmaxf(minErrVal, pDeviceCostDiff[3 * j]));
+    absw += (float) (fmaxf(minErrVal, pDeviceCostDiff[3 * j + 1]));
+    absw += (float) (fmaxf(minErrVal, pDeviceCostDiff[3 * j + 2]));
+    absw = 1.0 / absw;
 
     // Weight contribution RGB
-    float absw = 1.0f /  (float)(fmaxf(minErrVal, pDeviceCostDiff[3 * i]));
-    absw += 1.0f /  (float)(fmaxf(minErrVal, pDeviceCostDiff[3 * i + 1]));
-    absw += 1.0f /  (float)(fmaxf(minErrVal, pDeviceCostDiff[3 * i + 2]));
-
     pDeviceWeights[i] += absw;
 
     pDeviceFlowOut[2 * i] += flowX * absw;
@@ -88,5 +90,3 @@ namespace cu {
   }
 
 }
-
-

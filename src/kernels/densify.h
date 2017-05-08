@@ -1,5 +1,5 @@
 /**
- * Implements a resize kernel
+ * Implements kernels for flow densification
  */
 
 #ifndef __KERNEL_DENSIFY_H__
