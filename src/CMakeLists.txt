@@ -66,7 +66,7 @@ message(STATUS "    cuSOLVER path: ${CUDA_CUSOLVER_LIBRARIES}")
 ################################################################################
 
 set(CUDA_VERBOSE_BUILD ON)
-set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS}; -g -std=c++11 -arch=compute_61 -code=sm_61)
+set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS}; -g -arch=compute_61 -code=sm_61)
 
 set(KERNELS
   kernels/densify.cu

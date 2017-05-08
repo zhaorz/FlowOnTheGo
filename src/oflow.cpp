@@ -19,7 +19,7 @@
 
 #include "oflow.h"
 #include "patchgrid.h"
-#include "refine_variational.h"
+// #include "refine_variational.h"
 
 #include "kernels/resize.h"
 #include "kernels/pad.h"
@@ -50,9 +50,9 @@ namespace OFC {
     op.n_vals = 3 * pow(op.patch_size, 2);
     op.n_scales = op.coarsest_scale - op.finest_scale + 1;
     float norm_outlier2 = pow(op.norm_outlier, 2);
-    op.norm_outlier_tmpbsq = (v4sf) {norm_outlier2, norm_outlier2, norm_outlier2, norm_outlier2};
-    op.norm_outlier_tmp2bsq = __builtin_ia32_mulps(op.norm_outlier_tmpbsq, op.twos);
-    op.norm_outlier_tmp4bsq = __builtin_ia32_mulps(op.norm_outlier_tmpbsq, op.fours);
+    // op.norm_outlier_tmpbsq = (v4sf) {norm_outlier2, norm_outlier2, norm_outlier2, norm_outlier2};
+    // op.norm_outlier_tmp2bsq = __builtin_ia32_mulps(op.norm_outlier_tmpbsq, op.twos);
+    // op.norm_outlier_tmp4bsq = __builtin_ia32_mulps(op.norm_outlier_tmpbsq, op.fours);
     op.dp_thresh = 0.05 * 0.05;
     op.dr_thresh = 0.95;
     op.res_thresh = 0.0;
@@ -295,24 +295,24 @@ namespace OFC {
 
 
       // Variational refinement, (Step 5 in Algorithm 1 of paper)
-      if (op.use_var_ref) {
-        float* I0H, * I1H;
-        int elemSize = 3 * sizeof(float);
-        int size = iparams[ii].width_pad * iparams[ii].height_pad * elemSize;
-        I0H = (float*) malloc(size);
-        I1H = (float*) malloc(size);
+      // if (op.use_var_ref) {
+      //   float* I0H, * I1H;
+      //   int elemSize = 3 * sizeof(float);
+      //   int size = iparams[ii].width_pad * iparams[ii].height_pad * elemSize;
+      //   I0H = (float*) malloc(size);
+      //   I1H = (float*) malloc(size);
 
-        checkCudaErrors(
-            cudaMemcpy(I0H, I0s[sl], size, cudaMemcpyDeviceToHost) );
-        checkCudaErrors(
-            cudaMemcpy(I1H, I1s[sl], size, cudaMemcpyDeviceToHost) );
+      //   checkCudaErrors(
+      //       cudaMemcpy(I0H, I0s[sl], size, cudaMemcpyDeviceToHost) );
+      //   checkCudaErrors(
+      //       cudaMemcpy(I1H, I1s[sl], size, cudaMemcpyDeviceToHost) );
 
-        OFC::VarRefClass var_ref(I0H, I1H, &(iparams[ii]), &op, out_ptr);
+      //   OFC::VarRefClass var_ref(I0H, I1H, &(iparams[ii]), &op, out_ptr);
 
-        delete I0H;
-        delete I1H;
+      //   delete I0H;
+      //   delete I1H;
 
-      }
+      // }
 
       // Timing, Variational Refinement
       if (op.verbosity > 1)
