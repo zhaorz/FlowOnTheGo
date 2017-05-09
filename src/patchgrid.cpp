@@ -4,6 +4,7 @@
 #include <valarray>
 
 #include <thread>
+#include <sys/time.h>
 
 #include <Eigen/Core>
 #include <Eigen/LU>
@@ -13,6 +14,7 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include "common/cuda_helper.h"
+#include "common/timer.h"
 #include "kernels/densify.h"
 
 #include <stdio.h>
@@ -66,6 +68,7 @@ namespace OFC {
       checkCudaErrors(
           cudaMalloc ((void**) &pDeviceFlowOut, i_params->width * i_params->height * 2 * sizeof(float)) );
 
+      aggregateTime = 0.0;
     }
 
   PatGridClass::~PatGridClass() {
@@ -121,8 +124,9 @@ namespace OFC {
 
   }
 
-  void PatGridClass::AggregateFlowDense(float *flowout) const {
+  void PatGridClass::AggregateFlowDense(float *flowout) {
 
+    gettimeofday(&tv_start, nullptr);
     // Device mem
     checkCudaErrors(
         cudaMemset (pDeviceWeights, 0.0, i_params->width * i_params->height * sizeof(float)) );
@@ -152,6 +156,35 @@ namespace OFC {
     checkCudaErrors(
         cudaMemcpy(flowout, pDeviceFlowOut,
           i_params->width * i_params->height * 2 * sizeof(float), cudaMemcpyDeviceToHost) );
+
+    gettimeofday(&tv_end, nullptr);
+    aggregateTime += (tv_end.tv_sec - tv_start.tv_sec) * 1000.0f +
+      (tv_end.tv_usec - tv_start.tv_usec) / 1000.0f;
+  }
+
+  void PatGridClass::printTimings() {
+
+    double tot_extractTime = 0, tot_hessianTime = 0,
+           tot_projectionTime = 0, tot_costTime = 0, tot_interpolateTime = 0;
+
+    for (auto & element : patches) {
+      tot_extractTime += element->extractTime;
+      tot_hessianTime += element->hessianTime;
+      tot_projectionTime += element->projectionTime;
+      tot_costTime += element->costTime;
+      tot_interpolateTime += element->interpolateTime;
+    }
+
+    cout << endl;
+    cout << "===============Timings (ms)===============" << endl;
+    cout << "[extract]                          " << tot_extractTime << endl;
+    cout << "[hessian]                          " << tot_hessianTime << endl;
+    cout << "[project]                          " << tot_projectionTime << endl;
+    cout << "[cost]                             " << tot_costTime << endl;
+    cout << "[interpolate]                      " << tot_interpolateTime << endl;
+    cout << "[aggregate]                        " << aggregateTime << endl;
+    cout << "==========================================" << endl;
+
 
   }
 

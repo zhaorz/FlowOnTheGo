@@ -9,6 +9,7 @@
 #include <Eigen/Dense>
 
 #include <stdio.h>
+#include <sys/time.h>
 
 #include <cuda_runtime.h>
 #include <cublas_v2.h>
@@ -55,6 +56,14 @@ namespace OFC {
             cudaMalloc ((void**) &pDeviceCostDiff, patch.size() * sizeof(float)) );
         checkCudaErrors(
             cudaMalloc ((void**) &pDeviceWeights, 4 * sizeof(float)) );
+
+        // Timing
+        extractTime = 0;
+        hessianTime = 0;
+        projectionTime = 0;
+        costTime = 0;
+        interpolateTime = 0;
+
       }
 
 
@@ -89,6 +98,8 @@ namespace OFC {
 
   void PatClass::ComputeHessian() {
 
+    gettimeofday(&tv_start, nullptr);
+
     CUBLAS_CHECK (
         cublasSdot(op->cublasHandle, patch.size(),
           pDevicePatchX, 1, pDevicePatchX, 1, &(p_state->hessian(0,0))) );
@@ -100,6 +111,11 @@ namespace OFC {
           pDevicePatchY, 1, pDevicePatchY, 1, &(p_state->hessian(1,1))) );
 
     p_state->hessian(1,0) = p_state->hessian(0,1);
+
+    gettimeofday(&tv_end, nullptr);
+    hessianTime += (tv_end.tv_sec - tv_start.tv_sec) * 1000.0f +
+      (tv_end.tv_usec - tv_start.tv_usec) / 1000.0f;
+
 
     // If not invertible adjust values
     if (p_state->hessian.determinant() == 0) {
@@ -191,12 +207,17 @@ namespace OFC {
       p_state->count++;
 
       // Projection onto sd_images
+      gettimeofday(&tv_start, nullptr);
       CUBLAS_CHECK (
           cublasSdot(op->cublasHandle, patch.size(),
             pDevicePatchX, 1, pDeviceRawDiff, 1, &(p_state->delta_p[0])) );
       CUBLAS_CHECK (
           cublasSdot(op->cublasHandle, patch.size(),
             pDevicePatchY, 1, pDeviceRawDiff, 1, &(p_state->delta_p[1])) );
+      gettimeofday(&tv_end, nullptr);
+      projectionTime += (tv_end.tv_sec - tv_start.tv_sec) * 1000.0f +
+        (tv_end.tv_usec - tv_start.tv_usec) / 1000.0f;
+
 
       p_state->delta_p = p_state->hessian.llt().solve(p_state->delta_p); // solve linear system
 
@@ -239,6 +260,7 @@ namespace OFC {
 
     const float alpha = -1.0;
 
+    gettimeofday(&tv_start, nullptr);
     // raw = patch - raw
     CUBLAS_CHECK (
         cublasSaxpy(op->cublasHandle, patch.size(), &alpha,
@@ -253,6 +275,10 @@ namespace OFC {
     CUBLAS_CHECK (
         cublasSasum(op->cublasHandle, patch.size(),
           pDeviceCostDiff, 1, &(p_state->cost)) );
+    gettimeofday(&tv_end, nullptr);
+
+    costTime += (tv_end.tv_sec - tv_start.tv_sec) * 1000.0f +
+      (tv_end.tv_usec - tv_start.tv_usec) / 1000.0f;
 
   }
 
@@ -287,6 +313,7 @@ namespace OFC {
     int lb = -op->patch_size / 2;
     int patch_offset = 3 * ((x + lb) + (y + lb) * i_params->width_pad);
 
+    gettimeofday(&tv_start, nullptr);
     // Extract patch
     checkCudaErrors(
         cudaMemcpy2D (pDevicePatch, 3 * op->patch_size * sizeof(float),
@@ -301,10 +328,15 @@ namespace OFC {
           I0y + patch_offset, 3 * i_params->width_pad * sizeof(float),
           3 * op->patch_size * sizeof(float), op->patch_size, cudaMemcpyDeviceToDevice) );
 
+
     // Mean Normalization
     if (op->use_mean_normalization > 0) {
       cu::normalizeMean(pDevicePatch, op->cublasHandle, op->patch_size);
     }
+
+    gettimeofday(&tv_end, nullptr);
+    extractTime += (tv_end.tv_sec - tv_start.tv_sec) * 1000.0f +
+      (tv_end.tv_usec - tv_start.tv_usec) / 1000.0f;
 
   }
 
@@ -333,13 +365,15 @@ namespace OFC {
     pos[0] += i_params->padding;
     pos[1] += i_params->padding;
 
+    int lb = -op->patch_size / 2;
+    int startx = pos[0] + lb;
+    int starty = pos[1] + lb;
+
+    gettimeofday(&tv_start, nullptr);
     checkCudaErrors(
         cudaMemcpy(pDeviceWeights, weight.data(),
           4 * sizeof(float), cudaMemcpyHostToDevice) );
 
-    int lb = -op->patch_size / 2;
-    int startx = pos[0] + lb;
-    int starty = pos[1] + lb;
 
     cu::interpolatePatch(pDeviceRawDiff, pDeviceI, pDeviceWeights,
         i_params->width_pad, starty, startx, op->patch_size);
@@ -348,6 +382,10 @@ namespace OFC {
     if (op->use_mean_normalization > 0) {
       cu::normalizeMean(pDeviceRawDiff, op->cublasHandle, op->patch_size);
     }
+
+    gettimeofday(&tv_end, nullptr);
+    interpolateTime += (tv_end.tv_sec - tv_start.tv_sec) * 1000.0f +
+      (tv_end.tv_usec - tv_start.tv_usec) / 1000.0f;
 
   }
 

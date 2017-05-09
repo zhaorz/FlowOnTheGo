@@ -21,7 +21,7 @@ namespace OFC {
       void SetTargetImage(const float * _I1);
       void InitializeFromCoarserOF(const float * flow_prev);
 
-      void AggregateFlowDense(float *flowout) const;
+      void AggregateFlowDense(float *flowout);
 
       // Optimizes grid to convergence of each patch
       void Optimize();
@@ -35,6 +35,8 @@ namespace OFC {
       inline const Eigen::Vector2f GetRefPatchPos(int i) const { return midpoints_ref[i]; } // Get reference  patch position
       inline const Eigen::Vector2f GetQuePatchPos(int i) const { return patches[i]->GetTargMidpoint(); } // Get target/query patch position
       inline const Eigen::Vector2f GetQuePatchDis(int i) const { return midpoints_ref[i]-patches[i]->GetTargMidpoint(); } // Get query patch displacement from reference patch
+
+      void printTimings();
 
     private:
 
@@ -50,6 +52,9 @@ namespace OFC {
       int n_patches_width;
       int n_patches_height;
       int n_patches;
+
+      struct timeval tv_start, tv_end;
+      double aggregateTime;
 
       std::vector<OFC::PatClass*> patches; // Patch Objects
       std::vector<Eigen::Vector2f> midpoints_ref; // Midpoints for reference patches

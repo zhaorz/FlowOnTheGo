@@ -144,6 +144,7 @@ namespace OFC {
                   *Iyy = color_image_new(width,height), *Ixz = color_image_new(width,height), *Iyz = color_image_new(width,height); // second order derivatives
 
     // warp second image
+
     image_warp(w_im2, mask, im2, wx, wy);
     // compute derivatives
     get_derivatives(im1, w_im2, deriv, Ix, Iy, Iz, Ixx, Ixy, Iyy, Ixz, Iyz);

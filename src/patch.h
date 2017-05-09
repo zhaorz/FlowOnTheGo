@@ -61,6 +61,9 @@ namespace OFC {
       inline const Eigen::Vector2f* GetOrgP() const { return &(p_state->p_org); }
       inline const int GetPatchId() const { return patch_id; }
 
+      struct timeval tv_start, tv_end;
+      double extractTime, hessianTime, projectionTime, costTime, interpolateTime;
+
     private:
 
       void OptimizeStart(const Eigen::Vector2f p_prev);

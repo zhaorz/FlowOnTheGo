@@ -353,6 +353,11 @@ namespace OFC {
 
     }
 
+    // Detailed timing reports
+    for (auto &g : grid) {
+      g->printTimings();
+    }
+
   }
 
 }
