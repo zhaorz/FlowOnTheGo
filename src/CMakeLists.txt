@@ -83,9 +83,8 @@ set(KERNELS
   kernels/sobel.cpp
   kernels/pyramid.cpp
   kernels/pad.cpp
+  kernels/dot.cu
   kernels/thrustDot.cu
-  kernels/thrustDot.h
-  kernels/cublasDot.h
   kernels/cublasDot.cpp
   kernels/resizeGrad.cpp
   kernels/resize.cpp)
