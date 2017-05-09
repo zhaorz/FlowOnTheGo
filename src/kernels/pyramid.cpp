@@ -137,10 +137,12 @@ namespace cu {
     for (int i = 1; i < nLevels; i++) {
 
       // Get the new size
+      auto start_getResizeRect = now();
       NppiRect srcRect = { 0, 0, width, height };
       NppiRect dstRect;
       NPP_CHECK_NPP(
           nppiGetResizeRect (srcRect, &dstRect, scaleX, scaleY, shiftX, shiftY, eInterpolation) );
+      compute_time += calc_print_elapsed("getResizeRect", start_getResizeRect);
 
       std::cout << "constructImgPyramids level " << i << ": "
         << dstRect.width << "x" << dstRect.height << std::endl;
@@ -148,11 +150,13 @@ namespace cu {
       int nDstStep = dstRect.width * elemSize;
 
       // Resize I => Tmp
+      auto start_resize = now();
       NPP_CHECK_NPP(
           nppiResizeSqrPixel_32f_C3R (
             pDeviceI, oSize, nSrcStep, srcRect,
             pDeviceTmp, nDstStep, dstRect,
             scaleX, scaleY, shiftX, shiftY, eInterpolation) );
+      compute_time += calc_print_elapsed("resize", start_resize);
 
       // Put the resized image back into I
       std::swap(pDeviceI, pDeviceTmp);

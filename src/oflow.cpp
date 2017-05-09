@@ -217,6 +217,51 @@ namespace OFC {
 
     if (op.verbosity > 1) cout << ", cflow " << endl;
 
+    int nTmp = 100;
+    float* tmpI0xs3 = new float[nTmp];
+    checkCudaErrors( cudaMemcpy(tmpI0xs3, I0s[5], nTmp * sizeof(float), cudaMemcpyDeviceToHost) );
+    cout << "I0xs[5][:" << nTmp << "] = [";
+    for (int i = 0; i < nTmp; i++) {
+      cout << tmpI0xs3[i];
+      if (i != (nTmp - 1))
+        cout << ", ";
+    }
+    cout << "]" << endl;
+
+    // TODO: REMOVE ME
+    for (int sl = op.coarsest_scale; sl >= 0; --sl) {
+      int i = sl - op.finest_scale;
+
+      if (i < 0) break;
+
+      int thisWidth = iparams[i].width_pad;
+      int thisHeight = iparams[i].height_pad;
+      int thisSize = thisWidth * thisHeight;
+
+      std::cout << "Saving " << thisWidth << "x" << thisHeight << " sized pyramids" << std::endl;
+
+      float* hI0 = new float[thisWidth * thisHeight * 3];
+      float* hI0x = new float[thisWidth * thisHeight * 3];
+      float* hI0y = new float[thisWidth * thisHeight * 3];
+
+      checkCudaErrors( cudaMemcpy(hI0, I0s[sl], thisSize * 3 * sizeof(float), cudaMemcpyDeviceToHost) );
+      checkCudaErrors( cudaMemcpy(hI0x, I0xs[sl], thisSize * 3 * sizeof(float), cudaMemcpyDeviceToHost) );
+      checkCudaErrors( cudaMemcpy(hI0y, I0ys[sl], thisSize * 3 * sizeof(float), cudaMemcpyDeviceToHost) );
+
+      cv::Mat hI0_mat(thisHeight, thisWidth,  CV_32FC3, hI0);
+      cv::Mat hI0x_mat(thisHeight, thisWidth, CV_32FC3, hI0x);
+      cv::Mat hI0y_mat(thisHeight, thisWidth, CV_32FC3, hI0y);
+
+      std::string iString = std::to_string(sl);
+      std::string nameI0 = "I0s[" + iString + "].png";
+      std::string nameI0x = "I0xs[" + iString + "].png";
+      std::string nameI0y = "I0ys[" + iString + "].png";
+
+      cv::imwrite(nameI0, hI0_mat);
+      cv::imwrite(nameI0x, hI0x_mat);
+      cv::imwrite(nameI0y, hI0y_mat);
+    }
+
     // Variables for algorithm timings
     struct timeval tv_start_all, tv_end_all, tv_start_all_global, tv_end_all_global;
     if (op.verbosity > 0) gettimeofday(&tv_start_all_global, nullptr);
