@@ -72,7 +72,7 @@ set(CODEFILES
   FDF1.0.1/solver.c)
 
 # RGB, Optical Flow
-cuda_add_executable(flow ${COMMON} ${CODEFILES} ${KERNELS})
+cuda_add_executable(flow ${COMMON} ${KERNELS} ${CODEFILES})
 set_target_properties (flow PROPERTIES COMPILE_DEFINITIONS "SELECTMODE=1")
 set_property(TARGET flow APPEND PROPERTY COMPILE_DEFINITIONS "SELECTCHANNEL=3") # use RGB image
 target_link_libraries(flow ${OpenCV_LIBS})

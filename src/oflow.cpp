@@ -18,15 +18,12 @@
 #include <stdio.h>
 
 #include "oflow.h"
-#include "patchgrid.h"
-#include "refine_variational.h"
 
 #include "kernels/resize.h"
 #include "kernels/pad.h"
 #include "kernels/resizeGrad.h"
 #include "kernels/sobel.h"
 #include "kernels/pyramid.h"
-#include "common/RgbMat.h"
 #include "common/timer.h"
 
 
@@ -76,6 +73,7 @@ namespace OFC {
     if (op.verbosity>1) gettimeofday(&tv_start_all, nullptr);
 
 
+    int elemSize = 3 * sizeof(float);
     grid.resize(op.n_scales);
     flow.resize(op.n_scales);
     iparams.resize(op.n_scales);
@@ -100,7 +98,6 @@ namespace OFC {
         grid[i]   = new OFC::PatGridClass(&(iparams[i]), &op);
       }
 
-      int elemSize = 3 * sizeof(float);
       int padWidth = _iparams.width * scale_fact + 2 * _iparams.padding;
       int padHeight = _iparams.height * scale_fact + 2 * _iparams.padding;
 
@@ -121,6 +118,18 @@ namespace OFC {
       printf("TIME (Grid Memo. Alloc. ) (ms): %3g\n", tt_gridconst);
 
     }
+
+    const Npp32f pSrcKernel[3] = { 1, 0, -1 };
+    Npp32s nMaskSize = 3;
+
+    checkCudaErrors( cudaMalloc((void**) &pDeviceIx, _iparams.width * _iparams.height * elemSize) );
+    checkCudaErrors( cudaMalloc((void**) &pDeviceIy, _iparams.width * _iparams.height * elemSize) );
+
+    checkCudaErrors( cudaMalloc((void**) &pDeviceTmp, _iparams.width * _iparams.height * elemSize)  );
+    checkCudaErrors( cudaMalloc((void**) &pDeviceWew, nMaskSize * sizeof(Npp32f)) );
+
+    checkCudaErrors(
+        cudaMemcpy(pDeviceWew, pSrcKernel, nMaskSize * sizeof(Npp32f), cudaMemcpyHostToDevice) );
 
     // Timing, Setup
     if (op.verbosity>1) {
@@ -160,6 +169,10 @@ namespace OFC {
     delete I1xs;
     delete I1ys;
 
+    cudaFree(pDeviceIx);
+    cudaFree(pDeviceIy);
+    cudaFree(pDeviceTmp);
+    cudaFree(pDeviceWew);
   }
 
 
@@ -170,9 +183,13 @@ namespace OFC {
     gettimeofday(&start_time, NULL);
 
     // Construct image and gradient pyramides
-    cu::constructImgPyramids(I0, I0s, I0xs, I0ys, iparams.width, iparams.height,
+    cu::constructImgPyramids(I0, I0s, I0xs, I0ys,
+        pDeviceIx, pDeviceIy, pDeviceTmp, pDeviceWew,
+        iparams.width, iparams.height,
         op.patch_size, op.coarsest_scale + 1);
-    cu::constructImgPyramids(I1, I1s, I1xs, I1ys, iparams.width, iparams.height,
+    cu::constructImgPyramids(I1, I1s, I1xs, I1ys,
+        pDeviceIx, pDeviceIy, pDeviceTmp, pDeviceWew,
+        iparams.width, iparams.height,
         op.patch_size, op.coarsest_scale + 1);
 
     // Timing, image gradients and pyramid

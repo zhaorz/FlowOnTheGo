@@ -31,7 +31,8 @@ namespace cu {
 
   void constructImgPyramids(
       Npp32f* src, float** Is, float** Ixs, float** Iys,
-      int width, int height,
+      Npp32f* pDeviceIx, Npp32f* pDeviceIy, Npp32f* pDeviceTmp,
+      Npp32f* pDeviceWew, int width, int height,
       int padding, int nLevels) {
 
     // Timing
@@ -51,7 +52,6 @@ namespace cu {
     NppiSize  oROI    = { width, height };
 
     // Mask params
-    const Npp32f pSrcKernel[3] = { 1, 0, -1 };
     Npp32s nMaskSize = 3;
     Npp32s nAnchor   = 1;  // Kernel is centered over pixel
 
@@ -72,27 +72,6 @@ namespace cu {
 
     Npp32f* pDeviceI = src;
 
-    // Allocate device memory (to account for padding too
-    auto start_cuda_malloc = now();
-    Npp32f *pDeviceIx, *pDeviceIy;
-    Npp32f *pDeviceTmp, *pDeviceKernel;
-
-    checkCudaErrors( cudaMalloc((void**) &pDeviceIx, width * height * elemSize) );
-    checkCudaErrors( cudaMalloc((void**) &pDeviceIy, width * height * elemSize) );
-
-    checkCudaErrors( cudaMalloc((void**) &pDeviceTmp,    width * height * elemSize)  );
-    checkCudaErrors( cudaMalloc((void**) &pDeviceKernel, nMaskSize * sizeof(Npp32f)) );
-
-    calc_print_elapsed("cudaMalloc", start_cuda_malloc);
-
-    // Copy over initial image and kernel
-    auto start_memcpy_hd = now();
-
-    checkCudaErrors(
-        cudaMemcpy(pDeviceKernel, pSrcKernel, nMaskSize * sizeof(Npp32f), cudaMemcpyHostToDevice) );
-
-    calc_print_elapsed("cudaMemcpy Kernel H->D", start_memcpy_hd);
-
     ////////////////////////////////////////////////////////////////////////////////////////////////
     // Apply first gradients to Is[0]
     ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -107,7 +86,7 @@ namespace cu {
         nppiFilterRowBorder_32f_C3R (
           pDeviceI, nSrcStep, oSize, oOffset,
           pDeviceIx, nSrcStep, oROI,
-          pDeviceKernel, nMaskSize, nAnchor, eBorderType)
+          pDeviceWew, nMaskSize, nAnchor, eBorderType)
         );
     compute_time += calc_print_elapsed("sobel: Ixs[0]", start_dx);
 
@@ -121,7 +100,7 @@ namespace cu {
         nppiFilterColumnBorder_32f_C3R (
           pDeviceI, nSrcStep, oSize, oOffset,
           pDeviceIy, nSrcStep, oROI,
-          pDeviceKernel, nMaskSize, nAnchor, eBorderType)
+          pDeviceWew, nMaskSize, nAnchor, eBorderType)
         );
     compute_time += calc_print_elapsed("sobel: Iys[0]", start_dy);
 
@@ -194,7 +173,7 @@ namespace cu {
           nppiFilterRowBorder_32f_C3R (
             pDeviceI, nSrcStep, oSize, oOffset,
             pDeviceIx, nSrcStep, oROI,
-            pDeviceKernel, nMaskSize, nAnchor, eBorderType)
+            pDeviceWew, nMaskSize, nAnchor, eBorderType)
           );
       compute_time += calc_print_elapsed("sobel: Ixs[i]", start_dx);
 
@@ -208,7 +187,7 @@ namespace cu {
           nppiFilterColumnBorder_32f_C3R (
             pDeviceI, nSrcStep, oSize, oOffset,
             pDeviceIy, nSrcStep, oROI,
-            pDeviceKernel, nMaskSize, nAnchor, eBorderType)
+            pDeviceWew, nMaskSize, nAnchor, eBorderType)
           );
       compute_time += calc_print_elapsed("sobel: Iys[i]", start_dy);
 
@@ -238,12 +217,6 @@ namespace cu {
             Iys[i], nDstStep, oPadSize, padding, padding, PAD_VAL) );
 
     }
-
-    // Clean up
-    cudaFree(pDeviceIx);
-    cudaFree(pDeviceIy);
-    cudaFree(pDeviceTmp);
-    cudaFree(pDeviceKernel);
 
     calc_print_elapsed("total time", start_total);
     std::cout << "[done] constructImgPyramids: primmary compute time: " << compute_time  << std::endl;

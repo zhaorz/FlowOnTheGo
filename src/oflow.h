@@ -12,6 +12,7 @@
 #include <opencv2/imgproc/imgproc.hpp>
 #include "params.h"
 #include "patchgrid.h"
+#include "refine_variational.h"
 
 using std::cout;
 using std::endl;
@@ -39,6 +40,9 @@ namespace OFC {
 
       std::vector<PatGridClass*> grid;
       std::vector<float*> flow;
+
+      // Temp images to speedup pyramid generation
+      Npp32f* pDeviceIx, *pDeviceIy, *pDeviceTmp, *pDeviceWew;
   };
 
 }

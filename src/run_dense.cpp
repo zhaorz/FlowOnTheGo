@@ -6,14 +6,16 @@
 #include <sys/time.h>
 #include <fstream>
 
+// CUDA
+#include <cuda_runtime.h>
+#include <cublas_v2.h>
+
+#include "params.h"
 #include "oflow.h"
 #include "kernels/warmup.h"
 #include "kernels/pad.h"
 #include "common/timer.h"
 
-// CUDA
-#include <cuda_runtime.h>
-#include <cublas_v2.h>
 
 using namespace std;
 using namespace OFC;

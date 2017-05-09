@@ -30,7 +30,8 @@ namespace cu {
 
   void constructImgPyramids(
       Npp32f* I, float** Is, float** Ixs, float** Iys,
-      int width, int height,
+      Npp32f* pDeviceIx, Npp32f* pDeviceIy, Npp32f* pDeviceTmp,
+      Npp32f* pDeviceWew, int width, int height,
       int padding, int nLevels);
 
 }

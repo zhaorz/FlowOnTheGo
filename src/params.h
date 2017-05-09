@@ -1,7 +1,7 @@
 // Holds all of the paramaters structures
 
-#ifndef PARAMS_HEADER
-#define PARAMS_HEADER
+#ifndef OFC_PARAMS_HEADER
+#define OFC_PARAMS_HEADER
 
 namespace OFC {
 
@@ -68,4 +68,4 @@ namespace OFC {
 
 }
 
-#endif /* PARAMS_HEADER */
+#endif /* OFC_PARAMS_HEADER */
