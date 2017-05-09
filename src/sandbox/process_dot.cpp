@@ -28,7 +28,7 @@ void process(const char* input_file, const char* output_file) {
 
   std::cout << "Initializing host arrays" << std::endl;
 
-  int N = 100;
+  int N = 64;
   int repeat = 4;
 
   float* A = new float[N];

@@ -13,6 +13,7 @@
 #include <thrust/transform.h>
 #include <thrust/sequence.h>
 #include <thrust/reduce.h>
+#include <thrust/inner_product.h>
 
 #include "../common/timer.h"
 
@@ -35,15 +36,21 @@ namespace cu {
     thrust::device_vector<float> d_B(B, B + N);
     calc_print_elapsed("thrust copy H->D", start_copy);
 
-    // B = A * B
-    auto start_mult = now();
-    thrust::transform(d_A.begin(), d_A.end(), d_B.begin(), d_B.begin(),
-        thrust::multiplies<float>());
-    calc_print_elapsed("thrust transform A * B", start_mult);
+    // // B = A * B
+    // auto start_mult = now();
+    // thrust::transform(d_A.begin(), d_A.end(), d_B.begin(), d_B.begin(),
+    //     thrust::multiplies<float>());
+    // calc_print_elapsed("thrust transform A * B", start_mult);
 
-    auto start_reduce = now();
-    float sum = thrust::reduce(d_B.begin(), d_B.end(), 0.0f, thrust::plus<float>());
-    calc_print_elapsed("thrust reduce(sum)", start_reduce);
+    // auto start_reduce = now();
+    // float sum = thrust::reduce(d_B.begin(), d_B.end(), 0.0f, thrust::plus<float>());
+    // calc_print_elapsed("thrust reduce(sum)", start_reduce);
+
+    auto start_innerProd = now();
+    float sum =  thrust::inner_product(d_A.begin(), d_A.end(), d_B.begin(), 0.0);
+    calc_print_elapsed("thrust inner_product", start_innerProd);
+
+
 
     calc_print_elapsed("thrustDot total", start_total);
 
