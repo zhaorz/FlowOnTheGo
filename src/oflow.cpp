@@ -354,8 +354,10 @@ namespace OFC {
     }
 
     // Detailed timing reports
-    for (auto &g : grid) {
-      g->printTimings();
+    if (op.verbosity > 1) {
+      for (auto &g : grid) {
+        g->printTimings();
+      }
     }
 
   }

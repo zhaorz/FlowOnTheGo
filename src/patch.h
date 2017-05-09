@@ -63,6 +63,7 @@ namespace OFC {
 
       struct timeval tv_start, tv_end;
       double extractTime, hessianTime, projectionTime, costTime, interpolateTime;
+      int extractCalls, hessianCalls, projectionCalls, costCalls, interpolateCalls;
 
     private:
 

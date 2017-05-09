@@ -64,6 +64,12 @@ namespace OFC {
         costTime = 0;
         interpolateTime = 0;
 
+        extractCalls = 0;
+        hessianCalls = 0;
+        projectionCalls = 0;
+        costCalls = 0;
+        interpolateCalls = 0;
+
       }
 
 
@@ -115,6 +121,7 @@ namespace OFC {
     gettimeofday(&tv_end, nullptr);
     hessianTime += (tv_end.tv_sec - tv_start.tv_sec) * 1000.0f +
       (tv_end.tv_usec - tv_start.tv_usec) / 1000.0f;
+    hessianCalls++;
 
 
     // If not invertible adjust values
@@ -217,6 +224,7 @@ namespace OFC {
       gettimeofday(&tv_end, nullptr);
       projectionTime += (tv_end.tv_sec - tv_start.tv_sec) * 1000.0f +
         (tv_end.tv_usec - tv_start.tv_usec) / 1000.0f;
+      projectionCalls++;
 
 
       p_state->delta_p = p_state->hessian.llt().solve(p_state->delta_p); // solve linear system
@@ -279,6 +287,7 @@ namespace OFC {
 
     costTime += (tv_end.tv_sec - tv_start.tv_sec) * 1000.0f +
       (tv_end.tv_usec - tv_start.tv_usec) / 1000.0f;
+    costCalls++;
 
   }
 
@@ -337,6 +346,7 @@ namespace OFC {
     gettimeofday(&tv_end, nullptr);
     extractTime += (tv_end.tv_sec - tv_start.tv_sec) * 1000.0f +
       (tv_end.tv_usec - tv_start.tv_usec) / 1000.0f;
+    extractCalls++;
 
   }
 
@@ -386,6 +396,7 @@ namespace OFC {
     gettimeofday(&tv_end, nullptr);
     interpolateTime += (tv_end.tv_sec - tv_start.tv_sec) * 1000.0f +
       (tv_end.tv_usec - tv_start.tv_usec) / 1000.0f;
+    interpolateCalls++;
 
   }
 

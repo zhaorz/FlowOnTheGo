@@ -103,6 +103,7 @@ namespace OFC {
 
   void PatGridClass::Optimize() {
 
+// #pragma omp parallel for schedule(static)
     for (int i = 0; i < n_patches; ++i) {
       patches[i]->OptimizeIter(p_init[i]);
     }
@@ -166,6 +167,8 @@ namespace OFC {
 
     double tot_extractTime = 0, tot_hessianTime = 0,
            tot_projectionTime = 0, tot_costTime = 0, tot_interpolateTime = 0;
+    int tot_extractCalls = 0, tot_hessianCalls = 0,
+        tot_projectionCalls = 0, tot_costCalls = 0, tot_interpolateCalls = 0;
 
     for (auto & element : patches) {
       tot_extractTime += element->extractTime;
@@ -173,16 +176,27 @@ namespace OFC {
       tot_projectionTime += element->projectionTime;
       tot_costTime += element->costTime;
       tot_interpolateTime += element->interpolateTime;
+
+      tot_extractCalls += element->extractCalls;
+      tot_hessianCalls += element->hessianCalls;
+      tot_projectionCalls += element->projectionCalls;
+      tot_costCalls += element->costCalls;
+      tot_interpolateCalls += element->interpolateCalls;
     }
 
     cout << endl;
     cout << "===============Timings (ms)===============" << endl;
-    cout << "[extract]                          " << tot_extractTime << endl;
-    cout << "[hessian]                          " << tot_hessianTime << endl;
-    cout << "[project]                          " << tot_projectionTime << endl;
-    cout << "[cost]                             " << tot_costTime << endl;
-    cout << "[interpolate]                      " << tot_interpolateTime << endl;
-    cout << "[aggregate]                        " << aggregateTime << endl;
+    cout << "[extract]      " << tot_extractTime;
+    cout << "  tot => " << tot_extractTime / tot_extractCalls << " avg" << endl;
+    cout << "[hessian]      " << tot_hessianTime;
+    cout << "  tot => " << tot_hessianTime / tot_hessianCalls << " avg" << endl;
+    cout << "[project]      " << tot_projectionTime;
+    cout << "  tot => " << tot_projectionTime / tot_projectionCalls << " avg" << endl;
+    cout << "[cost]         " << tot_costTime;
+    cout << "  tot => " << tot_costTime / tot_costCalls << " avg" << endl;
+    cout << "[interpolate]  " << tot_interpolateTime;
+    cout << "  tot => " << tot_interpolateTime / tot_interpolateCalls << " avg" << endl;
+    cout << "[aggregate]    " << aggregateTime << endl;
     cout << "==========================================" << endl;
 
 
