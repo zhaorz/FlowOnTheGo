@@ -84,6 +84,7 @@ set(KERNELS
   kernels/pyramid.cpp
   kernels/pad.cpp
   kernels/dot.cu
+  kernels/cpuDot.cpp
   kernels/thrustDot.cu
   kernels/cublasDot.cpp
   kernels/resizeGrad.cpp
