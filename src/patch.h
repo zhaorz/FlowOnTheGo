@@ -62,8 +62,8 @@ namespace OFC {
       inline const int GetPatchId() const { return patch_id; }
 
       struct timeval tv_start, tv_end;
-      double extractTime, hessianTime, projectionTime, costTime, interpolateTime;
-      int extractCalls, hessianCalls, projectionCalls, costCalls, interpolateCalls;
+      double extractTime, hessianTime, projectionTime, costTime, interpolateTime, meanTime;
+      int extractCalls, hessianCalls, projectionCalls, costCalls, interpolateCalls, meanCalls;
 
     private:
 

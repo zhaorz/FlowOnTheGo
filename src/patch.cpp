@@ -19,6 +19,7 @@
 
 #include "patch.h"
 #include "kernels/interpolate.h"
+#include "kernels/extract.h"
 
 
 using std::cout;
@@ -63,12 +64,14 @@ namespace OFC {
         projectionTime = 0;
         costTime = 0;
         interpolateTime = 0;
+        meanTime = 0;
 
         extractCalls = 0;
         hessianCalls = 0;
         projectionCalls = 0;
         costCalls = 0;
         interpolateCalls = 0;
+        meanCalls = 0;
 
       }
 
@@ -320,33 +323,30 @@ namespace OFC {
     int y = round(midpoint[1]) + i_params->padding;
 
     int lb = -op->patch_size / 2;
-    int patch_offset = 3 * ((x + lb) + (y + lb) * i_params->width_pad);
+    int patch_offset = (x + lb) + (y + lb) * i_params->width_pad;
 
     gettimeofday(&tv_start, nullptr);
     // Extract patch
-    checkCudaErrors(
-        cudaMemcpy2D (pDevicePatch, 3 * op->patch_size * sizeof(float),
-          I0 + patch_offset, 3 * i_params->width_pad * sizeof(float),
-          3 * op->patch_size * sizeof(float), op->patch_size, cudaMemcpyDeviceToDevice) );
-    checkCudaErrors(
-        cudaMemcpy2D (pDevicePatchX, 3 * op->patch_size * sizeof(float),
-          I0x + patch_offset, 3 * i_params->width_pad * sizeof(float),
-          3 * op->patch_size * sizeof(float), op->patch_size, cudaMemcpyDeviceToDevice) );
-    checkCudaErrors(
-        cudaMemcpy2D (pDevicePatchY, 3 * op->patch_size * sizeof(float),
-          I0y + patch_offset, 3 * i_params->width_pad * sizeof(float),
-          3 * op->patch_size * sizeof(float), op->patch_size, cudaMemcpyDeviceToDevice) );
+    cu::extractPatch(pDevicePatch, pDevicePatchX, pDevicePatchY,
+        I0, I0x, I0y, patch_offset, op->patch_size, i_params->width_pad);
 
+    gettimeofday(&tv_end, nullptr);
+    extractTime += (tv_end.tv_sec - tv_start.tv_sec) * 1000.0f +
+      (tv_end.tv_usec - tv_start.tv_usec) / 1000.0f;
+    extractCalls++;
 
+    gettimeofday(&tv_start, nullptr);
     // Mean Normalization
     if (op->use_mean_normalization > 0) {
       cu::normalizeMean(pDevicePatch, op->cublasHandle, op->patch_size);
     }
 
     gettimeofday(&tv_end, nullptr);
-    extractTime += (tv_end.tv_sec - tv_start.tv_sec) * 1000.0f +
+    meanTime += (tv_end.tv_sec - tv_start.tv_sec) * 1000.0f +
       (tv_end.tv_usec - tv_start.tv_usec) / 1000.0f;
-    extractCalls++;
+    meanCalls++;
+
+
 
   }
 
@@ -388,15 +388,22 @@ namespace OFC {
     cu::interpolatePatch(pDeviceRawDiff, pDeviceI, pDeviceWeights,
         i_params->width_pad, starty, startx, op->patch_size);
 
+    gettimeofday(&tv_end, nullptr);
+    interpolateTime += (tv_end.tv_sec - tv_start.tv_sec) * 1000.0f +
+      (tv_end.tv_usec - tv_start.tv_usec) / 1000.0f;
+    interpolateCalls++;
+
+    gettimeofday(&tv_start, nullptr);
     // Mean Normalization
     if (op->use_mean_normalization > 0) {
       cu::normalizeMean(pDeviceRawDiff, op->cublasHandle, op->patch_size);
     }
 
     gettimeofday(&tv_end, nullptr);
-    interpolateTime += (tv_end.tv_sec - tv_start.tv_sec) * 1000.0f +
+    meanTime += (tv_end.tv_sec - tv_start.tv_sec) * 1000.0f +
       (tv_end.tv_usec - tv_start.tv_usec) / 1000.0f;
-    interpolateCalls++;
+    meanCalls++;
+
 
   }
 

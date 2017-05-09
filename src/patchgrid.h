@@ -55,6 +55,7 @@ namespace OFC {
 
       struct timeval tv_start, tv_end;
       double aggregateTime;
+      double meanTime;
 
       std::vector<OFC::PatClass*> patches; // Patch Objects
       std::vector<Eigen::Vector2f> midpoints_ref; // Midpoints for reference patches

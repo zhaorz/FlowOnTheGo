@@ -69,6 +69,7 @@ namespace OFC {
           cudaMalloc ((void**) &pDeviceFlowOut, i_params->width * i_params->height * 2 * sizeof(float)) );
 
       aggregateTime = 0.0;
+      meanTime = 0.0;
     }
 
   PatGridClass::~PatGridClass() {
@@ -151,6 +152,11 @@ namespace OFC {
       }
     }
 
+    gettimeofday(&tv_end, nullptr);
+    aggregateTime += (tv_end.tv_sec - tv_start.tv_sec) * 1000.0f +
+      (tv_end.tv_usec - tv_start.tv_usec) / 1000.0f;
+
+    gettimeofday(&tv_start, nullptr);
     // Normalize all pixels
     cu::normalizeFlow(pDeviceFlowOut, pDeviceWeights, i_params->width * i_params->height);
 
@@ -159,16 +165,18 @@ namespace OFC {
           i_params->width * i_params->height * 2 * sizeof(float), cudaMemcpyDeviceToHost) );
 
     gettimeofday(&tv_end, nullptr);
-    aggregateTime += (tv_end.tv_sec - tv_start.tv_sec) * 1000.0f +
+    meanTime += (tv_end.tv_sec - tv_start.tv_sec) * 1000.0f +
       (tv_end.tv_usec - tv_start.tv_usec) / 1000.0f;
   }
 
   void PatGridClass::printTimings() {
 
     double tot_extractTime = 0, tot_hessianTime = 0,
-           tot_projectionTime = 0, tot_costTime = 0, tot_interpolateTime = 0;
+           tot_projectionTime = 0, tot_costTime = 0,
+           tot_interpolateTime = 0, tot_meanTime = 0;
     int tot_extractCalls = 0, tot_hessianCalls = 0,
-        tot_projectionCalls = 0, tot_costCalls = 0, tot_interpolateCalls = 0;
+        tot_projectionCalls = 0, tot_costCalls = 0,
+        tot_interpolateCalls = 0, tot_meanCalls = 0;
 
     for (auto & element : patches) {
       tot_extractTime += element->extractTime;
@@ -176,16 +184,19 @@ namespace OFC {
       tot_projectionTime += element->projectionTime;
       tot_costTime += element->costTime;
       tot_interpolateTime += element->interpolateTime;
+      tot_meanTime += element->meanTime;
 
       tot_extractCalls += element->extractCalls;
       tot_hessianCalls += element->hessianCalls;
       tot_projectionCalls += element->projectionCalls;
       tot_costCalls += element->costCalls;
       tot_interpolateCalls += element->interpolateCalls;
+      tot_meanCalls += element->meanCalls;
     }
 
     cout << endl;
     cout << "===============Timings (ms)===============" << endl;
+    cout << "Avg grad descent iterations:        " << float(tot_costCalls) / float(n_patches) << endl;
     cout << "[extract]      " << tot_extractTime;
     cout << "  tot => " << tot_extractTime / tot_extractCalls << " avg" << endl;
     cout << "[hessian]      " << tot_hessianTime;
@@ -196,7 +207,10 @@ namespace OFC {
     cout << "  tot => " << tot_costTime / tot_costCalls << " avg" << endl;
     cout << "[interpolate]  " << tot_interpolateTime;
     cout << "  tot => " << tot_interpolateTime / tot_interpolateCalls << " avg" << endl;
+    cout << "[mean norm]    " << tot_meanTime;
+    cout << "  tot => " << tot_meanTime / tot_meanCalls << " avg" << endl;
     cout << "[aggregate]    " << aggregateTime << endl;
+    cout << "[flow norm]    " << meanTime << endl;
     cout << "==========================================" << endl;
 
 
