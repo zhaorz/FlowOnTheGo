@@ -21,7 +21,7 @@ using std::vector;
 namespace OFC
 {
   
-  typedef __v4sf v4sf;
+  // typedef __v4sf v4sf;
 
   PatClass::PatClass(
     const camparam* cpt_in,
@@ -222,42 +222,15 @@ inline void PatClass::paramtopt()
 
 void PatClass::LossComputeErrorImage(Eigen::Matrix<float, Eigen::Dynamic, 1>* patdest, Eigen::Matrix<float, Eigen::Dynamic, 1>* wdest, const Eigen::Matrix<float, Eigen::Dynamic, 1>* patin,  const Eigen::Matrix<float, Eigen::Dynamic, 1>*  tmpin)
 {
-  v4sf * pd = (v4sf*) patdest->data(),
-       * pa = (v4sf*) patin->data(),  
-       * te = (v4sf*) tmpin->data(),
-       * pw = (v4sf*) wdest->data();
+  float * pd = (float*) patdest->data(),
+       * pa = (float*) patin->data(),  
+       * te = (float*) tmpin->data(),
+       * pw = (float*) wdest->data();
 
-  if (op->costfct==0) // L2 cost function
+  for (int i=op->novals/5; i--; ++pd, ++pa, ++te, ++pw)
   {
-    for (int i=op->novals/4; i--; ++pd, ++pa, ++te, ++pw)
-    {
-      (*pd) = (*pa)-(*te);  // difference image
-      (*pw) = __builtin_ia32_andnps(op->negzero,  (*pd) );
-    }
-  }
-  else if (op->costfct==1) // L1 cost function
-  {
-    for (int i=op->novals/4; i--; ++pd, ++pa, ++te, ++pw)
-    {
-      (*pd) = (*pa)-(*te);   // difference image
-      (*pd) = __builtin_ia32_orps( __builtin_ia32_andps(op->negzero,  (*pd) )  , __builtin_ia32_sqrtps (__builtin_ia32_andnps(op->negzero,  (*pd) )) );  // sign(pdiff) * sqrt(abs(pdiff))
-      (*pw) = __builtin_ia32_andnps(op->negzero,  (*pd) );
-    }
-  }
-  else if (op->costfct==2) // Pseudo Huber cost function
-  {
-    for (int i=op->novals/4; i--; ++pd, ++pa, ++te, ++pw)
-    {
-      (*pd) = (*pa)-(*te);   // difference image
-      (*pd) = __builtin_ia32_orps(__builtin_ia32_andps(op->negzero,  (*pd) ), 
-                                  __builtin_ia32_sqrtps (
-                                    __builtin_ia32_mulps(                                                                                         // PSEUDO HUBER NORM
-                                          __builtin_ia32_sqrtps (op->ones + __builtin_ia32_divps(__builtin_ia32_mulps((*pd),(*pd)) , op->normoutlier_tmpbsq)) - op->ones, // PSEUDO HUBER NORM 
-                                          op->normoutlier_tmp2bsq)                                                                                                // PSEUDO HUBER NORM
-                                     )
-                                    ); // sign(pdiff) * sqrt( 2*b^2*( sqrt(1+abs(pdiff)^2/b^2)+1)  )) // <- looks like this without SSE instruction
-      (*pw) = __builtin_ia32_andnps(op->negzero,  (*pd) );                                    
-    }
+    (*pd) = (*pa)-(*te);  // difference image
+    (*pw) = (*pd)*(*pd);
   }
 }
 

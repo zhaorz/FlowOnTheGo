@@ -19,7 +19,7 @@
 
 #include "oflow.h"
 #include "patchgrid.h"
-#include "refine_variational.h"
+// #include "refine_variational.h"
 
 
 using std::cout;
@@ -103,9 +103,9 @@ namespace OFC
   op.tv_innerit = tv_innerit_in;
   op.tv_solverit = tv_solverit_in;
   op.tv_sor = tv_sor_in;
-  op.normoutlier_tmpbsq = (v4sf) {op.normoutlier*op.normoutlier, op.normoutlier*op.normoutlier, op.normoutlier*op.normoutlier, op.normoutlier*op.normoutlier};
-  op.normoutlier_tmp2bsq = __builtin_ia32_mulps(op.normoutlier_tmpbsq, op.twos);
-  op.normoutlier_tmp4bsq = __builtin_ia32_mulps(op.normoutlier_tmpbsq, op.fours);
+  // op.normoutlier_tmpbsq = (v4sf) {op.normoutlier*op.normoutlier, op.normoutlier*op.normoutlier, op.normoutlier*op.normoutlier, op.normoutlier*op.normoutlier};
+  // op.normoutlier_tmp2bsq = __builtin_ia32_mulps(op.normoutlier_tmpbsq, op.twos);
+  // op.normoutlier_tmp4bsq = __builtin_ia32_mulps(op.normoutlier_tmpbsq, op.fours);
 
 
   // Variables for algorithm timings
@@ -282,17 +282,17 @@ namespace OFC
 
 
     // Variational refinement, (Step 5 in Algorithm 1 of paper)
-    if (op.usetvref)
-    {
-      OFC::VarRefClass varref_fw(im_ao[sl], im_ao_dx[sl], im_ao_dy[sl],
-                                im_bo[sl], im_bo_dx[sl], im_bo_dy[sl]
-                                ,&(cpl[ii]), &(cpr[ii]), &op, tmp_ptr);
+    // if (op.usetvref)
+    // {
+    //   OFC::VarRefClass varref_fw(im_ao[sl], im_ao_dx[sl], im_ao_dy[sl],
+    //                             im_bo[sl], im_bo_dx[sl], im_bo_dy[sl]
+    //                             ,&(cpl[ii]), &(cpr[ii]), &op, tmp_ptr);
 
-      if (op.usefbcon  && sl > op.sc_l )    // skip at last scale, backward flow no longer needed
-          OFC::VarRefClass varref_bw(im_bo[sl], im_bo_dx[sl], im_bo_dy[sl],
-                                    im_ao[sl], im_ao_dx[sl], im_ao_dy[sl]
-                                    ,&(cpr[ii]), &(cpl[ii]), &op, flow_bw[ii]);
-    }
+    //   if (op.usefbcon  && sl > op.sc_l )    // skip at last scale, backward flow no longer needed
+    //       OFC::VarRefClass varref_bw(im_bo[sl], im_bo_dx[sl], im_bo_dy[sl],
+    //                                 im_ao[sl], im_ao_dx[sl], im_ao_dy[sl]
+    //                                 ,&(cpr[ii]), &(cpl[ii]), &op, flow_bw[ii]);
+    // }
 
     // Timing, Variational Refinement
     if (op.verbosity>1)
