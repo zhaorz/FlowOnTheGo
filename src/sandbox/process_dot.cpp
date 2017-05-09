@@ -20,6 +20,7 @@
 #include "process.h"
 
 #include "../kernels/dot.h"
+#include "../kernels/cpuDot.h"
 #include "../kernels/thrustDot.h"
 #include "../kernels/cublasDot.h"
 
@@ -57,6 +58,11 @@ void process(const char* input_file, const char* output_file) {
   for (int c = 0; c < repeat; c++) {
     float dotProduct = cu::dot(A, B, N);
     std::cout << "customDot(A,B) = " << dotProduct << std::endl;
+  }
+
+  for (int c = 0; c < repeat; c++) {
+    float dotProduct = cu::cpuDot(A, B, N);
+    std::cout << "cpuDot(A,B) = " << dotProduct << std::endl;
   }
 
   delete[] A;
