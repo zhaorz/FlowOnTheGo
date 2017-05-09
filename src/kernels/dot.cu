@@ -16,43 +16,60 @@
 #include <thrust/inner_product.h>
 
 #include "../common/timer.h"
+#include "../common/cuda_helper.h"
 
-#include "thrustDot.h"
+#include "dot.h"
 
 using namespace timer;
+
+__global__ void kernelMultiply(float* d_A, float* d_B, int N) {
+  int tid = blockIdx.x * blockDim.x + threadIdx.x;
+  if (tid < N)
+    d_B[tid] = d_A[tid] * d_B[tid];
+}
 
 namespace cu {
 
   /* Computes <A,B> */
-  float thrustDot(
+  float dot(
       float* A, float* B, int N) {
 
-    std::cout << "[start] thrustDot" << std::endl;
+    std::cout << "[start] dot" << std::endl;
     auto start_total = now();
 
     // transfer to device
     auto start_copy = now();
-    thrust::device_vector<float> d_A(A, A + N);
-    thrust::device_vector<float> d_B(B, B + N);
-    calc_print_elapsed("thrust copy H->D", start_copy);
+    float *d_A, *d_B;
+    checkCudaErrors( cudaMalloc((void**) &d_A, N * sizeof(float)) );
+    checkCudaErrors( cudaMalloc((void**) &d_B, N * sizeof(float)) );
+    checkCudaErrors( cudaMemcpy(d_A, A, N * sizeof(float), cudaMemcpyHostToDevice) );
+    checkCudaErrors( cudaMemcpy(d_B, B, N * sizeof(float), cudaMemcpyHostToDevice) );
+    calc_print_elapsed("cudaMalloc, cudaMemcpy copy H->D", start_copy);
 
-    // // B = A * B
-    // auto start_mult = now();
-    // thrust::transform(d_A.begin(), d_A.end(), d_B.begin(), d_B.begin(),
-    //     thrust::multiplies<float>());
-    // calc_print_elapsed("thrust transform A * B", start_mult);
+    // B = A * B
+    auto start_mult = now();
 
-    // auto start_reduce = now();
-    // float sum = thrust::reduce(d_B.begin(), d_B.end(), 0.0f, thrust::plus<float>());
-    // calc_print_elapsed("thrust reduce(sum)", start_reduce);
+    int threadsPerBlock = 64;
+    int numBlocks = (N + threadsPerBlock - 1) / threadsPerBlock;
+    kernelMultiply<<<numBlocks, threadsPerBlock>>>(d_A, d_B, N);
 
-    auto start_innerProd = now();
-    float sum =  thrust::inner_product(d_A.begin(), d_A.end(), d_B.begin(), 0.0);
-    calc_print_elapsed("thrust inner_product", start_innerProd);
+    calc_print_elapsed("kernel A * B", start_mult);
 
 
+    auto start_copyback = now();
+    float* tmp = new float[N];
+    checkCudaErrors( cudaMemcpy(tmp, d_B, N * sizeof(float), cudaMemcpyDeviceToHost) );
+    calc_print_elapsed("cudaMemcpy D->H", start_copyback);
 
-    calc_print_elapsed("thrustDot total", start_total);
+    auto start_reduce = now();
+    float sum = 0.0;
+    for (int i = 0; i < N; i++) {
+      sum += tmp[i];
+    }
+    calc_print_elapsed("CPU reduce(sum)", start_reduce);
+
+
+    calc_print_elapsed("dot total", start_total);
 
     return sum;
 
