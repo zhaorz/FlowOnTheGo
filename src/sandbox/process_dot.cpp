@@ -20,6 +20,7 @@
 #include "process.h"
 
 #include "../kernels/thrustDot.h"
+#include "../kernels/cublasDot.h"
 
 using namespace timer;
 
@@ -45,6 +46,14 @@ void process(const char* input_file, const char* output_file) {
     std::cout << "thrustDot(A,B) = " << dotProduct << std::endl;
   }
 
+  std::cout << std::endl;
 
+  for (int c = 0; c < repeat; c++) {
+    float dotProduct = cu::cublasDot(A, B, N);
+    std::cout << "cublasDot(A,B) = " << dotProduct << std::endl;
+  }
+
+  delete[] A;
+  delete[] B;
 }
 

@@ -55,6 +55,7 @@ set(KERNELS
   kernels/sobel.cpp
   kernels/pyramid.cpp
   kernels/pad.cpp
+  kernels/cublasDot.cpp
   kernels/thrustDot.cu
   kernels/resizeGrad.cpp
   kernels/resize.cpp)
@@ -81,7 +82,7 @@ target_link_libraries(flow ${OpenCV_LIBS})
 # CUDA sandbox
 set(SANDBOX_FILES
   # sandbox/process_sobel.cpp
-  sandbox/process_thrustDot.cpp
+  sandbox/process_dot.cpp
   # sandbox/process_resize.cpp
   # sandbox/process_resizeGrad.cpp
   # sandbox/process_pad.cpp
