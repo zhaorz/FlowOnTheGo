@@ -66,7 +66,14 @@ message(STATUS "    cuSOLVER path: ${CUDA_CUSOLVER_LIBRARIES}")
 ################################################################################
 
 set(CUDA_VERBOSE_BUILD ON)
-set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS}; -g -arch=compute_61 -code=sm_61)
+
+if (ARCH STREQUAL "x86")
+  set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS}; -g -arch=compute_61 -code=sm_61)
+endif()
+
+if (ARCH STREQUAL "ARM")
+  set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS}; -g -arch=compute_62 -code=sm_62)
+endif()
 
 set(KERNELS
   kernels/densify.cu
@@ -76,6 +83,10 @@ set(KERNELS
   kernels/sobel.cpp
   kernels/pyramid.cpp
   kernels/pad.cpp
+  kernels/thrustDot.cu
+  kernels/thrustDot.h
+  kernels/cublasDot.h
+  kernels/cublasDot.cpp
   kernels/resizeGrad.cpp
   kernels/resize.cpp)
 
@@ -103,7 +114,8 @@ target_link_libraries(flow ${OpenCV_LIBS})
 set(SANDBOX_FILES
   # sandbox/process_sobel.cpp
   # sandbox/process_resize.cpp
-  sandbox/process_resizeGrad.cpp
+  # sandbox/process_resizeGrad.cpp
+  sandbox/process_dot.cpp
   # sandbox/process_pad.cpp
   # sandbox/RgbMatTest.cpp
   sandbox/sandbox.cpp)
