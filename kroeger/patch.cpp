@@ -227,7 +227,7 @@ void PatClass::LossComputeErrorImage(Eigen::Matrix<float, Eigen::Dynamic, 1>* pa
        * te = (float*) tmpin->data(),
        * pw = (float*) wdest->data();
 
-  for (int i=op->novals/5; i--; ++pd, ++pa, ++te, ++pw)
+  for (int i=op->novals; i--; ++pd, ++pa, ++te, ++pw)
   {
     (*pd) = (*pa)-(*te);  // difference image
     (*pw) = (*pd)*(*pd);
