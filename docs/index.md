@@ -63,3 +63,6 @@ Before the deadline, we stil have some final tuning to do on the gradient descen
 and finalizing the video processing pipeline (currently, our pipeline operates on two images at a
 time). The performance figures should remain, however, roughly the same.
 
+Additionally, we plan on testing higher resolution inputs (HD and 4K) and comparing how the GPU
+version compares with our optimized CPU version.
+
