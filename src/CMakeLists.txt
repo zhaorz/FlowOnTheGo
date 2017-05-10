@@ -80,7 +80,8 @@ set(KERNELS
   kernels/interpolate.cu
   kernels/extract.cu
   kernels/warmup.cpp
-  kernels/sobel.cpp
+  # kernels/sobel.cpp
+  kernels/sobelUnifiedMem.cpp
   kernels/pyramid.cpp
   kernels/pad.cpp
   kernels/resizeGrad.cpp
@@ -109,13 +110,14 @@ set_property(TARGET flow APPEND PROPERTY COMPILE_DEFINITIONS "VECTOR_WIDTH=4") #
 # set_property(TARGET flow APPEND PROPERTY COMPILE_DEFINITIONS "VECTOR_WIDTH=1") # no SIMD
 target_link_libraries(flow ${OpenCV_LIBS})
 
-# # CUDA sandbox
-# set(SANDBOX_FILES
-#   # sandbox/process_sobel.cpp
-#   sandbox/process_resize.cpp
-#   # sandbox/process_resizeGrad.cpp
-#   # sandbox/process_pad.cpp
-#   # sandbox/RgbMatTest.cpp
-#   sandbox/sandbox.cpp)
-# cuda_add_executable(sandbox ${COMMON} ${KERNELS} ${SANDBOX_FILES})
-# target_link_libraries(sandbox ${OpenCV_LIBS})
+# CUDA sandbox
+set(SANDBOX_FILES
+  # sandbox/process_sobel.cpp
+  sandbox/process_sobel.cpp
+  # sandbox/process_resize.cpp
+  # sandbox/process_resizeGrad.cpp
+  # sandbox/process_pad.cpp
+  # sandbox/RgbMatTest.cpp
+  sandbox/sandbox.cpp)
+cuda_add_executable(sandbox ${COMMON} ${KERNELS} ${SANDBOX_FILES})
+target_link_libraries(sandbox ${OpenCV_LIBS})
