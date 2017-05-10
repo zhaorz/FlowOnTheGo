@@ -32,8 +32,11 @@ namespace cu {
       const float* I0, const float* I0x, const float* I0y, int patch_offset,
       int patch_size, int width_pad);
 
-  void extractPatches(float** patches, float** patchxs, float** patchys,
+  void extractPatchesAndHessians(
+      float** patches, float** patchxs, float** patchys,
       const float * I0, const float * I0x, const float * I0y,
+      float* H00, float* H01, float* H11,
+      float** tempXX, float** tempXY, float** tempYY,
       float* midpointX, float* midpointY, int n_patches,
       const opt_params* op, const img_params* i_params);
 

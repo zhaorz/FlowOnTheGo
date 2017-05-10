@@ -92,7 +92,7 @@ namespace OFC {
   // void PatClass::InitializePatch(const float * _I0,
   //     const float * _I0x, const float * _I0y, const Eigen::Vector2f _midpoint) {
   void PatClass::InitializePatch(float * _patch,
-      float * _patchx, float * _patchy,
+      float * _patchx, float * _patchy, float H00, float H01, float H11,
       const Eigen::Vector2f _midpoint) {
 
     // I0 = _I0;
@@ -106,14 +106,20 @@ namespace OFC {
     midpoint = _midpoint;
 
     ResetPatchState();
-    ExtractPatch();
-    ComputeHessian();
+
+    p_state->hessian(0,0) = H00;
+    p_state->hessian(0,1) = H01;
+    p_state->hessian(1,0) = p_state->hessian(0,1);
+    p_state->hessian(1,1) = H11;
+
+    //ExtractPatch();
+    // ComputeHessian(H00, H01, H11);
 
   }
 
-  void PatClass::ComputeHessian() {
+  void PatClass::ComputeHessian(float H00, float H01, float H11) {
 
-    gettimeofday(&tv_start, nullptr);
+    /*gettimeofday(&tv_start, nullptr);
 
     CUBLAS_CHECK (
         cublasSdot(op->cublasHandle, patch.size(),
@@ -131,8 +137,12 @@ namespace OFC {
 
     hessianTime += (tv_end.tv_sec - tv_start.tv_sec) * 1000.0f +
       (tv_end.tv_usec - tv_start.tv_usec) / 1000.0f;
-    hessianCalls++;
+    hessianCalls++;*/
 
+    p_state->hessian(0,0) = H00;
+    p_state->hessian(0,1) = H01;
+    p_state->hessian(1,0) = p_state->hessian(0,1);
+    p_state->hessian(1,1) = H11;
 
     // If not invertible adjust values
     if (p_state->hessian.determinant() == 0) {

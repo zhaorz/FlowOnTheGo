@@ -45,9 +45,17 @@ namespace OFC {
 
       float* pDeviceWeights, *pDeviceFlowOut;
 
+      // Patches
       float** pDevicePatches, ** pDevicePatchXs, ** pDevicePatchYs;
       float** pHostDevicePatches, **pHostDevicePatchXs, **pHostDevicePatchYs;
       float* pDeviceMidpointX, * pDeviceMidpointY;
+
+      // Hessian
+      // TODO: Can we shared memory?
+      float** pDeviceTempXX, ** pDeviceTempXY, ** pDeviceTempYY;
+      float* pDeviceH00, * pDeviceH01, * pDeviceH11;
+      float* H00, * H01, * H11;
+
 
       const img_params* i_params;
       const opt_params* op;

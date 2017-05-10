@@ -48,6 +48,7 @@ namespace OFC {
       //     const float * _I0y, const Eigen::Vector2f _midpoint);
       void InitializePatch(float * _patch,
           float * _patchx, float* _patchy,
+          float H00, float H01, float H11,
           const Eigen::Vector2f _midpoint);
       void SetTargetImage(const float * _I1);
 
@@ -75,7 +76,7 @@ namespace OFC {
       void OptimizeComputeErrImg();
       void UpdateMidpoint();
       void ResetPatchState();
-      void ComputeHessian();
+      void ComputeHessian(float H00, float H01, float H11);
       void ComputeCostErr();
 
       // Extract patch on integer position, and gradients, No Bilinear interpolation

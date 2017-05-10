@@ -85,7 +85,7 @@ namespace OFC {
       checkCudaErrors(
           cudaMalloc ((void**) &pDeviceFlowOut, i_params->width * i_params->height * 2 * sizeof(float)) );
 
-      // Patches
+      // Patches and Hessians
       checkCudaErrors(
           cudaMalloc((void**) &pDevicePatches, n_patches * sizeof(float*)) );
       checkCudaErrors(
@@ -93,9 +93,21 @@ namespace OFC {
       checkCudaErrors(
           cudaMalloc((void**) &pDevicePatchYs, n_patches * sizeof(float*)) );
 
+      checkCudaErrors(
+          cudaMalloc((void**) &pDeviceTempXX, n_patches * sizeof(float*)) );
+      checkCudaErrors(
+          cudaMalloc((void**) &pDeviceTempXY, n_patches * sizeof(float*)) );
+      checkCudaErrors(
+          cudaMalloc((void**) &pDeviceTempYY, n_patches * sizeof(float*)) );
+
       pHostDevicePatches = new float*[n_patches];
       pHostDevicePatchXs = new float*[n_patches];
       pHostDevicePatchYs = new float*[n_patches];
+
+      float* pHostDeviceTempXX[n_patches];
+      float* pHostDeviceTempXY[n_patches];
+      float* pHostDeviceTempYY[n_patches];
+
       for (int i = 0; i < n_patches; i++) {
         checkCudaErrors(
             cudaMalloc((void**) &pHostDevicePatches[i], op->n_vals * sizeof(float)) );
@@ -103,6 +115,13 @@ namespace OFC {
             cudaMalloc((void**) &pHostDevicePatchXs[i], op->n_vals * sizeof(float)) );
         checkCudaErrors(
             cudaMalloc((void**) &pHostDevicePatchYs[i], op->n_vals * sizeof(float)) );
+
+        checkCudaErrors(
+            cudaMalloc((void**) &pHostDeviceTempXX[i], op->n_vals * sizeof(float)) );
+        checkCudaErrors(
+            cudaMalloc((void**) &pHostDeviceTempXY[i], op->n_vals * sizeof(float)) );
+        checkCudaErrors(
+            cudaMalloc((void**) &pHostDeviceTempYY[i], op->n_vals * sizeof(float)) );
       }
 
       checkCudaErrors( cudaMemcpy(pDevicePatches, pHostDevicePatches,
@@ -111,6 +130,23 @@ namespace OFC {
           n_patches * sizeof(float*), cudaMemcpyHostToDevice) );
       checkCudaErrors( cudaMemcpy(pDevicePatchYs, pHostDevicePatchYs,
           n_patches * sizeof(float*), cudaMemcpyHostToDevice) );
+
+
+      checkCudaErrors( cudaMemcpy(pDeviceTempXX, pHostDeviceTempXX,
+          n_patches * sizeof(float*), cudaMemcpyHostToDevice) );
+      checkCudaErrors( cudaMemcpy(pDeviceTempXY, pHostDeviceTempXY,
+          n_patches * sizeof(float*), cudaMemcpyHostToDevice) );
+      checkCudaErrors( cudaMemcpy(pDeviceTempYY, pHostDeviceTempYY,
+          n_patches * sizeof(float*), cudaMemcpyHostToDevice) );
+
+      // Hessian
+      H00 = new float[n_patches];
+      H01 = new float[n_patches];
+      H11 = new float[n_patches];
+
+      checkCudaErrors( cudaMalloc((void**) &pDeviceH00, n_patches * sizeof(float)) );
+      checkCudaErrors( cudaMalloc((void**) &pDeviceH01, n_patches * sizeof(float)) );
+      checkCudaErrors( cudaMalloc((void**) &pDeviceH11, n_patches * sizeof(float)) );
 
       aggregateTime = 0.0;
       meanTime = 0.0;
@@ -123,6 +159,11 @@ namespace OFC {
       cudaFree(pDevicePatches[i]);
       cudaFree(pDevicePatchXs[i]);
       cudaFree(pDevicePatchYs[i]);
+
+      cudaFree(pDeviceTempXX[i]);
+      cudaFree(pDeviceTempXY[i]);
+      cudaFree(pDeviceTempYY[i]);
+
       delete patches[i];
     }
 
@@ -139,6 +180,18 @@ namespace OFC {
     cudaFree(pDeviceMidpointX);
     cudaFree(pDeviceMidpointY);
 
+    cudaFree(pDeviceH00);
+    cudaFree(pDeviceH01);
+    cudaFree(pDeviceH11);
+
+    delete H00;
+    delete H01;
+    delete H11;
+
+    cudaFree(pDeviceTempXX);
+    cudaFree(pDeviceTempXY);
+    cudaFree(pDeviceTempYY);
+
   }
 
   void PatGridClass::InitializeGrid(const float * _I0, const float * _I0x, const float * _I0y) {
@@ -148,15 +201,27 @@ namespace OFC {
     I0y = _I0y;
 
     gettimeofday(&tv_start, nullptr);
-    cu::extractPatches(pDevicePatches, pDevicePatchXs, pDevicePatchYs,
-        I0, I0x, I0y, pDeviceMidpointX, pDeviceMidpointY, n_patches, op, i_params);
+
+    cu::extractPatchesAndHessians(pDevicePatches, pDevicePatchXs, pDevicePatchYs,
+        I0, I0x, I0y, pDeviceH00, pDeviceH01, pDeviceH11,
+        pDeviceTempXX, pDeviceTempXY, pDeviceTempYY,
+        pDeviceMidpointX, pDeviceMidpointY, n_patches, op, i_params);
+
+    checkCudaErrors(
+        cudaMemcpy(H00, pDeviceH00, n_patches * sizeof(float), cudaMemcpyDeviceToHost) );
+    checkCudaErrors(
+        cudaMemcpy(H01, pDeviceH01, n_patches * sizeof(float), cudaMemcpyDeviceToHost) );
+    checkCudaErrors(
+        cudaMemcpy(H11, pDeviceH11, n_patches * sizeof(float), cudaMemcpyDeviceToHost) );
+
     gettimeofday(&tv_end, nullptr);
     extractTime += (tv_end.tv_sec - tv_start.tv_sec) * 1000.0f +
       (tv_end.tv_usec - tv_start.tv_usec) / 1000.0f;
 
     for (int i = 0; i < n_patches; ++i) {
       patches[i]->InitializePatch(pHostDevicePatches[i],
-          pHostDevicePatchXs[i], pHostDevicePatchYs[i], midpoints_ref[i]);
+          pHostDevicePatchXs[i], pHostDevicePatchYs[i],
+          H00[i], H01[i], H11[i], midpoints_ref[i]);
       p_init[i].setZero();
     }
 
