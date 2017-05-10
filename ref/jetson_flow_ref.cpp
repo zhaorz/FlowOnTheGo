@@ -21,6 +21,7 @@
 
 #include <opencv2/opencv.hpp>
 #include <opencv2/video/tracking.hpp>
+#include <opencv2/gpu/gpu.hpp>
 #include <iomanip>
 #include <iostream>
 #include <math.h>
@@ -80,6 +81,33 @@ void opticalFlowFB(cv::Mat &prevGray,
 
   cv::calcOpticalFlowFarneback(prevGray, gray, flow, pyr_scale, levels, winsize,
                                iterations, poly_n, poly_sigma, cv::OPTFLOW_FARNEBACK_GAUSSIAN);
+}
+
+void gpuOpticalFlowFB(cv::Mat &prevGray,
+                      cv::Mat &gray,
+                      cv::Mat &flow)
+{
+  auto start_deviceCpy = now();
+  cv::gpu::GpuMat frame0(prevGray);
+  cv::gpu::GpuMat frame1(gray);
+  cv::gpu::GpuMat d_flowx, d_flowy;
+  calc_print_elapsed("opencv device copy", start_deviceCpy);
+
+  auto start_flow = now();
+  auto calc = cv::gpu::FarnebackOpticalFlow();
+  calc(frame0, frame1, d_flowx, d_flowy);
+  calc_print_elapsed("opencv gpu farneback", start_flow);
+
+  auto start_cpyDH = now();
+  cv::Mat flowx, flowy;
+  d_flowx.download(flowx);
+  d_flowy.download(flowy);
+  calc_print_elapsed("opencv copy device->host", start_cpyDH);
+
+  auto start_merge = now();
+  cv::Mat channels[2] = { flowx, flowy };
+  cv::merge(channels, 2, flow);
+  calc_print_elapsed("opencv merge", start_merge);
 }
 
 hsv rgb2hsv(rgb in)
@@ -316,7 +344,7 @@ int main(int argc, char **argv)
     cv::cvtColor(img1, gray, CV_BGR2GRAY);
 
     auto start = now();
-    opticalFlowFB(prevGray, gray, flow);
+    gpuOpticalFlowFB(prevGray, gray, flow);
     calc_print_elapsed("OpenCV Farneback Flow", start);
 
     // auto DIS = cv::optflow::createOptFlow_DIS(cv::optflow::DISOpticalFlow::PRESET_ULTRAFAST);

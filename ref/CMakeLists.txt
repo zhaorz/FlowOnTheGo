@@ -14,6 +14,8 @@ elseif (ARCH STREQUAL "ARM")
   # For ghc machines
   set(OpenCV_DIR "/afs/cs/academic/class/15418-s17/public/sw/opencv/build")
 
+  set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS}; -g -arch=compute_62 -code=sm_62)
+
 else ()
 
   message(STATUS "specify using -DARCH=x86 or -DARCH=ARM")
@@ -23,14 +25,24 @@ endif ()
 
 
 find_package(OpenCV REQUIRED)
+find_package(CUDA REQUIRED)
 
 message(STATUS "OpenCV library status:")
 message(STATUS "    version: ${OpenCV_VERSION}")
 message(STATUS "    libraries: ${OpenCV_LIBRARIES}")
 message(STATUS "    include path: ${OpenCV_INCLUDE_DIRS}")
 
+message(STATUS "CUDA library status:")
+message(STATUS "    version: ${CUDA_VERSION}")
+message(STATUS "    toolkit path: ${CUDA_TOOLKIT_ROOT_DIR}")
+message(STATUS "    libraries: ${CUDA_LIBRARIES}")
+message(STATUS "    include path: ${CUDA_INCLUDE_DIRS}")
+message(STATUS "    toolkit path: ${CUDA_TOOLKIT_ROOT_DIR}")
+
 include_directories(${CMAKE_CURRENT_BINARY_DIR} ${OpenCV_INCLUDE_DIRS})
 
+set(CUDA_VERBOSE_BUILD ON)
+
 # Samples
-add_executable(flow_ref jetson_flow_ref.cpp)
+cuda_add_executable(flow_ref jetson_flow_ref.cpp)
 target_link_libraries(flow_ref ${OpenCV_LIBRARIES})
