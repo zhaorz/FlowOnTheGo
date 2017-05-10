@@ -48,6 +48,9 @@ namespace OFC {
       float* pDeviceWeights, *pDeviceFlowOut;
 
       // Patches
+      dev_patch_state* pDevicePatchStates;
+      dev_patch_state* pHostDevicePatchStates;
+
       float** pDevicePatches, ** pDevicePatchXs, ** pDevicePatchYs;
       float** pHostDevicePatches, **pHostDevicePatchXs, **pHostDevicePatchYs;
       float* pDeviceMidpointX, * pDeviceMidpointY;

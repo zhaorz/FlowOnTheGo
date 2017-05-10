@@ -48,6 +48,10 @@ namespace OFC {
       p_init.resize(n_patches);
       patches.reserve(n_patches);
 
+      checkCudaErrors(
+          cudaMalloc ((void**) &pDevicePatchStates, n_patches * sizeof(dev_patch_state)) );
+      pHostDevicePatchStates = new dev_patch_state[n_patches];
+
       midpointX_host = new float[n_patches];
       midpointY_host = new float[n_patches];
 
@@ -109,6 +113,7 @@ namespace OFC {
       pHostDeviceTempYY = new float*[n_patches];
 
       for (int i = 0; i < n_patches; i++) {
+
         checkCudaErrors(
             cudaMalloc((void**) &pHostDevicePatches[i], op->n_vals * sizeof(float)) );
         checkCudaErrors(
@@ -122,6 +127,30 @@ namespace OFC {
             cudaMalloc((void**) &pHostDeviceTempXY[i], op->n_vals * sizeof(float)) );
         checkCudaErrors(
             cudaMalloc((void**) &pHostDeviceTempYY[i], op->n_vals * sizeof(float)) );
+
+        pHostDevicePatchStates[i].has_converged = false;
+        pHostDevicePatchStates[i].has_opt_started = false;
+        pHostDevicePatchStates[i].H00 = 0.0;
+        pHostDevicePatchStates[i].H01 = 0.0;
+        pHostDevicePatchStates[i].H11 = 0.0;
+        pHostDevicePatchStates[i].p_orgx = 0;
+        pHostDevicePatchStates[i].p_orgy = 0;
+        pHostDevicePatchStates[i].p_curx = 0;
+        pHostDevicePatchStates[i].p_cury = 0;
+        pHostDevicePatchStates[i].delta_px = 0;
+        pHostDevicePatchStates[i].delta_py = 0;
+        pHostDevicePatchStates[i].midpoint_curx = midpoints_ref[i][0];
+        pHostDevicePatchStates[i].midpoint_cury = midpoints_ref[i][1];
+        pHostDevicePatchStates[i].midpoint_orgx = midpoints_ref[i][0];
+        pHostDevicePatchStates[i].midpoint_orgy = midpoints_ref[i][1];
+        pHostDevicePatchStates[i].delta_p_sq_norm = 1e-10;
+        pHostDevicePatchStates[i].delta_p_sq_norm_init = 1e-10;
+        pHostDevicePatchStates[i].mares = 1e20;
+        pHostDevicePatchStates[i].mares_old = 1e20;
+        pHostDevicePatchStates[i].count = 0;
+        pHostDevicePatchStates[i].invalid = false;
+        pHostDevicePatchStates[i].cost = 0;
+
       }
 
       checkCudaErrors( cudaMemcpy(pDevicePatches, pHostDevicePatches,
@@ -138,6 +167,9 @@ namespace OFC {
           n_patches * sizeof(float*), cudaMemcpyHostToDevice) );
       checkCudaErrors( cudaMemcpy(pDeviceTempYY, pHostDeviceTempYY,
           n_patches * sizeof(float*), cudaMemcpyHostToDevice) );
+
+      checkCudaErrors( cudaMemcpy(pDevicePatchStates, pHostDevicePatchStates,
+            n_patches * sizeof(dev_patch_state), cudaMemcpyHostToDevice) );
 
       // Hessian
       H00 = new float[n_patches];
@@ -207,26 +239,38 @@ namespace OFC {
 
     gettimeofday(&tv_start, nullptr);
 
+    // cu::extractPatchesAndHessians(pDevicePatches, pDevicePatchXs, pDevicePatchYs,
+    //     I0, I0x, I0y, pDeviceH00, pDeviceH01, pDeviceH11,
+    //     pDeviceTempXX, pDeviceTempXY, pDeviceTempYY,
+    //     pDeviceMidpointX, pDeviceMidpointY, n_patches, op, i_params);
     cu::extractPatchesAndHessians(pDevicePatches, pDevicePatchXs, pDevicePatchYs,
-        I0, I0x, I0y, pDeviceH00, pDeviceH01, pDeviceH11,
-        pDeviceTempXX, pDeviceTempXY, pDeviceTempYY,
-        pDeviceMidpointX, pDeviceMidpointY, n_patches, op, i_params);
+        I0, I0x, I0y, pDeviceTempXX, pDeviceTempXY, pDeviceTempYY,
+        pDevicePatchStates, n_patches, op, i_params);
 
-    checkCudaErrors(
-        cudaMemcpy(H00, pDeviceH00, n_patches * sizeof(float), cudaMemcpyDeviceToHost) );
-    checkCudaErrors(
-        cudaMemcpy(H01, pDeviceH01, n_patches * sizeof(float), cudaMemcpyDeviceToHost) );
-    checkCudaErrors(
-        cudaMemcpy(H11, pDeviceH11, n_patches * sizeof(float), cudaMemcpyDeviceToHost) );
+    // checkCudaErrors(
+    //     cudaMemcpy(H00, pDeviceH00, n_patches * sizeof(float), cudaMemcpyDeviceToHost) );
+    // checkCudaErrors(
+    //     cudaMemcpy(H01, pDeviceH01, n_patches * sizeof(float), cudaMemcpyDeviceToHost) );
+    // checkCudaErrors(
+    //     cudaMemcpy(H11, pDeviceH11, n_patches * sizeof(float), cudaMemcpyDeviceToHost) );
 
     gettimeofday(&tv_end, nullptr);
     extractTime += (tv_end.tv_sec - tv_start.tv_sec) * 1000.0f +
       (tv_end.tv_usec - tv_start.tv_usec) / 1000.0f;
 
+    float H00, H01, H11;
+
     for (int i = 0; i < n_patches; ++i) {
+      checkCudaErrors(
+          cudaMemcpy(&H00, &(pDevicePatchStates[i].H00), sizeof(float), cudaMemcpyDeviceToHost) );
+      checkCudaErrors(
+          cudaMemcpy(&H01, &(pDevicePatchStates[i].H01), sizeof(float), cudaMemcpyDeviceToHost) );
+      checkCudaErrors(
+          cudaMemcpy(&H11, &(pDevicePatchStates[i].H11), sizeof(float), cudaMemcpyDeviceToHost) );
+
       patches[i]->InitializePatch(pHostDevicePatches[i],
           pHostDevicePatchXs[i], pHostDevicePatchYs[i],
-          H00[i], H01[i], H11[i], midpoints_ref[i]);
+          H00, H01, H11, midpoints_ref[i]);
       p_init[i].setZero();
     }
 
@@ -252,7 +296,7 @@ namespace OFC {
 
   void PatGridClass::OptimizeStep() {
 
-// #pragma omp parallel for schedule(static)
+    // #pragma omp parallel for schedule(static)
     for (int i = 0; i < n_patches; ++i) {
       patches[i]->OptimizeIter();
     }
@@ -287,38 +331,38 @@ namespace OFC {
   void PatGridClass::AggregateFlowDense(float *flowout) {
 
     /*bool isValid[n_patches];
-    float flowXs[n_patches];
-    float flowYs[n_patches];
-    float* costs[n_patches];
+      float flowXs[n_patches];
+      float flowYs[n_patches];
+      float* costs[n_patches];
 
-    for (int i = 0; i < n_patches; i++) {
+      for (int i = 0; i < n_patches; i++) {
       isValid[i] = patches[i]->IsValid();
       flowXs[i] = (*(patches[i]->GetCurP()))[0];
       flowYs[i] = (*(patches[i]->GetCurP()))[1];
       costs[i] = patches[i]->GetDeviceCostDiffPtr();
-    }
+      }
 
-    bool *deviceIsValid;
-    float* deviceFlowXs, * deviceFlowYs;
-    float** deviceCosts;
+      bool *deviceIsValid;
+      float* deviceFlowXs, * deviceFlowYs;
+      float** deviceCosts;
 
-    checkCudaErrors(
-          cudaMalloc ((void**) &deviceIsValid, n_patches * sizeof(bool)) );
-    checkCudaErrors(
-          cudaMalloc ((void**) &deviceFlowXs, n_patches * sizeof(float)) );
-    checkCudaErrors(
-          cudaMalloc ((void**) &deviceFlowYs, n_patches * sizeof(float)) );
-    checkCudaErrors(
-          cudaMalloc ((void**) &deviceCosts, n_patches * sizeof(float*)) );
+      checkCudaErrors(
+      cudaMalloc ((void**) &deviceIsValid, n_patches * sizeof(bool)) );
+      checkCudaErrors(
+      cudaMalloc ((void**) &deviceFlowXs, n_patches * sizeof(float)) );
+      checkCudaErrors(
+      cudaMalloc ((void**) &deviceFlowYs, n_patches * sizeof(float)) );
+      checkCudaErrors(
+      cudaMalloc ((void**) &deviceCosts, n_patches * sizeof(float*)) );
 
-    checkCudaErrors( cudaMemcpy(deviceIsValid, isValid,
-          n_patches * sizeof(bool), cudaMemcpyHostToDevice) );
-    checkCudaErrors( cudaMemcpy(deviceFlowXs, flowXs,
-          n_patches * sizeof(float), cudaMemcpyHostToDevice) );
-    checkCudaErrors( cudaMemcpy(deviceFlowYs, flowYs,
-          n_patches * sizeof(float), cudaMemcpyHostToDevice) );
-    checkCudaErrors( cudaMemcpy(deviceCosts, costs,
-          n_patches * sizeof(float*), cudaMemcpyHostToDevice) );*/
+      checkCudaErrors( cudaMemcpy(deviceIsValid, isValid,
+      n_patches * sizeof(bool), cudaMemcpyHostToDevice) );
+      checkCudaErrors( cudaMemcpy(deviceFlowXs, flowXs,
+      n_patches * sizeof(float), cudaMemcpyHostToDevice) );
+      checkCudaErrors( cudaMemcpy(deviceFlowYs, flowYs,
+      n_patches * sizeof(float), cudaMemcpyHostToDevice) );
+      checkCudaErrors( cudaMemcpy(deviceCosts, costs,
+      n_patches * sizeof(float*), cudaMemcpyHostToDevice) );*/
 
 
     gettimeofday(&tv_start, nullptr);
@@ -330,10 +374,10 @@ namespace OFC {
         cudaMemset (pDeviceFlowOut, 0.0, i_params->width * i_params->height * 2 * sizeof(float)) );
 
     /*cu::densifyPatches(
-        deviceCosts, pDeviceFlowOut, pDeviceWeights,
-        deviceFlowXs, deviceFlowYs, deviceIsValid,
-        pDeviceMidpointX, pDeviceMidpointY, n_patches,
-        op, i_params);*/
+      deviceCosts, pDeviceFlowOut, pDeviceWeights,
+      deviceFlowXs, deviceFlowYs, deviceIsValid,
+      pDeviceMidpointX, pDeviceMidpointY, n_patches,
+      op, i_params);*/
     for (int ip = 0; ip < n_patches; ++ip) {
       if (patches[ip]->IsValid()) {
 

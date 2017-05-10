@@ -33,12 +33,18 @@ __global__  void kernelExtractPatch(
 }
 
 
+// __global__ void kernelExtractPatchesAndHessians(
+//     float** patches, float** patchxs, float** patchys,
+//     const float * I0, const float * I0x, const float * I0y,
+//     float* H00, float* H01, float* H11,
+//     float** tempXX, float** tempXY, float** tempYY,
+//     float* midpointX, float* midpointY, int padding,
+//     int patch_size, int width_pad) {
 __global__ void kernelExtractPatchesAndHessians(
     float** patches, float** patchxs, float** patchys,
     const float * I0, const float * I0x, const float * I0y,
-    float* H00, float* H01, float* H11,
     float** tempXX, float** tempXY, float** tempYY,
-    float* midpointX, float* midpointY, int padding,
+    dev_patch_state* states, int padding,
     int patch_size, int width_pad) {
 
 
@@ -51,8 +57,8 @@ __global__ void kernelExtractPatchesAndHessians(
   float* XY = tempXY[patchId];
   float* YY = tempYY[patchId];
 
-  int x = round(midpointX[patchId]) + padding;
-  int y = round(midpointY[patchId]) + padding;
+  int x = round(states[patchId].midpoint_orgx) + padding;
+  int y = round(states[patchId].midpoint_orgy) + padding;
 
   int lb = -patch_size / 2;
   int offset = 3 * ((x + lb) + (y + lb) * width_pad) + tid;
@@ -106,9 +112,9 @@ __global__ void kernelExtractPatchesAndHessians(
       h11 += 1e-10;
     }
 
-    H00[patchId] = h00;
-    H01[patchId] = h01;
-    H11[patchId] = h11;
+    states[patchId].H00 = h00;
+    states[patchId].H01 = h01;
+    states[patchId].H11 = h11;
 
   }
 
@@ -134,12 +140,18 @@ namespace cu {
   }
 
 
+  // void extractPatchesAndHessians(
+  //     float** patches, float** patchxs, float** patchys,
+  //     const float * I0, const float * I0x, const float * I0y,
+  //     float* H00, float* H01, float* H11,
+  //     float** tempXX, float** tempXY, float** tempYY,
+  //     float* midpointX, float* midpointY, int n_patches,
+  //     const opt_params* op, const img_params* i_params) {
   void extractPatchesAndHessians(
       float** patches, float** patchxs, float** patchys,
       const float * I0, const float * I0x, const float * I0y,
-      float* H00, float* H01, float* H11,
       float** tempXX, float** tempXY, float** tempYY,
-      float* midpointX, float* midpointY, int n_patches,
+      dev_patch_state* states, int n_patches,
       const opt_params* op, const img_params* i_params) {
 
     int nBlocks = n_patches;
@@ -147,9 +159,8 @@ namespace cu {
 
     kernelExtractPatchesAndHessians<<<nBlocks, nThreadsPerBlock>>>(
         patches, patchxs, patchys,
-        I0, I0x, I0y, H00, H01, H11,
-        tempXX, tempXY, tempYY, midpointX, midpointY,
-        i_params->padding, op->patch_size, i_params->width_pad);
+        I0, I0x, I0y, tempXX, tempXY, tempYY, 
+        states, i_params->padding, op->patch_size, i_params->width_pad);
 
   }
 
