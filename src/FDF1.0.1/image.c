@@ -6,8 +6,16 @@
 
 #include "image.h"
 
-#include <xmmintrin.h>
-typedef __v4sf v4sf;
+// #include <xmmintrin.h>
+// typedef __v4sf v4sf;
+
+#include <arm_neon.h>
+
+#if (VECTOR_WIDTH == 4)
+typedef float32x4_t v4sf;
+#else
+typedef float v4sf;
+#endif
 
 /********** Create/Delete **********/
 
@@ -46,8 +54,12 @@ void image_erase(image_t *image){
 void image_mul_scalar(image_t *image, const float scalar){
     int i;
     v4sf* imp = (v4sf*) image->c1;
+#if (VECTOR_WIDTH == 4)
     const v4sf scalarp = {scalar,scalar,scalar,scalar};
-    for( i=0 ; i<image->stride/4*image->height ; i++){
+#else
+    const v4sf scalarp = scalar;
+#endif
+    for( i=0 ; i<image->stride/VECTOR_WIDTH*image->height ; i++){
         (*imp) *= scalarp;
         imp+=1;
     }
@@ -73,7 +85,7 @@ color_image_t *color_image_new(const int width, const int height){
     }
     image->width = width;
     image->height = height;  
-    image->stride = ( (width+3) / 4 ) * 4;
+    image->stride = ( (width+VECTOR_WIDTH-1) / VECTOR_WIDTH ) * VECTOR_WIDTH;
     image->c1 = (float*) memalign(16, 3*image->stride*height*sizeof(float));
     if(image->c1 == NULL){
         fprintf(stderr, "Error: color_image_new() - not enough memory !\n");
@@ -374,7 +386,11 @@ convolution_t *convolution_new(const int order, const float *half_coeffs, const 
 }
 
 static void convolve_vert_fast_3(image_t *dst, const image_t *src, const convolution_t *conv){
+#if (VECTOR_WIDTH == 4)
     const int iterline = (src->stride>>2)+1;
+#else
+    const int iterline = (src->stride)+1;
+#endif
     const float *coeff = conv->coeffs;
     //const float *coeff_accu = conv->coeffs_accu;
     v4sf *srcp = (v4sf*) src->c1, *dstp = (v4sf*) dst->c1;
@@ -399,7 +415,11 @@ static void convolve_vert_fast_3(image_t *dst, const image_t *src, const convolu
 }
 
 static void convolve_vert_fast_5(image_t *dst, const image_t *src, const convolution_t *conv){
+#if (VECTOR_WIDTH == 4)
     const int iterline = (src->stride>>2)+1;
+#else
+    const int iterline = (src->stride)+1;
+#endif
     const float *coeff = conv->coeffs;
     //const float *coeff_accu = conv->coeffs_accu;
     v4sf *srcp = (v4sf*) src->c1, *dstp = (v4sf*) dst->c1;
@@ -435,7 +455,11 @@ static void convolve_vert_fast_5(image_t *dst, const image_t *src, const convolu
 
 static void convolve_horiz_fast_3(image_t *dst, const image_t *src, const convolution_t *conv){
     const int stride_minus_1 = src->stride-1;
+#if (VECTOR_WIDTH == 4)
     const int iterline = (src->stride>>2);
+#else
+    const int iterline = (src->stride);
+#endif
     const float *coeff = conv->coeffs;
     v4sf *srcp = (v4sf*) src->c1, *dstp = (v4sf*) dst->c1;
     // create shifted version of src
@@ -466,7 +490,11 @@ static void convolve_horiz_fast_3(image_t *dst, const image_t *src, const convol
 static void convolve_horiz_fast_5(image_t *dst, const image_t *src, const convolution_t *conv){
     const int stride_minus_1 = src->stride-1;
     const int stride_minus_2 = src->stride-2;
+#if (VECTOR_WIDTH == 4)
     const int iterline = (src->stride>>2);
+#else
+    const int iterline = (src->stride);
+#endif
     const float *coeff = conv->coeffs;
     v4sf *srcp = (v4sf*) src->c1, *dstp = (v4sf*) dst->c1;
     float *src_p1 = (float*) malloc(sizeof(float)*src->stride*4);
@@ -506,7 +534,8 @@ void convolve_horiz(image_t *dest, const image_t *src, const convolution_t *conv
     if(conv->order==1){
         convolve_horiz_fast_3(dest,src,conv);
         return;
-    }else if(conv->order==2){
+    }
+    else if(conv->order==2){
         convolve_horiz_fast_5(dest,src,conv);
         return;    
     }
@@ -556,7 +585,8 @@ void convolve_vert(image_t *dest, const image_t *src, const convolution_t *conv)
     if(conv->order==1){
         convolve_vert_fast_3(dest,src,conv);
         return;
-    }else if(conv->order==2){
+    }
+    else if(conv->order==2){
         convolve_vert_fast_5(dest,src,conv);
         return;    
     }

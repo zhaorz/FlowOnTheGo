@@ -28,7 +28,6 @@ using std::vector;
 
 namespace OFC {
 
-  typedef __v4sf v4sf;
 
   PatClass::PatClass(
       const img_params* _i_params,
