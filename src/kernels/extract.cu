@@ -121,6 +121,22 @@ __global__ void kernelExtractPatchesAndHessians(
 
 }
 
+// TODO: merge this with above kernel?
+__global__ void kernelInitCoarserOF(
+    float* flowPrev, dev_patch_state* states, int width) {
+
+  int patchId = blockIdx.x;
+  int x = floor(states[patchId].midpoint_orgx / 2);
+  int y = floor(states[patchId].midpoint_orgy / 2);
+  int i = y * width + x;
+
+  states[patchId].p_orgx = flowPrev[2 * i] * 2;
+  states[patchId].p_orgy = flowPrev[2 * i + 1] * 2;
+  states[patchId].p_curx = flowPrev[2 * i] * 2;
+  states[patchId].p_cury = flowPrev[2 * i + 1] * 2;
+
+}
+
 
 namespace cu {
 
@@ -163,5 +179,17 @@ namespace cu {
         states, i_params->padding, op->patch_size, i_params->width_pad);
 
   }
+
+
+  void initCoarserOF(float* flowPrev, dev_patch_state* states,
+      int n_patches, int width) {
+
+    int nBlocks = n_patches;
+    int nThreadsPerBlock = 1;
+
+    kernelInitCoarserOF<<<nBlocks, nThreadsPerBlock>>>(flowPrev, states, width);
+
+  }
+
 
 }

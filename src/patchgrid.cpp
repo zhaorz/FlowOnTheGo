@@ -315,14 +315,29 @@ namespace OFC {
 
   void PatGridClass::InitializeFromCoarserOF(const float * flow_prev) {
 
+    float * devFlowPrev;
+    int flow_size = i_params->width * i_params->height / 2;
+    checkCudaErrors(
+        cudaMalloc ((void**) &devFlowPrev, flow_size * sizeof(float)) );
+    checkCudaErrors( cudaMemcpy(devFlowPrev, flow_prev,
+          flow_size * sizeof(float), cudaMemcpyHostToDevice) );
+
+    cu::initCoarserOF(devFlowPrev, pDevicePatchStates,
+        n_patches, i_params->width / 2);
+
     for (int ip = 0; ip < n_patches; ++ip) {
 
-      int x = floor(midpoints_ref[ip][0] / 2);
-      int y = floor(midpoints_ref[ip][1] / 2);
-      int i = y * (i_params->width / 2) + x;
+      // int x = floor(midpoints_ref[ip][0] / 2);
+      // int y = floor(midpoints_ref[ip][1] / 2);
+      // int i = y * (i_params->width / 2) + x;
 
-      p_init[ip](0) = flow_prev[2 * i] * 2;
-      p_init[ip](1) = flow_prev[2 * i + 1] * 2;
+      // p_init[ip](0) = flow_prev[2 * i] * 2;
+      // p_init[ip](1) = flow_prev[2 * i + 1] * 2;
+
+      checkCudaErrors( cudaMemcpy(&(p_init[ip](0)), &(pDevicePatchStates[ip].p_orgx),
+            sizeof(float), cudaMemcpyDeviceToHost) );
+      checkCudaErrors( cudaMemcpy(&(p_init[ip](1)), &(pDevicePatchStates[ip].p_orgy),
+            sizeof(float), cudaMemcpyDeviceToHost) );
 
     }
 
