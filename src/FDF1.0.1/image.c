@@ -386,7 +386,11 @@ convolution_t *convolution_new(const int order, const float *half_coeffs, const 
 }
 
 static void convolve_vert_fast_3(image_t *dst, const image_t *src, const convolution_t *conv){
+#if (VECTOR_WIDTH == 4)
     const int iterline = (src->stride>>2)+1;
+#else
+    const int iterline = (src->stride)+1;
+#endif
     const float *coeff = conv->coeffs;
     //const float *coeff_accu = conv->coeffs_accu;
     v4sf *srcp = (v4sf*) src->c1, *dstp = (v4sf*) dst->c1;
@@ -411,7 +415,11 @@ static void convolve_vert_fast_3(image_t *dst, const image_t *src, const convolu
 }
 
 static void convolve_vert_fast_5(image_t *dst, const image_t *src, const convolution_t *conv){
+#if (VECTOR_WIDTH == 4)
     const int iterline = (src->stride>>2)+1;
+#else
+    const int iterline = (src->stride)+1;
+#endif
     const float *coeff = conv->coeffs;
     //const float *coeff_accu = conv->coeffs_accu;
     v4sf *srcp = (v4sf*) src->c1, *dstp = (v4sf*) dst->c1;
@@ -447,7 +455,11 @@ static void convolve_vert_fast_5(image_t *dst, const image_t *src, const convolu
 
 static void convolve_horiz_fast_3(image_t *dst, const image_t *src, const convolution_t *conv){
     const int stride_minus_1 = src->stride-1;
+#if (VECTOR_WIDTH == 4)
     const int iterline = (src->stride>>2);
+#else
+    const int iterline = (src->stride);
+#endif
     const float *coeff = conv->coeffs;
     v4sf *srcp = (v4sf*) src->c1, *dstp = (v4sf*) dst->c1;
     // create shifted version of src
@@ -478,7 +490,11 @@ static void convolve_horiz_fast_3(image_t *dst, const image_t *src, const convol
 static void convolve_horiz_fast_5(image_t *dst, const image_t *src, const convolution_t *conv){
     const int stride_minus_1 = src->stride-1;
     const int stride_minus_2 = src->stride-2;
+#if (VECTOR_WIDTH == 4)
     const int iterline = (src->stride>>2);
+#else
+    const int iterline = (src->stride);
+#endif
     const float *coeff = conv->coeffs;
     v4sf *srcp = (v4sf*) src->c1, *dstp = (v4sf*) dst->c1;
     float *src_p1 = (float*) malloc(sizeof(float)*src->stride*4);
@@ -515,13 +531,14 @@ static void convolve_horiz_fast_5(image_t *dst, const image_t *src, const convol
 
 /* perform an horizontal convolution of an image */
 void convolve_horiz(image_t *dest, const image_t *src, const convolution_t *conv){
-    // if(conv->order==1){
-    //     convolve_horiz_fast_3(dest,src,conv);
-    //     return;
-    // }else if(conv->order==2){
-    //     convolve_horiz_fast_5(dest,src,conv);
-    //     return;    
-    // }
+    if(conv->order==1){
+        convolve_horiz_fast_3(dest,src,conv);
+        return;
+    }
+    else if(conv->order==2){
+        convolve_horiz_fast_5(dest,src,conv);
+        return;    
+    }
     float *in = src->c1;
     float * out = dest->c1;
     int i, j, ii;
@@ -565,13 +582,14 @@ void convolve_horiz(image_t *dest, const image_t *src, const convolution_t *conv
 
 /* perform a vertical convolution of an image */
 void convolve_vert(image_t *dest, const image_t *src, const convolution_t *conv){
-    // if(conv->order==1){
-    //     convolve_vert_fast_3(dest,src,conv);
-    //     return;
-    // }else if(conv->order==2){
-    //     convolve_vert_fast_5(dest,src,conv);
-    //     return;    
-    // }
+    if(conv->order==1){
+        convolve_vert_fast_3(dest,src,conv);
+        return;
+    }
+    else if(conv->order==2){
+        convolve_vert_fast_5(dest,src,conv);
+        return;    
+    }
     float *in = src->c1;
     float *out = dest->c1;
     int i0 = -conv->order;
