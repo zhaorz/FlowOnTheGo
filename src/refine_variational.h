@@ -10,6 +10,7 @@
 namespace OFC {
 
   // typedef __v4sf v4sf;
+  typedef float32x4_t v4sf;
 
   typedef struct {
 

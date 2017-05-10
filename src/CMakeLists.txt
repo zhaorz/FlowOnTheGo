@@ -91,10 +91,10 @@ set(CODEFILES
   oflow.cpp
   patch.cpp
   patchgrid.cpp
-  # refine_variational.cpp
-  # FDF1.0.1/image.c
-  # FDF1.0.1/opticalflow_aux.c
-  # FDF1.0.1/solver.c
+  refine_variational.cpp
+  FDF1.0.1/image.c
+  FDF1.0.1/opticalflow_aux.c
+  FDF1.0.1/solver.c
   )
 
 # GrayScale, Optical Flow

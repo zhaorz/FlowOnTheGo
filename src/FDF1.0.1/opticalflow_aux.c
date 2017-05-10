@@ -4,8 +4,11 @@
 #include <string.h>
 #include "opticalflow_aux.h"
 
-#include <xmmintrin.h>
-typedef __v4sf v4sf;
+// #include <xmmintrin.h>
+// typedef __v4sf v4sf;
+
+#include <arm_neon.h>
+typedef float32x4_t v4sf;
 
 #define datanorm 0.1f*0.1f//0.01f // square of the normalization factor
 #define epsilon_color (0.001f*0.001f)//0.000001f
@@ -134,7 +137,9 @@ void compute_smoothness(image_t *dst_horiz, image_t *dst_vert, const image_t *uu
     const v4sf qa = {quarter_alpha,quarter_alpha,quarter_alpha,quarter_alpha};
     const v4sf epsmooth = {epsilon_smooth,epsilon_smooth,epsilon_smooth,epsilon_smooth};
     for(j=0 ; j< height*stride/4 ; j++){
-        *sp = qa / __builtin_ia32_sqrtps( (*uxp)*(*uxp) + (*uyp)*(*uyp) + (*vxp)*(*vxp) + (*vyp)*(*vyp) + epsmooth );
+        // *sp = qa / __builtin_ia32_sqrtps( (*uxp)*(*uxp) + (*uyp)*(*uyp) + (*vxp)*(*vxp) + (*vyp)*(*vyp) + epsmooth );
+        *sp = qa / vsqrtq_f32(
+            (*uxp)*(*uxp) + (*uyp)*(*uyp) + (*vxp)*(*vxp) + (*vyp)*(*vyp) + epsmooth );
         sp+=1;uxp+=1; uyp+=1; vxp+=1; vyp+=1;
     }
     image_delete(ux); image_delete(uy); image_delete(vx); image_delete(vy); 
@@ -238,7 +243,7 @@ void compute_data_and_match(image_t *a11, image_t *a12, image_t *a22, image_t *b
             n2 = (*ix2p) * (*ix2p) + (*iy2p) * (*iy2p) + dnorm;
             tmp3 = *iz3p + (*ix3p)*(*dup) + (*iy3p)*(*dvp);
             n3 = (*ix3p) * (*ix3p) + (*iy3p) * (*iy3p) + dnorm;
-            tmp = (*maskp) * hdover3 / __builtin_ia32_sqrtps(tmp*tmp/n1 + tmp2*tmp2/n2 + tmp3*tmp3/n3 + epscolor);
+            tmp = (*maskp) * hdover3 / vsqrtq_f32(tmp*tmp/n1 + tmp2*tmp2/n2 + tmp3*tmp3/n3 + epscolor);
             tmp3 = tmp/n3; tmp2 = tmp/n2; tmp /= n1;
             *a11p += tmp  * (*ix1p) * (*ix1p);
             *a12p += tmp  * (*ix1p) * (*iy1p);
@@ -269,7 +274,7 @@ void compute_data_and_match(image_t *a11, image_t *a12, image_t *a22, image_t *b
         n6 = (*iyy3p) * (*iyy3p) + (*ixy3p) * (*ixy3p) + dnorm;
         tmp5 = *ixz3p + (*ixx3p) * (*dup) + (*ixy3p) * (*dvp);
         tmp6 = *iyz3p + (*ixy3p) * (*dup) + (*iyy3p) * (*dvp);
-        tmp = (*maskp) * hgover3 / __builtin_ia32_sqrtps(tmp*tmp/n1 + tmp2*tmp2/n2 + tmp3*tmp3/n3 + tmp4*tmp4/n4 + tmp5*tmp5/n5 + tmp6*tmp6/n6 + epsgrad);
+        tmp = (*maskp) * hgover3 / vsqrtq_f32(tmp*tmp/n1 + tmp2*tmp2/n2 + tmp3*tmp3/n3 + tmp4*tmp4/n4 + tmp5*tmp5/n5 + tmp6*tmp6/n6 + epsgrad);
         tmp6 = tmp/n6; tmp5 = tmp/n5; tmp4 = tmp/n4; tmp3 = tmp/n3; tmp2 = tmp/n2; tmp /= n1;      
         *a11p += tmp *(*ixx1p)*(*ixx1p) + tmp2*(*ixy1p)*(*ixy1p);
         *a12p += tmp *(*ixx1p)*(*ixy1p) + tmp2*(*ixy1p)*(*iyy1p);
@@ -289,7 +294,7 @@ void compute_data_and_match(image_t *a11, image_t *a12, image_t *a22, image_t *b
         if(half_beta){ // dpsi_match
             tmp  = *uup - (*descflowxp);
             tmp2 = *vvp - (*descflowyp);
-            tmp = hbeta*(*descweightp)/__builtin_ia32_sqrtps(tmp*tmp+tmp2*tmp2+epsdesc);
+            tmp = hbeta*(*descweightp)/vsqrtq_f32(tmp*tmp+tmp2*tmp2+epsdesc);
             *a11p += tmp;
             *a22p += tmp;
             *b1p -= tmp*((*wxp)-(*descflowxp));
@@ -353,10 +358,10 @@ void compute_data(image_t *a11, image_t *a12, image_t *a22, image_t *b1, image_t
             n2 = (*ix2p) * (*ix2p) + (*iy2p) * (*iy2p) + dnorm;
             tmp3 = *iz3p + (*ix3p)*(*dup) + (*iy3p)*(*dvp);
             n3 = (*ix3p) * (*ix3p) + (*iy3p) * (*iy3p) + dnorm;
-            tmp = (*maskp) * hdover3 / __builtin_ia32_sqrtps(tmp*tmp/n1 + tmp2*tmp2/n2 + tmp3*tmp3/n3 + epscolor);
+            tmp = (*maskp) * hdover3 / vsqrtq_f32(tmp*tmp/n1 + tmp2*tmp2/n2 + tmp3*tmp3/n3 + epscolor);
             tmp3 = tmp/n3; tmp2 = tmp/n2; tmp /= n1;
             #else
-            tmp = (*maskp) * hdover3 / __builtin_ia32_sqrtps(3 * tmp*tmp/n1 + epscolor);
+            tmp = (*maskp) * hdover3 / vsqrtq_f32(3 * tmp*tmp/n1 + epscolor);
             tmp /= n1;
             #endif
             *a11p += tmp  * (*ix1p) * (*ix1p);
@@ -392,10 +397,10 @@ void compute_data(image_t *a11, image_t *a12, image_t *a22, image_t *b1, image_t
         n6 = (*iyy3p) * (*iyy3p) + (*ixy3p) * (*ixy3p) + dnorm;
         tmp5 = *ixz3p + (*ixx3p) * (*dup) + (*ixy3p) * (*dvp);
         tmp6 = *iyz3p + (*ixy3p) * (*dup) + (*iyy3p) * (*dvp);
-        tmp = (*maskp) * hgover3 / __builtin_ia32_sqrtps(tmp*tmp/n1 + tmp2*tmp2/n2 + tmp3*tmp3/n3 + tmp4*tmp4/n4 + tmp5*tmp5/n5 + tmp6*tmp6/n6 + epsgrad);
+        tmp = (*maskp) * hgover3 / vsqrtq_f32(tmp*tmp/n1 + tmp2*tmp2/n2 + tmp3*tmp3/n3 + tmp4*tmp4/n4 + tmp5*tmp5/n5 + tmp6*tmp6/n6 + epsgrad);
         tmp6 = tmp/n6; tmp5 = tmp/n5; tmp4 = tmp/n4; tmp3 = tmp/n3; tmp2 = tmp/n2; tmp /= n1;      
         #else
-        tmp = (*maskp) * hgover3 / __builtin_ia32_sqrtps(3* tmp*tmp/n1 + 3* tmp2*tmp2/n2 + epsgrad);
+        tmp = (*maskp) * hgover3 / vsqrtq_f32(3* tmp*tmp/n1 + 3* tmp2*tmp2/n2 + epsgrad);
         tmp2 = tmp/n2; tmp /= n1;      
         #endif
         *a11p += tmp *(*ixx1p)*(*ixx1p) + tmp2*(*ixy1p)*(*ixy1p);
@@ -486,10 +491,10 @@ void compute_data_DE(image_t *a11, image_t *b1, image_t *mask, image_t *wx, imag
             n2 = (*ix2p) * (*ix2p) + (*iy2p) * (*iy2p) + dnorm;
             tmp3 = *iz3p + (*ix3p)*(*dup);
             n3 = (*ix3p) * (*ix3p) + (*iy3p) * (*iy3p) + dnorm;
-            tmp = (*maskp) * hdover3 / __builtin_ia32_sqrtps(tmp*tmp/n1 + tmp2*tmp2/n2 + tmp3*tmp3/n3 + epscolor);
+            tmp = (*maskp) * hdover3 / vsqrtq_f32(tmp*tmp/n1 + tmp2*tmp2/n2 + tmp3*tmp3/n3 + epscolor);
             tmp3 = tmp/n3; tmp2 = tmp/n2; tmp /= n1;
             #else
-            tmp = (*maskp) * hdover3 / __builtin_ia32_sqrtps(3 * tmp*tmp/n1 + epscolor);
+            tmp = (*maskp) * hdover3 / vsqrtq_f32(3 * tmp*tmp/n1 + epscolor);
             tmp /= n1;
             #endif
             *a11p += tmp  * (*ix1p) * (*ix1p);
@@ -515,10 +520,10 @@ void compute_data_DE(image_t *a11, image_t *b1, image_t *mask, image_t *wx, imag
         n6 = (*iyy3p) * (*iyy3p) + (*ixy3p) * (*ixy3p) + dnorm;
         tmp5 = *ixz3p + (*ixx3p) * (*dup);
         tmp6 = *iyz3p + (*ixy3p) * (*dup);
-        tmp = (*maskp) * hgover3 / __builtin_ia32_sqrtps(tmp*tmp/n1 + tmp2*tmp2/n2 + tmp3*tmp3/n3 + tmp4*tmp4/n4 + tmp5*tmp5/n5 + tmp6*tmp6/n6 + epsgrad);
+        tmp = (*maskp) * hgover3 / vsqrtq_f32(tmp*tmp/n1 + tmp2*tmp2/n2 + tmp3*tmp3/n3 + tmp4*tmp4/n4 + tmp5*tmp5/n5 + tmp6*tmp6/n6 + epsgrad);
         tmp6 = tmp/n6; tmp5 = tmp/n5; tmp4 = tmp/n4; tmp3 = tmp/n3; tmp2 = tmp/n2; tmp /= n1;      
         #else
-        tmp = (*maskp) * hgover3 / __builtin_ia32_sqrtps(3* tmp*tmp/n1 + 3* tmp2*tmp2/n2 + epsgrad);
+        tmp = (*maskp) * hgover3 / vsqrtq_f32(3* tmp*tmp/n1 + 3* tmp2*tmp2/n2 + epsgrad);
         tmp2 = tmp/n2; tmp /= n1;      
         #endif
         *a11p += tmp *(*ixx1p)*(*ixx1p) + tmp2*(*ixy1p)*(*ixy1p);

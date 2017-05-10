@@ -10,6 +10,7 @@
 #include <Eigen/Dense>
 
 #include <stdio.h>
+#include <arm_neon.h>
 
 #include "refine_variational.h"
 
@@ -246,7 +247,8 @@ namespace OFC {
 
       for( i=0 ; i<height*stride/4 ; i++)
       {
-        (*uup) = __builtin_ia32_minps(   (*wxp) + (*dup)   ,  op->zero);
+        // (*uup) = __builtin_ia32_minps(   (*wxp) + (*dup)   ,  op->zero);
+        (*uup) = vminq_f32(   (*wxp) + (*dup)   ,  op->zero);
         uup+=1; wxp+=1; dup+=1;
       }
 

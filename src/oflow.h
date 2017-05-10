@@ -4,6 +4,7 @@
 #define OFC_HEADER
 
 #include <nppi.h>
+#include <arm_neon.h>
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
@@ -15,6 +16,7 @@ using std::endl;
 namespace OFC {
 
   // typedef __v4sf v4sf;
+  typedef float32x4_t v4sf;
 
 
   typedef struct {
@@ -63,15 +65,15 @@ namespace OFC {
     float norm_outlier = 5.0f;     // norm error threshold for huber norm
 
     // Helper variables
-    // v4sf zero     = (v4sf) {0.0f, 0.0f, 0.0f, 0.0f};
-    // v4sf negzero  = (v4sf) {-0.0f, -0.0f, -0.0f, -0.0f};
-    // v4sf half     = (v4sf) {0.5f, 0.5f, 0.5f, 0.5f};
-    // v4sf ones     = (v4sf) {1.0f, 1.0f, 1.0f, 1.0f};
-    // v4sf twos     = (v4sf) {2.0f, 2.0f, 2.0f, 2.0f};
-    // v4sf fours    = (v4sf) {4.0f, 4.0f, 4.0f, 4.0f};
-    // v4sf norm_outlier_tmpbsq;
-    // v4sf norm_outlier_tmp2bsq;
-    // v4sf norm_outlier_tmp4bsq;
+    v4sf zero     = (v4sf) {0.0f, 0.0f, 0.0f, 0.0f};
+    v4sf negzero  = (v4sf) {-0.0f, -0.0f, -0.0f, -0.0f};
+    v4sf half     = (v4sf) {0.5f, 0.5f, 0.5f, 0.5f};
+    v4sf ones     = (v4sf) {1.0f, 1.0f, 1.0f, 1.0f};
+    v4sf twos     = (v4sf) {2.0f, 2.0f, 2.0f, 2.0f};
+    v4sf fours    = (v4sf) {4.0f, 4.0f, 4.0f, 4.0f};
+    v4sf norm_outlier_tmpbsq;
+    v4sf norm_outlier_tmp2bsq;
+    v4sf norm_outlier_tmp4bsq;
   } opt_params;
 
   class OFClass {

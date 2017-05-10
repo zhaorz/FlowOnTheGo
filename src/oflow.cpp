@@ -19,7 +19,7 @@
 
 #include "oflow.h"
 #include "patchgrid.h"
-// #include "refine_variational.h"
+#include "refine_variational.h"
 
 #include "kernels/resize.h"
 #include "kernels/pad.h"
@@ -47,9 +47,11 @@ namespace OFC {
     op.n_vals = 3 * pow(op.patch_size, 2);
     op.n_scales = op.coarsest_scale - op.finest_scale + 1;
     float norm_outlier2 = pow(op.norm_outlier, 2);
-    // op.norm_outlier_tmpbsq = (v4sf) {norm_outlier2, norm_outlier2, norm_outlier2, norm_outlier2};
+    op.norm_outlier_tmpbsq = (v4sf) {norm_outlier2, norm_outlier2, norm_outlier2, norm_outlier2};
     // op.norm_outlier_tmp2bsq = __builtin_ia32_mulps(op.norm_outlier_tmpbsq, op.twos);
     // op.norm_outlier_tmp4bsq = __builtin_ia32_mulps(op.norm_outlier_tmpbsq, op.fours);
+    op.norm_outlier_tmp2bsq = vmulq_f32(op.norm_outlier_tmpbsq, op.twos);
+    op.norm_outlier_tmp4bsq = vmulq_f32(op.norm_outlier_tmpbsq, op.fours);
     op.dp_thresh = 0.05 * 0.05;
     op.dr_thresh = 0.95;
     op.res_thresh = 0.0;
@@ -235,11 +237,11 @@ namespace OFC {
 
 
       // Variational refinement, (Step 5 in Algorithm 1 of paper)
-      // if (op.use_var_ref) {
+      if (op.use_var_ref) {
 
-      //   OFC::VarRefClass var_ref(I0s[sl], I1s[sl], &(iparams[ii]), &op, out_ptr);
+        OFC::VarRefClass var_ref(I0s[sl], I1s[sl], &(iparams[ii]), &op, out_ptr);
 
-      // }
+      }
 
       // Timing, Variational Refinement
       if (op.verbosity > 1)
