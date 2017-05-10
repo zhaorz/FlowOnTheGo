@@ -44,12 +44,12 @@ namespace OFC {
         patch_x.resize(op->n_vals,1);
         patch_y.resize(op->n_vals,1);
 
-        checkCudaErrors(
+        /*checkCudaErrors(
             cudaMalloc ((void**) &pDevicePatch, patch.size() * sizeof(float)) );
         checkCudaErrors(
             cudaMalloc ((void**) &pDevicePatchX, patch_x.size() * sizeof(float)) );
         checkCudaErrors(
-            cudaMalloc ((void**) &pDevicePatchY, patch_y.size() * sizeof(float)) );
+            cudaMalloc ((void**) &pDevicePatchY, patch_y.size() * sizeof(float)) );*/
         checkCudaErrors(
             cudaMalloc ((void**) &pDeviceRawDiff, patch.size() * sizeof(float)) );
         checkCudaErrors(
@@ -76,9 +76,9 @@ namespace OFC {
 
   PatClass::~PatClass() {
 
-    cudaFree(pDevicePatch);
+    /*cudaFree(pDevicePatch);
     cudaFree(pDevicePatchX);
-    cudaFree(pDevicePatchY);
+    cudaFree(pDevicePatchY);*/
 
     cudaFree(pDeviceRawDiff);
     cudaFree(pDeviceCostDiff);

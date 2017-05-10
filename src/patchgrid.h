@@ -53,6 +53,7 @@ namespace OFC {
       // Hessian
       // TODO: Can we shared memory?
       float** pDeviceTempXX, ** pDeviceTempXY, ** pDeviceTempYY;
+      float** pHostDeviceTempXX, **pHostDeviceTempXY, **pHostDeviceTempYY;
       float* pDeviceH00, * pDeviceH01, * pDeviceH11;
       float* H00, * H01, * H11;
 
