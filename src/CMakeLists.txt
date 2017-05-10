@@ -97,7 +97,8 @@ set(CODEFILES
   patch.cpp
   patchgrid.cpp
   refine_variational.cpp
-  FDF1.0.1/image.c
+  # FDF1.0.1/image.c
+  FDF1.0.1/image.cpp
   FDF1.0.1/opticalflow_aux.c
   FDF1.0.1/solver.c
   )
@@ -107,6 +108,7 @@ cuda_add_executable(flow ${COMMON} ${CODEFILES} ${KERNELS})
 set_target_properties (flow PROPERTIES COMPILE_DEFINITIONS "SELECTMODE=1")
 set_property(TARGET flow APPEND PROPERTY COMPILE_DEFINITIONS "SELECTCHANNEL=3") # use RGB image
 set_property(TARGET flow APPEND PROPERTY COMPILE_DEFINITIONS "VECTOR_WIDTH=4") # 8 wide SIMD (4 floats)
+set_property(TARGET flow APPEND PROPERTY COMPILE_DEFINITIONS "UNIFIED_MEM=1") # Use zero copy memory
 # set_property(TARGET flow APPEND PROPERTY COMPILE_DEFINITIONS "VECTOR_WIDTH=1") # no SIMD
 target_link_libraries(flow ${OpenCV_LIBS})
 
