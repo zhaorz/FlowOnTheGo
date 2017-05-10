@@ -10,7 +10,12 @@
 // typedef __v4sf v4sf;
 
 #include <arm_neon.h>
+
+#if (VECTOR_WIDTH == 4)
 typedef float32x4_t v4sf;
+#else
+typedef float v4sf;
+#endif
 
 /********** Create/Delete **********/
 
@@ -49,8 +54,12 @@ void image_erase(image_t *image){
 void image_mul_scalar(image_t *image, const float scalar){
     int i;
     v4sf* imp = (v4sf*) image->c1;
+#if (VECTOR_WIDTH == 4)
     const v4sf scalarp = {scalar,scalar,scalar,scalar};
-    for( i=0 ; i<image->stride/4*image->height ; i++){
+#else
+    const v4sf scalarp = scalar;
+#endif
+    for( i=0 ; i<image->stride/VECTOR_WIDTH*image->height ; i++){
         (*imp) *= scalarp;
         imp+=1;
     }
@@ -76,7 +85,7 @@ color_image_t *color_image_new(const int width, const int height){
     }
     image->width = width;
     image->height = height;  
-    image->stride = ( (width+3) / 4 ) * 4;
+    image->stride = ( (width+VECTOR_WIDTH-1) / VECTOR_WIDTH ) * VECTOR_WIDTH;
     image->c1 = (float*) memalign(16, 3*image->stride*height*sizeof(float));
     if(image->c1 == NULL){
         fprintf(stderr, "Error: color_image_new() - not enough memory !\n");
@@ -506,13 +515,13 @@ static void convolve_horiz_fast_5(image_t *dst, const image_t *src, const convol
 
 /* perform an horizontal convolution of an image */
 void convolve_horiz(image_t *dest, const image_t *src, const convolution_t *conv){
-    if(conv->order==1){
-        convolve_horiz_fast_3(dest,src,conv);
-        return;
-    }else if(conv->order==2){
-        convolve_horiz_fast_5(dest,src,conv);
-        return;    
-    }
+    // if(conv->order==1){
+    //     convolve_horiz_fast_3(dest,src,conv);
+    //     return;
+    // }else if(conv->order==2){
+    //     convolve_horiz_fast_5(dest,src,conv);
+    //     return;    
+    // }
     float *in = src->c1;
     float * out = dest->c1;
     int i, j, ii;
@@ -556,13 +565,13 @@ void convolve_horiz(image_t *dest, const image_t *src, const convolution_t *conv
 
 /* perform a vertical convolution of an image */
 void convolve_vert(image_t *dest, const image_t *src, const convolution_t *conv){
-    if(conv->order==1){
-        convolve_vert_fast_3(dest,src,conv);
-        return;
-    }else if(conv->order==2){
-        convolve_vert_fast_5(dest,src,conv);
-        return;    
-    }
+    // if(conv->order==1){
+    //     convolve_vert_fast_3(dest,src,conv);
+    //     return;
+    // }else if(conv->order==2){
+    //     convolve_vert_fast_5(dest,src,conv);
+    //     return;    
+    // }
     float *in = src->c1;
     float *out = dest->c1;
     int i0 = -conv->order;

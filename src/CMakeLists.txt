@@ -101,6 +101,8 @@ set(CODEFILES
 cuda_add_executable(flow ${COMMON} ${CODEFILES} ${KERNELS})
 set_target_properties (flow PROPERTIES COMPILE_DEFINITIONS "SELECTMODE=1")
 set_property(TARGET flow APPEND PROPERTY COMPILE_DEFINITIONS "SELECTCHANNEL=3") # use RGB image
+# set_property(TARGET flow APPEND PROPERTY COMPILE_DEFINITIONS "VECTOR_WIDTH=4") # 8 wide SIMD (4 floats)
+set_property(TARGET flow APPEND PROPERTY COMPILE_DEFINITIONS "VECTOR_WIDTH=1") # no SIMD
 target_link_libraries(flow ${OpenCV_LIBS})
 
 # CUDA sandbox
