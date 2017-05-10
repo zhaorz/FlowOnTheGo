@@ -76,6 +76,7 @@ if (ARCH STREQUAL "ARM")
 endif()
 
 set(KERNELS
+  kernels/dataTerm.cu
   kernels/densify.cu
   kernels/interpolate.cu
   kernels/extract.cu
@@ -99,7 +100,7 @@ set(CODEFILES
   refine_variational.cpp
   # FDF1.0.1/image.c
   FDF1.0.1/image.cpp
-  FDF1.0.1/opticalflow_aux.c
+  FDF1.0.1/opticalflow_aux.cpp
   FDF1.0.1/solver.c
   )
 
