@@ -52,7 +52,8 @@ namespace OFC {
           const Eigen::Vector2f _midpoint);
       void SetTargetImage(const float * _I1);
 
-      void OptimizeIter(const Eigen::Vector2f p_prev);
+      void OptimizeStart(const Eigen::Vector2f p_prev);
+      void OptimizeIter();
 
       inline const bool IsConverged() const { return p_state->has_converged; }
       inline const bool HasOptStarted() const { return p_state->has_opt_started; }
@@ -70,8 +71,6 @@ namespace OFC {
       int hessianCalls, projectionCalls, costCalls, interpolateCalls, meanCalls;
 
     private:
-
-      void OptimizeStart(const Eigen::Vector2f p_prev);
 
       void OptimizeComputeErrImg();
       void UpdateMidpoint();

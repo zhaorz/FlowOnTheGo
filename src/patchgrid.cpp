@@ -242,13 +242,31 @@ namespace OFC {
 
   }
 
-  void PatGridClass::Optimize() {
+  void PatGridClass::OptimizeSetup() {
+
+    for (int i = 0; i < n_patches; ++i) {
+      patches[i]->OptimizeStart(p_init[i]);
+    }
+
+  }
+
+  void PatGridClass::OptimizeStep() {
 
 // #pragma omp parallel for schedule(static)
     for (int i = 0; i < n_patches; ++i) {
-      patches[i]->OptimizeIter(p_init[i]);
+      patches[i]->OptimizeIter();
     }
 
+  }
+
+  bool PatGridClass::AllConverged() {
+
+    for (int i = 0; i < n_patches; ++i) {
+      if (!patches[i]->IsConverged())
+        return false;
+    }
+
+    return true;
   }
 
   void PatGridClass::InitializeFromCoarserOF(const float * flow_prev) {

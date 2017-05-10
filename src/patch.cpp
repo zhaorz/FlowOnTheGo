@@ -218,17 +218,11 @@ namespace OFC {
 
   }
 
-  void PatClass::OptimizeIter(const Eigen::Vector2f p_prev) {
+  void PatClass::OptimizeIter() {
 
-    if (!p_state->has_opt_started) {
+    // Do one optimize iteration
 
-      ResetPatchState();
-      OptimizeStart(p_prev);
-
-    }
-
-    // optimize patch until convergence, or do only one iteration if DIS visualization is used
-    while (!p_state->has_converged) {
+    if (!p_state->has_converged) {
 
       p_state->count++;
 

@@ -279,7 +279,10 @@ namespace OFC {
 
 
       // Dense Inverse Search. (Step 3 in Algorithm 1 of paper)
-      grid[ii]->Optimize();
+      // Parallel over all patches
+      grid[ii]->OptimizeSetup();
+      while (!grid[ii]->AllConverged())
+        grid[ii]->OptimizeStep();
 
       // Timing, DIS
       if (op.verbosity>1) {

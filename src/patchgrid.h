@@ -24,7 +24,9 @@ namespace OFC {
       void AggregateFlowDense(float *flowout);
 
       // Optimizes grid to convergence of each patch
-      void Optimize();
+      void OptimizeSetup();
+      void OptimizeStep();
+      bool AllConverged();
       //Optimize each patch in grid for one iteration, visualize displacement vector, repeat
       //void OptimizeAndVisualize(const float sc_fct_tmp);  // needed for verbosity >= 3, DISVISUAL
 
