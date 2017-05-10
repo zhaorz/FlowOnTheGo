@@ -263,14 +263,55 @@ namespace OFC {
 
   void PatGridClass::AggregateFlowDense(float *flowout) {
 
+    bool isValid[n_patches];
+    float flowXs[n_patches];
+    float flowYs[n_patches];
+    float* costs[n_patches];
+
+    for (int i = 0; i < n_patches; i++) {
+      isValid[i] = patches[i]->IsValid();
+      flowXs[i] = (*(patches[i]->GetCurP()))[0];
+      flowYs[i] = (*(patches[i]->GetCurP()))[1];
+      costs[i] = patches[i]->GetDeviceCostDiffPtr();
+    }
+
+    bool *deviceIsValid;
+    float* deviceFlowXs, * deviceFlowYs;
+    float** deviceCosts;
+
+    checkCudaErrors(
+          cudaMalloc ((void**) &deviceIsValid, n_patches * sizeof(bool)) );
+    checkCudaErrors(
+          cudaMalloc ((void**) &deviceFlowXs, n_patches * sizeof(float)) );
+    checkCudaErrors(
+          cudaMalloc ((void**) &deviceFlowYs, n_patches * sizeof(float)) );
+    checkCudaErrors(
+          cudaMalloc ((void**) &deviceCosts, n_patches * sizeof(float*)) );
+
+    checkCudaErrors( cudaMemcpy(deviceIsValid, isValid,
+          n_patches * sizeof(bool), cudaMemcpyHostToDevice) );
+    checkCudaErrors( cudaMemcpy(deviceFlowXs, flowXs,
+          n_patches * sizeof(float), cudaMemcpyHostToDevice) );
+    checkCudaErrors( cudaMemcpy(deviceFlowYs, flowYs,
+          n_patches * sizeof(float), cudaMemcpyHostToDevice) );
+    checkCudaErrors( cudaMemcpy(deviceCosts, costs,
+          n_patches * sizeof(float*), cudaMemcpyHostToDevice) );
+
+
     gettimeofday(&tv_start, nullptr);
+
     // Device mem
     checkCudaErrors(
         cudaMemset (pDeviceWeights, 0.0, i_params->width * i_params->height * sizeof(float)) );
     checkCudaErrors(
         cudaMemset (pDeviceFlowOut, 0.0, i_params->width * i_params->height * 2 * sizeof(float)) );
 
-    for (int ip = 0; ip < n_patches; ++ip) {
+    cu::densifyPatches(
+        deviceCosts, pDeviceFlowOut, pDeviceWeights,
+        deviceFlowXs, deviceFlowYs, deviceIsValid,
+        pDeviceMidpointX, pDeviceMidpointY, n_patches,
+        op, i_params);
+    /*for (int ip = 0; ip < n_patches; ++ip) {
       if (patches[ip]->IsValid()) {
 
         const Eigen::Vector2f* fl = patches[ip]->GetCurP(); // flow displacement of this patch
@@ -285,7 +326,7 @@ namespace OFC {
             op->patch_size, op->min_errval);
 
       }
-    }
+    }*/
 
     gettimeofday(&tv_end, nullptr);
     aggregateTime += (tv_end.tv_sec - tv_start.tv_sec) * 1000.0f +

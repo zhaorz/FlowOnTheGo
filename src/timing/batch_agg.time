@@ -1,0 +1,103 @@
+[start] warmup: processing 720x480 image
+[time] 647.278 (ms) : cudaMalloc
+[time] 0.135 (ms) : cudaMemcpy H->D
+[time] 227.372 (ms) : warmup
+[time] 0.108 (ms) : cudaMemcpy H<-D
+[done] warmup: primary compute time: 227.372 (ms)
+[time] 0.419 (ms) : I0, I1 cudaMalloc
+[time] 1.004 (ms) : cudaMemcpy I0, I1 H->D
+[start] pad: processing 1024x436 image
+[time] 0.226 (ms) : cudaMalloc
+[time] 0.025 (ms) : pad
+[done] pad: primary compute time: 0.025 (ms)
+[start] pad: processing 1024x436 image
+[time] 0.205 (ms) : cudaMalloc
+[time] 0.012 (ms) : pad
+[done] pad: primary compute time: 0.012 (ms)
+TIME (Image loading     ) (ms): 24.776
+TIME (Grid Memo. Alloc. ) (ms): 47.66
+TIME (Setup) (ms): 208.829
+I0 448x1024
+Constructing pyramids
+[start] constructImgPyramids: processing 1024x448 image
+[time] 1.463 (ms) : sobel: Ixs[0]
+[time] 0.308 (ms) : sobel: Iys[0]
+constructImgPyramids level 1: 512x224
+[time] 0.275 (ms) : sobel: Ixs[i]
+[time] 0.273 (ms) : sobel: Iys[i]
+constructImgPyramids level 2: 256x112
+[time] 0.281 (ms) : sobel: Ixs[i]
+[time] 0.277 (ms) : sobel: Iys[i]
+constructImgPyramids level 3: 128x56
+[time] 0.273 (ms) : sobel: Ixs[i]
+[time] 0.276 (ms) : sobel: Iys[i]
+constructImgPyramids level 4: 64x28
+[time] 0.286 (ms) : sobel: Ixs[i]
+[time] 0.274 (ms) : sobel: Iys[i]
+constructImgPyramids level 5: 32x14
+[time] 0.276 (ms) : sobel: Ixs[i]
+[time] 0.279 (ms) : sobel: Iys[i]
+[time] 4.772 (ms) : total time
+[done] constructImgPyramids: primmary compute time: 4.541
+[start] constructImgPyramids: processing 1024x448 image
+[time] 0.279 (ms) : sobel: Ixs[0]
+[time] 0.274 (ms) : sobel: Iys[0]
+constructImgPyramids level 1: 512x224
+[time] 0.28 (ms) : sobel: Ixs[i]
+[time] 0.275 (ms) : sobel: Iys[i]
+constructImgPyramids level 2: 256x112
+[time] 0.275 (ms) : sobel: Ixs[i]
+[time] 0.274 (ms) : sobel: Iys[i]
+constructImgPyramids level 3: 128x56
+[time] 0.285 (ms) : sobel: Ixs[i]
+[time] 0.277 (ms) : sobel: Iys[i]
+constructImgPyramids level 4: 64x28
+[time] 0.276 (ms) : sobel: Ixs[i]
+[time] 0.277 (ms) : sobel: Iys[i]
+constructImgPyramids level 5: 32x14
+[time] 0.307 (ms) : sobel: Ixs[i]
+[time] 0.273 (ms) : sobel: Iys[i]
+[time] 3.534 (ms) : total time
+[done] constructImgPyramids: primmary compute time: 3.352
+TIME (Pyramids+Gradients) (ms): 8.32
+, cflow 
+TIME (Sc: 5, #p:    32, pconst, pinit, poptim, cflow, tvopt, total):     0.09     0.00    31.70     0.10     0.25 ->    32.13 ms.
+TIME (Sc: 4, #p:   112, pconst, pinit, poptim, cflow, tvopt, total):     0.07     0.00   110.32     0.09     0.65 ->   111.12 ms.
+TIME (Sc: 3, #p:   448, pconst, pinit, poptim, cflow, tvopt, total):     0.11     0.00   425.12     0.12     2.16 ->   427.51 ms.
+TIME (O.Flow Run-Time   ) (ms): 570.787
+
+===============Timings (ms)===============
+Avg grad descent iterations:        12.9978
+[hessian]      0  tot => -nan avg
+[project]      149.146  tot => 0.0277481 avg
+[cost]         119.47  tot => 0.0205169 avg
+[interpolate]  37.362  tot => 0.00641628 avg
+[mean norm]    105.888  tot => 0.0181844 avg
+[extract]      0.074
+[aggregate]    0.011
+[flow norm]    0.04
+==========================================
+
+===============Timings (ms)===============
+Avg grad descent iterations:        13
+[hessian]      0  tot => -nan avg
+[project]      38.76  tot => 0.0288393 avg
+[cost]         31.095  tot => 0.0213565 avg
+[interpolate]  9.248  tot => 0.00635165 avg
+[mean norm]    27.84  tot => 0.0191209 avg
+[extract]      0.057
+[aggregate]    0.011
+[flow norm]    0.017
+==========================================
+
+===============Timings (ms)===============
+Avg grad descent iterations:        13
+[hessian]      0  tot => -nan avg
+[project]      11.16  tot => 0.0290625 avg
+[cost]         8.943  tot => 0.0214976 avg
+[interpolate]  2.684  tot => 0.00645192 avg
+[mean norm]    7.954  tot => 0.0191202 avg
+[extract]      0.08
+[aggregate]    0.019
+[flow norm]    0.012
+==========================================
