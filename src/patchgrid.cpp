@@ -16,6 +16,7 @@
 #include "common/cuda_helper.h"
 #include "common/timer.h"
 #include "kernels/densify.h"
+#include "kernels/extract.h"
 
 #include <stdio.h>
 
@@ -47,6 +48,9 @@ namespace OFC {
       p_init.resize(n_patches);
       patches.reserve(n_patches);
 
+      midpointX_host = new float[n_patches];
+      midpointY_host = new float[n_patches];
+
       int patch_id = 0;
       for (int x = 0; x < n_patches_width; ++x) {
         for (int y = 0; y < n_patches_height; ++y) {
@@ -55,6 +59,8 @@ namespace OFC {
 
           midpoints_ref[i][0] = x * steps + offsetw;
           midpoints_ref[i][1] = y * steps + offseth;
+          midpointX_host[i] = x * steps + offsetw;
+          midpointY_host[i] = y * steps + offseth;
           p_init[i].setZero();
 
           patches.push_back(new OFC::PatClass(i_params, op, patch_id));
@@ -63,19 +69,75 @@ namespace OFC {
         }
       }
 
+      // Midpoint
+      checkCudaErrors(
+          cudaMalloc ((void**) &pDeviceMidpointX, n_patches * sizeof(float)) );
+      checkCudaErrors(
+          cudaMalloc ((void**) &pDeviceMidpointY, n_patches * sizeof(float)) );
+      checkCudaErrors( cudaMemcpy(pDeviceMidpointX, midpointX_host,
+          n_patches * sizeof(float), cudaMemcpyHostToDevice) );
+      checkCudaErrors( cudaMemcpy(pDeviceMidpointY, midpointY_host,
+          n_patches * sizeof(float), cudaMemcpyHostToDevice) );
+
+      // Aggregate flow
       checkCudaErrors(
           cudaMalloc ((void**) &pDeviceWeights, i_params->width * i_params->height * sizeof(float)) );
       checkCudaErrors(
           cudaMalloc ((void**) &pDeviceFlowOut, i_params->width * i_params->height * 2 * sizeof(float)) );
 
+      // Patches
+      checkCudaErrors(
+          cudaMalloc((void**) &pDevicePatches, n_patches * sizeof(float*)) );
+      checkCudaErrors(
+          cudaMalloc((void**) &pDevicePatchXs, n_patches * sizeof(float*)) );
+      checkCudaErrors(
+          cudaMalloc((void**) &pDevicePatchYs, n_patches * sizeof(float*)) );
+
+      pHostDevicePatches = new float*[n_patches];
+      pHostDevicePatchXs = new float*[n_patches];
+      pHostDevicePatchYs = new float*[n_patches];
+      for (int i = 0; i < n_patches; i++) {
+        checkCudaErrors(
+            cudaMalloc((void**) &pHostDevicePatches[i], op->n_vals * sizeof(float)) );
+        checkCudaErrors(
+            cudaMalloc((void**) &pHostDevicePatchXs[i], op->n_vals * sizeof(float)) );
+        checkCudaErrors(
+            cudaMalloc((void**) &pHostDevicePatchYs[i], op->n_vals * sizeof(float)) );
+      }
+
+      checkCudaErrors( cudaMemcpy(pDevicePatches, pHostDevicePatches,
+          n_patches * sizeof(float*), cudaMemcpyHostToDevice) );
+      checkCudaErrors( cudaMemcpy(pDevicePatchXs, pHostDevicePatchXs,
+          n_patches * sizeof(float*), cudaMemcpyHostToDevice) );
+      checkCudaErrors( cudaMemcpy(pDevicePatchYs, pHostDevicePatchYs,
+          n_patches * sizeof(float*), cudaMemcpyHostToDevice) );
+
       aggregateTime = 0.0;
       meanTime = 0.0;
+      extractTime = 0.0;
     }
 
   PatGridClass::~PatGridClass() {
 
-    for (int i = 0; i < n_patches; ++i)
+    for (int i = 0; i < n_patches; ++i) {
+      cudaFree(pDevicePatches[i]);
+      cudaFree(pDevicePatchXs[i]);
+      cudaFree(pDevicePatchYs[i]);
       delete patches[i];
+    }
+
+    cudaFree(pDevicePatches);
+    cudaFree(pDevicePatchXs);
+    cudaFree(pDevicePatchYs);
+
+    delete pHostDevicePatches;
+    delete pHostDevicePatchXs;
+    delete pHostDevicePatchYs;
+
+    delete midpointX_host;
+    delete midpointY_host;
+    cudaFree(pDeviceMidpointX);
+    cudaFree(pDeviceMidpointY);
 
   }
 
@@ -85,8 +147,16 @@ namespace OFC {
     I0x = _I0x;
     I0y = _I0y;
 
+    gettimeofday(&tv_start, nullptr);
+    cu::extractPatches(pDevicePatches, pDevicePatchXs, pDevicePatchYs,
+        I0, I0x, I0y, pDeviceMidpointX, pDeviceMidpointY, n_patches, op, i_params);
+    gettimeofday(&tv_end, nullptr);
+    extractTime += (tv_end.tv_sec - tv_start.tv_sec) * 1000.0f +
+      (tv_end.tv_usec - tv_start.tv_usec) / 1000.0f;
+
     for (int i = 0; i < n_patches; ++i) {
-      patches[i]->InitializePatch(I0, I0x, I0y, midpoints_ref[i]);
+      patches[i]->InitializePatch(pHostDevicePatches[i],
+          pHostDevicePatchXs[i], pHostDevicePatchYs[i], midpoints_ref[i]);
       p_init[i].setZero();
     }
 
@@ -171,22 +241,20 @@ namespace OFC {
 
   void PatGridClass::printTimings() {
 
-    double tot_extractTime = 0, tot_hessianTime = 0,
+    double tot_hessianTime = 0,
            tot_projectionTime = 0, tot_costTime = 0,
            tot_interpolateTime = 0, tot_meanTime = 0;
-    int tot_extractCalls = 0, tot_hessianCalls = 0,
+    int tot_hessianCalls = 0,
         tot_projectionCalls = 0, tot_costCalls = 0,
         tot_interpolateCalls = 0, tot_meanCalls = 0;
 
     for (auto & element : patches) {
-      tot_extractTime += element->extractTime;
       tot_hessianTime += element->hessianTime;
       tot_projectionTime += element->projectionTime;
       tot_costTime += element->costTime;
       tot_interpolateTime += element->interpolateTime;
       tot_meanTime += element->meanTime;
 
-      tot_extractCalls += element->extractCalls;
       tot_hessianCalls += element->hessianCalls;
       tot_projectionCalls += element->projectionCalls;
       tot_costCalls += element->costCalls;
@@ -197,8 +265,6 @@ namespace OFC {
     cout << endl;
     cout << "===============Timings (ms)===============" << endl;
     cout << "Avg grad descent iterations:        " << float(tot_costCalls) / float(n_patches) << endl;
-    cout << "[extract]      " << tot_extractTime;
-    cout << "  tot => " << tot_extractTime / tot_extractCalls << " avg" << endl;
     cout << "[hessian]      " << tot_hessianTime;
     cout << "  tot => " << tot_hessianTime / tot_hessianCalls << " avg" << endl;
     cout << "[project]      " << tot_projectionTime;
@@ -209,6 +275,7 @@ namespace OFC {
     cout << "  tot => " << tot_interpolateTime / tot_interpolateCalls << " avg" << endl;
     cout << "[mean norm]    " << tot_meanTime;
     cout << "  tot => " << tot_meanTime / tot_meanCalls << " avg" << endl;
+    cout << "[extract]      " << extractTime << endl;
     cout << "[aggregate]    " << aggregateTime << endl;
     cout << "[flow norm]    " << meanTime << endl;
     cout << "==========================================" << endl;

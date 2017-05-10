@@ -10,6 +10,7 @@
 #include <chrono>
 #include <string>
 #include <stdexcept>
+#include <vector>
 
 // CUDA
 #include <cuda.h>
@@ -20,6 +21,9 @@
 #include "../common/Exceptions.h"
 #include "../common/timer.h"
 #include "../sandbox/process.h"
+#include "../patch.h"
+
+using namespace OFC;
 
 namespace cu {
 
@@ -27,6 +31,11 @@ namespace cu {
       float* pDevicePatch, float* pDevicePatchX, float* pDevicePatchY,
       const float* I0, const float* I0x, const float* I0y, int patch_offset,
       int patch_size, int width_pad);
+
+  void extractPatches(float** patches, float** patchxs, float** patchys,
+      const float * I0, const float * I0x, const float * I0y,
+      float* midpointX, float* midpointY, int n_patches,
+      const opt_params* op, const img_params* i_params);
 
 }
 

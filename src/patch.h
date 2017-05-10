@@ -44,8 +44,11 @@ namespace OFC {
 
       ~PatClass();
 
-      void InitializePatch(const float * _I0, const float * _I0x,
-          const float * _I0y, const Eigen::Vector2f _midpoint);
+      // void InitializePatch(const float * _I0, const float * _I0x,
+      //     const float * _I0y, const Eigen::Vector2f _midpoint);
+      void InitializePatch(float * _patch,
+          float * _patchx, float* _patchy,
+          const Eigen::Vector2f _midpoint);
       void SetTargetImage(const float * _I1);
 
       void OptimizeIter(const Eigen::Vector2f p_prev);
@@ -62,8 +65,8 @@ namespace OFC {
       inline const int GetPatchId() const { return patch_id; }
 
       struct timeval tv_start, tv_end;
-      double extractTime, hessianTime, projectionTime, costTime, interpolateTime, meanTime;
-      int extractCalls, hessianCalls, projectionCalls, costCalls, interpolateCalls, meanCalls;
+      double hessianTime, projectionTime, costTime, interpolateTime, meanTime;
+      int hessianCalls, projectionCalls, costCalls, interpolateCalls, meanCalls;
 
     private:
 

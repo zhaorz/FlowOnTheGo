@@ -45,6 +45,10 @@ namespace OFC {
 
       float* pDeviceWeights, *pDeviceFlowOut;
 
+      float** pDevicePatches, ** pDevicePatchXs, ** pDevicePatchYs;
+      float** pHostDevicePatches, **pHostDevicePatchXs, **pHostDevicePatchYs;
+      float* pDeviceMidpointX, * pDeviceMidpointY;
+
       const img_params* i_params;
       const opt_params* op;
 
@@ -56,7 +60,10 @@ namespace OFC {
       struct timeval tv_start, tv_end;
       double aggregateTime;
       double meanTime;
+      double extractTime;
 
+      float* midpointX_host;
+      float* midpointY_host;
       std::vector<OFC::PatClass*> patches; // Patch Objects
       std::vector<Eigen::Vector2f> midpoints_ref; // Midpoints for reference patches
       std::vector<Eigen::Vector2f> p_init; // starting parameters for query patches

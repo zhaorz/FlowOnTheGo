@@ -58,15 +58,14 @@ namespace OFC {
         checkCudaErrors(
             cudaMalloc ((void**) &pDeviceWeights, 4 * sizeof(float)) );
 
+
         // Timing
-        extractTime = 0;
         hessianTime = 0;
         projectionTime = 0;
         costTime = 0;
         interpolateTime = 0;
         meanTime = 0;
 
-        extractCalls = 0;
         hessianCalls = 0;
         projectionCalls = 0;
         costCalls = 0;
@@ -90,12 +89,19 @@ namespace OFC {
 
   }
 
-  void PatClass::InitializePatch(const float * _I0,
-      const float * _I0x, const float * _I0y, const Eigen::Vector2f _midpoint) {
+  // void PatClass::InitializePatch(const float * _I0,
+  //     const float * _I0x, const float * _I0y, const Eigen::Vector2f _midpoint) {
+  void PatClass::InitializePatch(float * _patch,
+      float * _patchx, float * _patchy,
+      const Eigen::Vector2f _midpoint) {
 
-    I0 = _I0;
-    I0x = _I0x;
-    I0y = _I0y;
+    // I0 = _I0;
+    // I0x = _I0x;
+    // I0y = _I0y;
+
+    pDevicePatch = _patch;
+    pDevicePatchX = _patchx;
+    pDevicePatchY = _patchy;
 
     midpoint = _midpoint;
 
@@ -122,6 +128,7 @@ namespace OFC {
     p_state->hessian(1,0) = p_state->hessian(0,1);
 
     gettimeofday(&tv_end, nullptr);
+
     hessianTime += (tv_end.tv_sec - tv_start.tv_sec) * 1000.0f +
       (tv_end.tv_usec - tv_start.tv_usec) / 1000.0f;
     hessianCalls++;
@@ -325,15 +332,9 @@ namespace OFC {
     int lb = -op->patch_size / 2;
     int patch_offset = (x + lb) + (y + lb) * i_params->width_pad;
 
-    gettimeofday(&tv_start, nullptr);
     // Extract patch
-    cu::extractPatch(pDevicePatch, pDevicePatchX, pDevicePatchY,
-        I0, I0x, I0y, patch_offset, op->patch_size, i_params->width_pad);
-
-    gettimeofday(&tv_end, nullptr);
-    extractTime += (tv_end.tv_sec - tv_start.tv_sec) * 1000.0f +
-      (tv_end.tv_usec - tv_start.tv_usec) / 1000.0f;
-    extractCalls++;
+    /*cu::extractPatch(pDevicePatch, pDevicePatchX, pDevicePatchY,
+        I0, I0x, I0y, patch_offset, op->patch_size, i_params->width_pad);*/
 
     gettimeofday(&tv_start, nullptr);
     // Mean Normalization
