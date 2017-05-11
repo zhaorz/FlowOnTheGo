@@ -266,6 +266,58 @@ namespace cu {
   };
 
 
+  void subLaplacianHoriz(
+      float *src, float *dst, float *weights, int height, int width, int stride) {
+
+    const int offset = stride - width;
+
+    float *src_ptr = src,
+          *dst_ptr = dst,
+          *weight_horiz_ptr = weights;
+
+    float *coeffs = new float[height * stride];
+
+    float *coeffs_ptr = coeffs;
+
+    // Calculate coeffs
+    for(int j = 0; j < height; j++) { // faster than for(j=0;j<src->height;j++)
+      for(int i = 0; i < width - 1; i++) {
+        float tmp = (*weight_horiz_ptr)*((*(src_ptr+1))-(*src_ptr));
+
+        *coeffs_ptr = tmp;
+        src_ptr++;
+        weight_horiz_ptr++;
+        coeffs_ptr++;
+      }
+      src_ptr += offset+1;
+      weight_horiz_ptr += offset+1;
+      coeffs_ptr += offset+1;
+    }
+
+    coeffs_ptr = coeffs;
+
+    // Apply
+    for(int j = 0; j < height; j++) { // faster than for(j=0;j<src->height;j++)
+      for(int i = 0; i < width; i++) {
+        float update = 0.0;
+
+        if (i != width - 1)
+          update += *coeffs_ptr;
+        if (i != 0)
+          update -= *(coeffs_ptr-1);
+
+        *dst_ptr += update;
+        dst_ptr++;
+        coeffs_ptr++;
+      }
+      dst_ptr += offset;
+      coeffs_ptr += offset;
+    }
+
+    delete[] coeffs;
+  }
+
+  // TODO: Non-deterministic, see what's up
   void subLaplacianVert(
       float *src, float *dst, float *weights, int height, int stride) {
 

@@ -196,24 +196,29 @@ void compute_smoothness(image_t *dst_horiz, image_t *dst_vert, const image_t *uu
 
 /* sub the laplacian (smoothness term) to the right-hand term */
 void sub_laplacian(image_t *dst, const image_t *src, const image_t *weight_horiz, const image_t *weight_vert){
-  int j;
-  const int offsetline = src->stride-src->width;
-  float *src_ptr = src->c1, *dst_ptr = dst->c1, *weight_horiz_ptr = weight_horiz->c1;
-  // horizontal filtering
-  for(j = 0; j < src->height; j++) { // faster than for(j=0;j<src->height;j++)
-    int i;
-    for(i=src->width;--i;){
-      const float tmp = (*weight_horiz_ptr)*((*(src_ptr+1))-(*src_ptr));
-      *dst_ptr += tmp;
-      *(dst_ptr+1) -= tmp;
-      dst_ptr++;
-      src_ptr++;
-      weight_horiz_ptr++;
-    }
-    dst_ptr += offsetline+1;
-    src_ptr += offsetline+1;
-    weight_horiz_ptr += offsetline+1;
-  }
+
+  cu::subLaplacianHoriz(src->c1, dst->c1, weight_horiz->c1, src->height, src->width, src->stride);
+
+  // int j;
+  // const int offsetline = src->stride-src->width;
+  // float *src_ptr = src->c1,
+  //       *dst_ptr = dst->c1,
+  //       *weight_horiz_ptr = weight_horiz->c1;
+  // // horizontal filtering
+  // for(j = 0; j < src->height; j++) { // faster than for(j=0;j<src->height;j++)
+  //   int i;
+  //   for(i=src->width;--i;){
+  //     const float tmp = (*weight_horiz_ptr)*((*(src_ptr+1))-(*src_ptr));
+  //     *dst_ptr += tmp;
+  //     *(dst_ptr+1) -= tmp;
+  //     dst_ptr++;
+  //     src_ptr++;
+  //     weight_horiz_ptr++;
+  //   }
+  //   dst_ptr += offsetline+1;
+  //   src_ptr += offsetline+1;
+  //   weight_horiz_ptr += offsetline+1;
+  // }
 
   cu::subLaplacianVert(src->c1, dst->c1, weight_vert->c1, src->height, src->stride);
 }

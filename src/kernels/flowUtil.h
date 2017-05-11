@@ -34,6 +34,9 @@ namespace cu {
       color_image_t *Ixz, color_image_t *Iyz, 
       const float half_delta_over3, const float half_beta, const float half_gamma_over3);
 
+  void subLaplacianHoriz(
+      float *src, float *dst, float *weights, int height, int width, int stride);
+
   void subLaplacianVert(
       float *src, float *dst, float *weights, int height, int stride);
 
