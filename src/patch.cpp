@@ -209,7 +209,7 @@ namespace OFC {
       p_state->mares_old = 1e20; // for rate of change, keep mares from last iteration in here. Set high so that loop condition is definitely true on first iteration
       p_state->has_converged=0;
 
-      OptimizeComputeErrImg(true);
+      OptimizeComputeErrImg(false);
 
       p_state->has_opt_started = 1;
       p_state->invalid = false;
@@ -343,7 +343,7 @@ namespace OFC {
     gettimeofday(&tv_start, nullptr);
     // Mean Normalization
     if (op->use_mean_normalization > 0) {
-      cu::normalizeMean(pDevicePatch, op->cublasHandle, op->patch_size);
+      cu::normalizeMean(pDevicePatch, op->patch_size);
     }
 
     gettimeofday(&tv_end, nullptr);
@@ -401,7 +401,7 @@ namespace OFC {
     gettimeofday(&tv_start, nullptr);
     // Mean Normalization
     if (op->use_mean_normalization > 0) {
-      cu::normalizeMean(pDeviceRawDiff, op->cublasHandle, op->patch_size);
+      cu::normalizeMean(pDeviceRawDiff, op->patch_size);
     }
 
     gettimeofday(&tv_end, nullptr);

@@ -46,14 +46,23 @@ __global__ void kernelInterpolatePatch(
 
 }
 
+
 __global__ void kernelNormalizeMean(
-    float* src, float mean, int patch_size) {
+    float* raw, int patch_size) {
 
-  int i = blockIdx.x * patch_size + threadIdx.x;
-
-  src[3 * i]     -= mean;
-  src[3 * i + 1] -= mean;
-  src[3 * i + 2] -= mean;
+  int tid = threadIdx.x;
+  __shared__ float mean;
+  if (tid == 0) {
+    mean = 0.0;
+    for (int i = 0; i < patch_size * patch_size * 3; i++) {
+      mean += raw[i];
+    }
+    mean /= (3 * patch_size * patch_size);
+  }
+  __syncthreads();
+  for (int i = tid; i < 3 * patch_size * patch_size; i += 3 * patch_size) {
+    raw[i] -= mean;
+  }
 
 }
 
@@ -73,19 +82,13 @@ namespace cu {
 
   }
 
-  void normalizeMean(
-      float* src, cublasHandle_t handle, int patchSize) {
+  void normalizeMean(float* src, int patchSize) {
 
-    int nBlocks = patchSize;
-    int nThreadsPerBlock = patchSize;
-
-    float mean;
-    CUBLAS_CHECK (
-        cublasSasum(handle, patchSize * patchSize * 3, src, 1, &mean) );
-    mean = mean / (patchSize * patchSize * 3);
+    int nBlocks = 1;
+    int nThreadsPerBlock = 3 * patchSize;
 
     kernelNormalizeMean<<<nBlocks, nThreadsPerBlock>>>(
-        src, mean, patchSize);
+        src, patchSize);
 
   }
 
