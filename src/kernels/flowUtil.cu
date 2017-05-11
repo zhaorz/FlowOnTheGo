@@ -420,6 +420,53 @@ __global__ void kernelFlowUpdate(
 }
 
 
+__global__ void kernelWarpImage(
+    float *dst1, float *dst2, float *dst3, float *mask,
+    float *src1, float *src2, float *src3,
+    float *wx, float *wy,
+    int height, int width, int stride) {
+
+  int tidx = blockIdx.x * blockDim.x + threadIdx.x;
+
+  int i = tidx % stride;
+  int j = tidx / stride;
+  int offset = j * stride + i;
+
+  if (i < width && j < height) {
+    float xx = i + wx[offset];
+    float yy = j + wy[offset];
+    int x = floor(xx);
+    int y = floor(yy);
+    float dx = xx - x;
+    float dy = yy - y;
+
+    // Set mask according to bounds
+    mask[offset] = (xx >= 0 && xx < width && yy >= 0 && yy < height);
+
+    int x1 = MINMAX_TA(x, width);
+    int x2 = MINMAX_TA(x + 1, width);
+    int y1 = MINMAX_TA(y, height);
+    int y2 = MINMAX_TA(y + 1, height);
+
+    dst1[offset] = 
+      src1[y1 * stride + x1] * (1.0f-dx) * (1.0f-dy) +
+      src1[y1 * stride + x2] * dx * (1.0f-dy) +
+      src1[y2 * stride + x1] * (1.0f-dx) * dy +
+      src1[y2 * stride + x2] * dx * dy;
+    dst2[offset] = 
+      src2[y1 * stride + x1] * (1.0f-dx) * (1.0f-dy) +
+      src2[y1 * stride + x2] * dx * (1.0f-dy) +
+      src2[y2 * stride + x1] * (1.0f-dx) * dy +
+      src2[y2 * stride + x2] * dx * dy;
+    dst3[offset] = 
+      src3[y1 * stride + x1] * (1.0f-dx) * (1.0f-dy) +
+      src3[y1 * stride + x2] * dx * (1.0f-dy) +
+      src3[y2 * stride + x1] * (1.0f-dx) * dy +
+      src3[y2 * stride + x2] * dx * dy;
+
+  }
+}
+
 
 namespace cu {
 
@@ -779,41 +826,28 @@ namespace cu {
   void warpImage(
       color_image_t *dst, image_t *mask, const color_image_t *src, const image_t *wx, const image_t *wy) {
 
-    int i, j, offset, incr_line = mask->stride-mask->width, x, y, x1, x2, y1, y2;
-    float xx, yy, dx, dy;
-    for(j=0,offset=0 ; j<src->height ; j++)
-    {
-      for(i=0 ; i<src->width ; i++,offset++)
-      {
-        xx = i+wx->c1[offset];
-        yy = j+wy->c1[offset];
-        x = floor(xx);
-        y = floor(yy);
-        dx = xx-x;
-        dy = yy-y;
-        mask->c1[offset] = (xx>=0 && xx<=src->width-1 && yy>=0 && yy<=src->height-1);
-        x1 = MINMAX_TA(x,src->width);
-        x2 = MINMAX_TA(x+1,src->width);
-        y1 = MINMAX_TA(y,src->height);
-        y2 = MINMAX_TA(y+1,src->height);
-        dst->c1[offset] = 
-          src->c1[y1*src->stride+x1]*(1.0f-dx)*(1.0f-dy) +
-          src->c1[y1*src->stride+x2]*dx*(1.0f-dy) +
-          src->c1[y2*src->stride+x1]*(1.0f-dx)*dy +
-          src->c1[y2*src->stride+x2]*dx*dy;
-        dst->c2[offset] = 
-          src->c2[y1*src->stride+x1]*(1.0f-dx)*(1.0f-dy) +
-          src->c2[y1*src->stride+x2]*dx*(1.0f-dy) +
-          src->c2[y2*src->stride+x1]*(1.0f-dx)*dy +
-          src->c2[y2*src->stride+x2]*dx*dy;
-        dst->c3[offset] = 
-          src->c3[y1*src->stride+x1]*(1.0f-dx)*(1.0f-dy) +
-          src->c3[y1*src->stride+x2]*dx*(1.0f-dy) +
-          src->c3[y2*src->stride+x1]*(1.0f-dx)*dy +
-          src->c3[y2*src->stride+x2]*dx*dy;
-      }
-      offset += incr_line;
-    }
+    float *d_dst1, *d_dst2, *d_dst3;
+    float *d_src1, *d_src2, *d_src3;
+    float *d_mask, *d_wx,   *d_wy;
+
+    checkCudaErrors( cudaHostGetDevicePointer(&d_dst1, dst->c1,  0) );
+    checkCudaErrors( cudaHostGetDevicePointer(&d_dst2, dst->c2,  0) );
+    checkCudaErrors( cudaHostGetDevicePointer(&d_dst3, dst->c3,  0) );
+    checkCudaErrors( cudaHostGetDevicePointer(&d_src1, src->c1,  0) );
+    checkCudaErrors( cudaHostGetDevicePointer(&d_src2, src->c2,  0) );
+    checkCudaErrors( cudaHostGetDevicePointer(&d_src3, src->c3,  0) );
+    checkCudaErrors( cudaHostGetDevicePointer(&d_mask, mask->c1, 0) );
+    checkCudaErrors( cudaHostGetDevicePointer(&d_wx,   wx->c1,   0) );
+    checkCudaErrors( cudaHostGetDevicePointer(&d_wy,   wy->c1,   0) );
+
+    int N = src->height * src->stride;
+    int nThreadsPerBlock = 64;
+    int nBlocks = (N + nThreadsPerBlock - 1) / nThreadsPerBlock;
+
+    kernelWarpImage<<< nBlocks, nThreadsPerBlock >>> (
+        d_dst1, d_dst2, d_dst3, d_mask,
+        d_src1, d_src2, d_src3,
+        d_wx,   d_wy, src->height, src->width, src->stride);
   }
 
 }
