@@ -9,7 +9,7 @@
 #include <cuda_runtime.h>
 
 #include "../FDF1.0.1/image.h"
-#include "dataTerm.h"
+#include "flowUtil.h"
 
 #define datanorm        0.1f*0.1f      //0.01f // square of the normalization factor
 #define epsilon_color  (0.001f*0.001f) //0.000001f
@@ -75,11 +75,7 @@ __global__ void kernelDataTerm(
           *ixy3p=(float*)Ixyc3 + tidx,
           *iyy3p=(float*)Iyyc3 + tidx,
           *ixz3p=(float*)Ixzc3 + tidx,
-          *iyz3p=(float*) Iyzc3 + tidx, 
-          *uup   = (float*) uuc1 + tidx,
-          *vvp = (float*)vvc1 + tidx,
-          *wxp = (float*)wxc1 + tidx,
-          *wyp = (float*)wyc1 + tidx;
+          *iyz3p=(float*) Iyzc3 + tidx;
 
 
     float tmp, tmp2, n1, n2;
@@ -143,6 +139,30 @@ __global__ void kernelDataTerm(
     *a22p += tmp6*(*iyy3p)*(*iyy3p) + tmp5*(*ixy3p)*(*ixy3p);
     *b1p -=  tmp5*(*ixx3p)*(*ixz3p) + tmp6*(*ixy3p)*(*iyz3p);
     *b2p -=  tmp6*(*iyy3p)*(*iyz3p) + tmp5*(*ixy3p)*(*ixz3p);  
+  }
+
+}
+
+__global__ void kernelSubLaplacianVert(
+    float *src, float *nextSrc,
+    float *dst, float *nextDst,
+    float *weights, int height, int stride) {
+
+  int tidx = blockIdx.x * blockDim.x + threadIdx.x;
+
+  if (tidx < stride) {
+    float *wvp    = weights + tidx,
+          *srcp   = src + tidx,
+          *srcp_s = nextSrc + tidx,
+          *dstp   = dst + tidx,
+          *dstp_s = nextDst + tidx;
+
+    for (int j = 0; j < height - 1; j++) {
+      float tmp = (*wvp) * ((*srcp_s)-(*srcp));
+      *dstp += tmp;
+      *dstp_s -= tmp;
+      wvp += stride; srcp += stride; srcp_s += stride; dstp += stride; dstp_s += stride;
+    }
   }
 
 }
@@ -244,5 +264,24 @@ namespace cu {
         half_delta_over3, half_beta, half_gamma_over3, N);
 
   };
+
+
+  void subLaplacianVert(
+      float *src, float *dst, float *weights, int height, int stride) {
+
+    float *d_src, *d_dst, *d_weights;
+
+    checkCudaErrors( cudaHostGetDevicePointer(&d_src, src, 0) );
+    checkCudaErrors( cudaHostGetDevicePointer(&d_dst, dst, 0) );
+    checkCudaErrors( cudaHostGetDevicePointer(&d_weights, weights, 0) );
+
+    int N = stride;
+    int nThreadsPerBlock = 64;
+    int nBlocks = (N + nThreadsPerBlock - 1) / nThreadsPerBlock;
+
+    kernelSubLaplacianVert<<<nBlocks, nThreadsPerBlock>>>(
+        d_src, d_src + stride, d_dst, d_dst + stride, d_weights, height, stride);
+
+  }
 
 }

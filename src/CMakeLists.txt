@@ -76,7 +76,7 @@ if (ARCH STREQUAL "ARM")
 endif()
 
 set(KERNELS
-  kernels/dataTerm.cu
+  kernels/flowUtil.cu
   kernels/densify.cu
   kernels/interpolate.cu
   kernels/extract.cu
@@ -114,13 +114,13 @@ set_property(TARGET flow APPEND PROPERTY COMPILE_DEFINITIONS "UNIFIED_MEM=1") # 
 target_link_libraries(flow ${OpenCV_LIBS})
 
 # CUDA sandbox
-set(SANDBOX_FILES
-  # sandbox/process_sobel.cpp
-  sandbox/process_sobel.cpp
-  # sandbox/process_resize.cpp
-  # sandbox/process_resizeGrad.cpp
-  # sandbox/process_pad.cpp
-  # sandbox/RgbMatTest.cpp
-  sandbox/sandbox.cpp)
-cuda_add_executable(sandbox ${COMMON} ${KERNELS} ${SANDBOX_FILES})
-target_link_libraries(sandbox ${OpenCV_LIBS})
+# set(SANDBOX_FILES
+#   # sandbox/process_sobel.cpp
+#   sandbox/process_sobel.cpp
+#   # sandbox/process_resize.cpp
+#   # sandbox/process_resizeGrad.cpp
+#   # sandbox/process_pad.cpp
+#   # sandbox/RgbMatTest.cpp
+#   sandbox/sandbox.cpp)
+# cuda_add_executable(sandbox ${COMMON} ${KERNELS} ${SANDBOX_FILES})
+# target_link_libraries(sandbox ${OpenCV_LIBS})

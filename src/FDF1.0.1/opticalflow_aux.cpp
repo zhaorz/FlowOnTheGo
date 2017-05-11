@@ -4,7 +4,7 @@
 #include <string.h>
 
 #include "opticalflow_aux.h"
-#include "../kernels/dataTerm.h"
+#include "../kernels/flowUtil.h"
 
 #include <arm_neon.h>
 
@@ -200,7 +200,7 @@ void sub_laplacian(image_t *dst, const image_t *src, const image_t *weight_horiz
   const int offsetline = src->stride-src->width;
   float *src_ptr = src->c1, *dst_ptr = dst->c1, *weight_horiz_ptr = weight_horiz->c1;
   // horizontal filtering
-  for(j=src->height+1;--j;){ // faster than for(j=0;j<src->height;j++)
+  for(j = 0; j < src->height; j++) { // faster than for(j=0;j<src->height;j++)
     int i;
     for(i=src->width;--i;){
       const float tmp = (*weight_horiz_ptr)*((*(src_ptr+1))-(*src_ptr));
@@ -215,13 +215,7 @@ void sub_laplacian(image_t *dst, const image_t *src, const image_t *weight_horiz
     weight_horiz_ptr += offsetline+1;
   }
 
-  v4sf *wvp = (v4sf*) weight_vert->c1, *srcp = (v4sf*) src->c1, *srcp_s = (v4sf*) (src->c1+src->stride), *dstp = (v4sf*) dst->c1, *dstp_s = (v4sf*) (dst->c1+src->stride);
-  for(j=1+(src->height-1)*src->stride/VECTOR_WIDTH ; --j ;){
-    const v4sf tmp = (*wvp) * ((*srcp_s)-(*srcp));
-    *dstp += tmp;
-    *dstp_s -= tmp;
-    wvp+=1; srcp+=1; srcp_s+=1; dstp+=1; dstp_s+=1;
-  }
+  cu::subLaplacianVert(src->c1, dst->c1, weight_vert->c1, src->height, src->stride);
 }
 
 /* compute the dataterm // REMOVED MATCHING TERM

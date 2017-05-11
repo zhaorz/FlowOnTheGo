@@ -1,5 +1,5 @@
-#ifndef __KERNEL_DATA_TERM_H__
-#define __KERNEL_DATA_TERM_H__
+#ifndef __KERNEL_FLOW_UTIL_H__
+#define __KERNEL_FLOW_UTIL_H__
 
 // System
 #include <iostream>
@@ -34,7 +34,10 @@ namespace cu {
       color_image_t *Ixz, color_image_t *Iyz, 
       const float half_delta_over3, const float half_beta, const float half_gamma_over3);
 
+  void subLaplacianVert(
+      float *src, float *dst, float *weights, int height, int stride);
+
 }
 
-#endif // end __KERNEL_DATA_TERM_H__
+#endif // end __KERNEL_FLOW_UTIL_H__
 
