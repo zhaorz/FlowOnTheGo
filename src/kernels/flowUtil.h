@@ -53,7 +53,7 @@ namespace cu {
       int height, int stride);
 
   void colorImageDerivative(
-      float *dst, float *src, int height, int width, int stride, bool horiz);
+      float *dst, float *src, float *pDeviceKernel, int height, int width, int stride, bool horiz);
 
 }
 

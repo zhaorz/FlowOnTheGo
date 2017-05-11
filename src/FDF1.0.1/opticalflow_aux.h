@@ -13,7 +13,7 @@ extern "C" {
 void image_warp(color_image_t *dst, image_t *mask, const color_image_t *src, const image_t *wx, const image_t *wy);
 
 /* compute image first and second order spatio-temporal derivatives of a color image */
-void get_derivatives(const color_image_t *im1, const color_image_t *im2, const convolution_t *deriv, color_image_t *dx, color_image_t *dy, color_image_t *dt, color_image_t *dxx, color_image_t *dxy, color_image_t *dyy, color_image_t *dxt, color_image_t *dyt);
+void get_derivatives(const color_image_t *im1, const color_image_t *im2, float *deriv, color_image_t *dx, color_image_t *dy, color_image_t *dt, color_image_t *dxx, color_image_t *dxy, color_image_t *dyy, color_image_t *dxt, color_image_t *dyt);
 
 /* compute the smoothness term */
 void compute_smoothness(image_t *dst_horiz, image_t *dst_vert, const image_t *uu, const image_t *vv, const convolution_t *deriv_flow, const float quarter_alpha);

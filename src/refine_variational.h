@@ -52,6 +52,8 @@ namespace OFC {
       const img_params* i_params;
       const opt_params* op;
 
+      float *pDeviceColorDerivativeKernel;
+
   };
 
 }

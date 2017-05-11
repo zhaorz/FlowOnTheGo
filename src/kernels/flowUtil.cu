@@ -592,7 +592,8 @@ namespace cu {
   }
 
   void colorImageDerivative(
-      float *dst, float *src, int height, int width, int stride, bool horiz) {
+      float *dst, float *src, float *pDeviceColorDerivativeKernel, 
+      int height, int width, int stride, bool horiz) {
 
     float *d_dst, *d_src;
 
@@ -609,28 +610,21 @@ namespace cu {
     NppiSize oSrcSize = { width, height };
     NppiPoint oSrcOffset = { 0, 0 };
     NppiSize oSizeROI = { width, height };
-
-    const Npp32f pKernel[5] = { 1.0 / 12.0, 2.0 / 3.0, 0.0, -2.0 / 3.0, 1.0 / 12.0 };
-    Npp32s nMaskSize =  5;
-    Npp32s nAnchor   = 2;  // Kernel is centered over pixel
     NppiBorderType eBorderType = NPP_BORDER_REPLICATE;
 
-    Npp32f* pDeviceKernel;
-    checkCudaErrors( cudaMalloc((void**) &pDeviceKernel, nMaskSize * sizeof(Npp32f)) );
-    checkCudaErrors(
-        cudaMemcpy(pDeviceKernel, pKernel, nMaskSize * sizeof(Npp32f), cudaMemcpyHostToDevice) );
-
+    auto start_nppi_call = now();
     NPP_CHECK_NPP(
         (horiz)
         ? nppiFilterRowBorder_32f_C1R (
           pDeviceSrc, nSrcStep, oSrcSize, oSrcOffset,
-          pDeviceDst, nDstStep, oSizeROI, pDeviceKernel, nMaskSize, nAnchor, eBorderType)
+          pDeviceDst, nDstStep, oSizeROI,
+          pDeviceColorDerivativeKernel, 5, 2, eBorderType)
         : nppiFilterColumnBorder_32f_C1R (
           pDeviceSrc, nSrcStep, oSrcSize, oSrcOffset,
-          pDeviceDst, nDstStep, oSizeROI, pDeviceKernel, nMaskSize, nAnchor, eBorderType)
+          pDeviceDst, nDstStep, oSizeROI,
+          pDeviceColorDerivativeKernel, 5, 2, eBorderType)
         );
-
-    cudaFree(pDeviceKernel);
+    calc_print_elapsed("nppi filter", start_nppi_call);
 
   }
 

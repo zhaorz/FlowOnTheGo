@@ -5,6 +5,11 @@
 
 #include <thread>
 
+// CUDA
+#include <cuda.h>
+#include <cuda_runtime.h>
+#include "common/cuda_helper.h"
+
 #include <Eigen/Core>
 #include <Eigen/LU>
 #include <Eigen/Dense>
@@ -45,6 +50,12 @@ namespace OFC {
       deriv = convolution_new(2, deriv_filter, 0);
       float deriv_filter_flow[2] = {0.0f, -0.5f};
       deriv_flow = convolution_new(1, deriv_filter_flow, 0);
+
+      float pHostColorDerivativeKernel[5] = { 1.0 / 12.0, 2.0 / 3.0, 0.0, -2.0 / 3.0, 1.0 / 12.0 };
+      checkCudaErrors( cudaMalloc((void**) &pDeviceColorDerivativeKernel, 5 * sizeof(float)) );
+      checkCudaErrors(
+          cudaMemcpy(pDeviceColorDerivativeKernel, pHostColorDerivativeKernel,
+            5 * sizeof(float), cudaMemcpyHostToDevice) );
 
       // copy flow initialization into FV structs
       static int noparam = 2; // Optical flow
@@ -161,7 +172,7 @@ namespace OFC {
 
     // compute derivatives
     auto start_get_derivs = now();
-    get_derivatives(im1, w_im2, deriv, Ix, Iy, Iz, Ixx, Ixy, Iyy, Ixz, Iyz);
+    get_derivatives(im1, w_im2, pDeviceColorDerivativeKernel, Ix, Iy, Iz, Ixx, Ixy, Iyy, Ixz, Iyz);
     calc_print_elapsed("RefLevelOF get_derivatives", start_get_derivs);
 
     // erase du and dv
@@ -237,6 +248,8 @@ namespace OFC {
   }
 
 
-  VarRefClass::~VarRefClass() { }
+  VarRefClass::~VarRefClass() {
+    cudaFree(pDeviceColorDerivativeKernel); 
+  }
 
 }

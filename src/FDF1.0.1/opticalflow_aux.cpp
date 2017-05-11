@@ -66,7 +66,7 @@ void image_warp(color_image_t *dst, image_t *mask, const color_image_t *src, con
 
 /* compute image first and second order spatio-temporal derivatives of a color image */
 void get_derivatives(
-    const color_image_t *im1, const color_image_t *im2, const convolution_t *deriv,
+    const color_image_t *im1, const color_image_t *im2, float *pDeviceKernel,
     color_image_t *dx, color_image_t *dy, color_image_t *dt, 
     color_image_t *dxx, color_image_t *dxy, color_image_t *dyy, color_image_t *dxt, color_image_t *dyt)
 {
@@ -80,13 +80,13 @@ void get_derivatives(
   cu::getMeanImageAndDiff(im1->c1, im2->c1, tmp_im2->c1, dt->c1, im1->height, im1->stride);
 
   // compute all other derivatives
-  cu::colorImageDerivative(dx->c1,  tmp_im2->c1, height, width, stride, true); // horizontal
-  cu::colorImageDerivative(dy->c1,  tmp_im2->c1, height, width, stride, false);
-  cu::colorImageDerivative(dxx->c1, dx->c1,      height, width, stride, true);
-  cu::colorImageDerivative(dxy->c1, dx->c1,      height, width, stride, false);
-  cu::colorImageDerivative(dyy->c1, dy->c1,      height, width, stride, false);
-  cu::colorImageDerivative(dxt->c1, dt->c1,      height, width, stride, true);
-  cu::colorImageDerivative(dyt->c1, dt->c1,      height, width, stride, false);
+  cu::colorImageDerivative(dx->c1,  tmp_im2->c1, pDeviceKernel, height, width, stride, true); // horizontal
+  cu::colorImageDerivative(dy->c1,  tmp_im2->c1, pDeviceKernel, height, width, stride, false);
+  cu::colorImageDerivative(dxx->c1, dx->c1,      pDeviceKernel, height, width, stride, true);
+  cu::colorImageDerivative(dxy->c1, dx->c1,      pDeviceKernel, height, width, stride, false);
+  cu::colorImageDerivative(dyy->c1, dy->c1,      pDeviceKernel, height, width, stride, false);
+  cu::colorImageDerivative(dxt->c1, dt->c1,      pDeviceKernel, height, width, stride, true);
+  cu::colorImageDerivative(dyt->c1, dt->c1,      pDeviceKernel, height, width, stride, false);
 
   // free memory
   color_image_delete(tmp_im2);
