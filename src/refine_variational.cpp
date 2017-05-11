@@ -57,6 +57,12 @@ namespace OFC {
           cudaMemcpy(pDeviceColorDerivativeKernel, pHostColorDerivativeKernel,
             5 * sizeof(float), cudaMemcpyHostToDevice) );
 
+      float pHostDerivativeKernel[3] = { 0.5, 0.0, -0.5 };
+      checkCudaErrors( cudaMalloc((void**) &pDeviceDerivativeKernel, 3 * sizeof(float)) );
+      checkCudaErrors(
+          cudaMemcpy(pDeviceDerivativeKernel, pHostDerivativeKernel,
+            3 * sizeof(float), cudaMemcpyHostToDevice) );
+
       // copy flow initialization into FV structs
       static int noparam = 2; // Optical flow
 
@@ -191,7 +197,7 @@ namespace OFC {
 
       //  compute robust function and system
       auto start_smooth = now();
-      compute_smoothness(smooth_horiz, smooth_vert, uu, vv, deriv_flow, vr.tmp_quarter_alpha );
+      compute_smoothness(smooth_horiz, smooth_vert, uu, vv, pDeviceDerivativeKernel, vr.tmp_quarter_alpha );
       calc_print_elapsed(("RefLevelOF " + iterStr + " smoothness").c_str(), start_smooth);
 
       auto start_data = now();
@@ -250,6 +256,7 @@ namespace OFC {
 
   VarRefClass::~VarRefClass() {
     cudaFree(pDeviceColorDerivativeKernel); 
+    cudaFree(pDeviceDerivativeKernel); 
   }
 
 }

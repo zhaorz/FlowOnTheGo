@@ -628,4 +628,43 @@ namespace cu {
 
   }
 
+  // Expects filter kernel of the form
+  //   { -0.5, 0.0, 0.5 }
+  void imageDerivative(
+      float *dst, float *src, float *pDeviceDerivativeKernel, 
+      int height, int width, int stride, bool horiz) {
+
+    float *d_dst, *d_src;
+
+    checkCudaErrors( cudaHostGetDevicePointer(&d_dst, dst, 0) );
+    checkCudaErrors( cudaHostGetDevicePointer(&d_src, src, 0) );
+
+    Npp32f *pDeviceSrc = d_src;
+    Npp32f *pDeviceDst = d_dst;
+
+    size_t elemSize = sizeof(float);
+    unsigned int nSrcStep = stride * elemSize;
+    unsigned int nDstStep = nSrcStep;
+
+    NppiSize oSrcSize = { width, height };
+    NppiPoint oSrcOffset = { 0, 0 };
+    NppiSize oSizeROI = { width, height };
+    NppiBorderType eBorderType = NPP_BORDER_REPLICATE;
+
+    auto start_nppi_call = now();
+    NPP_CHECK_NPP(
+        (horiz)
+        ? nppiFilterRowBorder_32f_C1R (
+          pDeviceSrc, nSrcStep, oSrcSize, oSrcOffset,
+          pDeviceDst, nDstStep, oSizeROI,
+          pDeviceDerivativeKernel, 3, 1, eBorderType)
+        : nppiFilterColumnBorder_32f_C1R (
+          pDeviceSrc, nSrcStep, oSrcSize, oSrcOffset,
+          pDeviceDst, nDstStep, oSizeROI,
+          pDeviceDerivativeKernel, 3, 1, eBorderType)
+        );
+    calc_print_elapsed("nppi 3x1 filter", start_nppi_call);
+
+  }
+
 }

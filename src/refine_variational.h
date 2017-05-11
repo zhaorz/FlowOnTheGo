@@ -53,6 +53,7 @@ namespace OFC {
       const opt_params* op;
 
       float *pDeviceColorDerivativeKernel;
+      float *pDeviceDerivativeKernel;
 
   };
 

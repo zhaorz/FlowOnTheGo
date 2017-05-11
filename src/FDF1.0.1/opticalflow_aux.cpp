@@ -97,15 +97,17 @@ void get_derivatives(
 /* It is represented as two images, the first one for horizontal smoothness, the second for vertical
    in dst_horiz, the pixel i,j represents the smoothness weight between pixel i,j and i,j+1
    in dst_vert, the pixel i,j represents the smoothness weight between pixel i,j and i+1,j */
-void compute_smoothness(image_t *dst_horiz, image_t *dst_vert, const image_t *uu, const image_t *vv, const convolution_t *deriv_flow, const float quarter_alpha){
+void compute_smoothness(image_t *dst_horiz, image_t *dst_vert, const image_t *uu, const image_t *vv, float *deriv_flow, const float quarter_alpha){
   const int width = uu->width, height = vv->height, stride = uu->stride;
   int j;
   image_t *ux = image_new(width,height), *vx = image_new(width,height), *uy = image_new(width,height), *vy = image_new(width,height), *smoothness = image_new(width,height);
+
   // compute derivatives [-0.5 0 0.5]
-  convolve_horiz(ux, uu, deriv_flow);
-  convolve_horiz(vx, vv, deriv_flow);
-  convolve_vert(uy, uu, deriv_flow);
-  convolve_vert(vy, vv, deriv_flow);
+  cu::imageDerivative(ux->c1, uu->c1, deriv_flow, height, width, stride, true);
+  cu::imageDerivative(vx->c1, vv->c1, deriv_flow, height, width, stride, true);
+  cu::imageDerivative(uy->c1, uu->c1, deriv_flow, height, width, stride, false);
+  cu::imageDerivative(vy->c1, vv->c1, deriv_flow, height, width, stride, false);
+
   // compute smoothness
   v4sf *uxp = (v4sf*) ux->c1, *vxp = (v4sf*) vx->c1, *uyp = (v4sf*) uy->c1, *vyp = (v4sf*) vy->c1, *sp = (v4sf*) smoothness->c1;
 #if (VECTOR_WIDTH == 4)

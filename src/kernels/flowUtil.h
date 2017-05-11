@@ -55,6 +55,9 @@ namespace cu {
   void colorImageDerivative(
       float *dst, float *src, float *pDeviceKernel, int height, int width, int stride, bool horiz);
 
+  void imageDerivative(
+      float *dst, float *src, float *pDeviceKernel, int height, int width, int stride, bool horiz);
+
 }
 
 #endif // end __KERNEL_FLOW_UTIL_H__
