@@ -362,6 +362,48 @@ __global__ void kernelGetMeanImageAndDiff(
 }
 
 
+__global__ void kernelFlowMag(
+    float *dst,  float *ux,  float *uy,  float *vx,  float *vy,
+    float qa, float epsmooth, int height, int width, int stride) {
+
+  int tidx = blockIdx.x * blockDim.x + threadIdx.x;
+
+  if (tidx < stride) {
+    float *uxp = ux + tidx,
+          *uyp = uy + tidx,
+          *vxp = vx + tidx,
+          *vyp = vy + tidx,
+          *sp  = dst + tidx;
+
+    for (int j = 0; j < height; j++) {
+      *sp = qa / sqrtf(
+          (*uxp)*(*uxp) + (*uyp)*(*uyp) + (*vxp)*(*vxp) + (*vyp)*(*vyp) + epsmooth );
+
+      uxp += stride; uyp += stride; vxp += stride; vyp += stride; sp += stride;
+    }
+  }
+}
+
+
+__global__ void kernelSmoothnessHoriz(
+    float *dst, float *smoothness, int height, int width, int stride) {
+
+  int tidx = blockIdx.x * blockDim.x + threadIdx.x;
+
+  if (tidx < stride) {
+    float *dstp = dst + tidx,
+          *sp   = smoothness + tidx;
+
+    for (int j = 0; j < height; j++) {
+      *dstp = *sp + *(sp + 1);
+
+      dstp += stride; sp += stride;
+    }
+
+  }
+}
+
+
 
 namespace cu {
 
@@ -669,9 +711,64 @@ namespace cu {
 
   void smoothnessTerm(
       float *dst_horiz, float *dst_vert, float *smoothness,
-      const float *ux, const float *uy, const float *vx, const float *vy,
-      float quarter_alpha, float epsilon_smooth,
+      float *ux,  float *uy,  float *vx,  float *vy,
+      float qa, float epsmooth,
       int height, int width, int stride) {
+
+    // compute smoothness
+    float *sp =  smoothness;
+
+    float *d_dst_horiz, *d_dst_vert, *d_smoothness, *d_ux, *d_uy, *d_vx, *d_vy;
+
+    checkCudaErrors( cudaHostGetDevicePointer(&d_dst_horiz,     dst_horiz,  0) );
+    checkCudaErrors( cudaHostGetDevicePointer(&d_dst_vert,      dst_vert,   0) );
+    checkCudaErrors( cudaHostGetDevicePointer(&d_smoothness,    smoothness, 0) );
+    checkCudaErrors( cudaHostGetDevicePointer(&d_ux,            ux,         0) );
+    checkCudaErrors( cudaHostGetDevicePointer(&d_uy,            uy,         0) );
+    checkCudaErrors( cudaHostGetDevicePointer(&d_vx,            vx,         0) );
+    checkCudaErrors( cudaHostGetDevicePointer(&d_vy,            vy,         0) );
+
+    int N = stride;
+    int nThreadsPerBlock = 64;
+    int nBlocks = (N + nThreadsPerBlock - 1) / nThreadsPerBlock;
+
+    auto start_flow_mag = now();
+    kernelFlowMag<<<nBlocks, nThreadsPerBlock>>> (
+        d_smoothness, d_ux, d_uy, d_vx, d_vy,
+        qa, epsmooth, height, width, stride);
+
+    cudaDeviceSynchronize();
+    calc_print_elapsed("smoothness flow_mag", start_flow_mag);
+
+    auto start_horiz = now();
+    kernelSmoothnessHoriz<<< nBlocks, nThreadsPerBlock >>> (
+        d_dst_horiz, d_smoothness, height, width, stride);
+
+    cudaDeviceSynchronize();
+    calc_print_elapsed("smoothness horiz", start_horiz);
+
+    // for(int j=0 ; j< height*stride; j++){
+    //   *sp = qa / sqrtf(
+    //       (*uxp)*(*uxp) + (*uyp)*(*uyp) + (*vxp)*(*vxp) + (*vyp)*(*vyp) + epsmooth );
+
+    //   sp+=1;uxp+=1; uyp+=1; vxp+=1; vyp+=1;
+    // }
+
+    // compute dst_horiz
+    // float *dsthp = (float*) dst_horiz; sp = (float*) smoothness;
+    // for(int j=0;j<height;j++){
+    //   for(int i = 0; i < stride; i++){
+    //     *dsthp = (*sp) + (*(sp + 1));
+    //     dsthp+=1; sp+=1;
+    //   }
+    // }
+
+    // compute dst_vert
+    float *dstvp = (float*) dst_vert, *sp_bottom = (float*) (smoothness+stride); sp = (float*) smoothness;
+    for(int j = 1 ; j < (height - 1) * stride; j++){
+      *dstvp = (*sp) + (*sp_bottom);
+      dstvp+=1; sp+=1; sp_bottom+=1;
+    }
 
   }
 

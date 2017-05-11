@@ -108,36 +108,42 @@ void compute_smoothness(image_t *dst_horiz, image_t *dst_vert, const image_t *uu
   cu::imageDerivative(uy->c1, uu->c1, deriv_flow, height, width, stride, false);
   cu::imageDerivative(vy->c1, vv->c1, deriv_flow, height, width, stride, false);
 
+  cu::smoothnessTerm(
+      dst_horiz->c1, dst_vert->c1, smoothness->c1,
+      ux->c1, uy->c1, vx->c1, vy->c1,
+      quarter_alpha, epsilon_smooth,
+      height, width, stride);
+
   // compute smoothness
-  float *uxp = (float*) ux->c1, *vxp = (float*) vx->c1, *uyp = (float*) uy->c1, *vyp = (float*) vy->c1, *sp = (float*) smoothness->c1;
-  const float qa = quarter_alpha;
-  const float epsmooth = epsilon_smooth;
+  // float *uxp = (float*) ux->c1, *vxp = (float*) vx->c1, *uyp = (float*) uy->c1, *vyp = (float*) vy->c1, *sp = (float*) smoothness->c1;
+  // const float qa = quarter_alpha;
+  // const float epsmooth = epsilon_smooth;
 
-  for(j=0 ; j< height*stride; j++){
-    *sp = qa / sqrtf(
-        (*uxp)*(*uxp) + (*uyp)*(*uyp) + (*vxp)*(*vxp) + (*vyp)*(*vyp) + epsmooth );
+  // for(j=0 ; j< height*stride; j++){
+  //   *sp = qa / sqrtf(
+  //       (*uxp)*(*uxp) + (*uyp)*(*uyp) + (*vxp)*(*vxp) + (*vyp)*(*vyp) + epsmooth );
 
-    sp+=1;uxp+=1; uyp+=1; vxp+=1; vyp+=1;
-  }
+  //   sp+=1;uxp+=1; uyp+=1; vxp+=1; vyp+=1;
+  // }
 
-  // compute dst_horiz
-  float *dsthp = (float*) dst_horiz->c1; sp = (float*) smoothness->c1;
-  for(j=0;j<height;j++){
-    // create an aligned copy
-    float *spf = (float*) sp;
+  // // compute dst_horiz
+  // float *dsthp = (float*) dst_horiz->c1; sp = (float*) smoothness->c1;
+  // for(j=0;j<height;j++){
+  //   // create an aligned copy
+  //   float *spf = (float*) sp;
 
-    for(int i = 0; i < stride; i++){
-      *dsthp = (*sp) + (*(sp + 1));
-      dsthp+=1; sp+=1;
-    }
-  }
+  //   for(int i = 0; i < stride; i++){
+  //     *dsthp = (*sp) + (*(sp + 1));
+  //     dsthp+=1; sp+=1;
+  //   }
+  // }
 
-  // compute dst_vert
-  float *dstvp = (float*) dst_vert->c1, *sp_bottom = (float*) (smoothness->c1+stride); sp = (float*) smoothness->c1;
-  for(j = 1 ; j < (height - 1) * stride; j++){
-    *dstvp = (*sp) + (*sp_bottom);
-    dstvp+=1; sp+=1; sp_bottom+=1;
-  }
+  // // compute dst_vert
+  // float *dstvp = (float*) dst_vert->c1, *sp_bottom = (float*) (smoothness->c1+stride); sp = (float*) smoothness->c1;
+  // for(j = 1 ; j < (height - 1) * stride; j++){
+  //   *dstvp = (*sp) + (*sp_bottom);
+  //   dstvp+=1; sp+=1; sp_bottom+=1;
+  // }
 
   // Cleanup extra columns
   for(j=0;j<height;j++){
