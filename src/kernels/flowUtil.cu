@@ -8,6 +8,10 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 
+// NVIDIA Perf Primitives
+#include <nppi.h>
+#include <nppi_filtering_functions.h>
+
 #include "../common/timer.h"
 #include "../FDF1.0.1/image.h"
 #include "flowUtil.h"
@@ -584,6 +588,49 @@ namespace cu {
     kernelGetMeanImageAndDiff<<<nBlocks, nThreadsPerBlock>>>(
         d_img1, d_img2, d_avgImg, d_diff,
         height, stride);
+
+  }
+
+  void colorImageDerivative(
+      float *dst, float *src, int height, int width, int stride, bool horiz) {
+
+    float *d_dst, *d_src;
+
+    checkCudaErrors( cudaHostGetDevicePointer(&d_dst, dst, 0) );
+    checkCudaErrors( cudaHostGetDevicePointer(&d_src, src, 0) );
+
+    Npp32f *pDeviceSrc = d_src;
+    Npp32f *pDeviceDst = d_dst;
+
+    size_t elemSize = sizeof(float);
+    unsigned int nSrcStep = stride * elemSize;
+    unsigned int nDstStep = nSrcStep;
+
+    NppiSize oSrcSize = { width, height };
+    NppiPoint oSrcOffset = { 0, 0 };
+    NppiSize oSizeROI = { width, height };
+
+    const Npp32f pKernel[5] = { 1.0 / 12.0, 2.0 / 3.0, 0.0, -2.0 / 3.0, 1.0 / 12.0 };
+    Npp32s nMaskSize =  5;
+    Npp32s nAnchor   = 2;  // Kernel is centered over pixel
+    NppiBorderType eBorderType = NPP_BORDER_REPLICATE;
+
+    Npp32f* pDeviceKernel;
+    checkCudaErrors( cudaMalloc((void**) &pDeviceKernel, nMaskSize * sizeof(Npp32f)) );
+    checkCudaErrors(
+        cudaMemcpy(pDeviceKernel, pKernel, nMaskSize * sizeof(Npp32f), cudaMemcpyHostToDevice) );
+
+    NPP_CHECK_NPP(
+        (horiz)
+        ? nppiFilterRowBorder_32f_C1R (
+          pDeviceSrc, nSrcStep, oSrcSize, oSrcOffset,
+          pDeviceDst, nDstStep, oSizeROI, pDeviceKernel, nMaskSize, nAnchor, eBorderType)
+        : nppiFilterColumnBorder_32f_C1R (
+          pDeviceSrc, nSrcStep, oSrcSize, oSrcOffset,
+          pDeviceDst, nDstStep, oSizeROI, pDeviceKernel, nMaskSize, nAnchor, eBorderType)
+        );
+
+    cudaFree(pDeviceKernel);
 
   }
 

@@ -52,6 +52,9 @@ namespace cu {
       float *img1, float *img2, float *avgImg, float *diff,
       int height, int stride);
 
+  void colorImageDerivative(
+      float *dst, float *src, int height, int width, int stride, bool horiz);
+
 }
 
 #endif // end __KERNEL_FLOW_UTIL_H__

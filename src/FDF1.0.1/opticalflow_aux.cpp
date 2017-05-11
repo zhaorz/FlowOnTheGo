@@ -5,8 +5,11 @@
 
 #include "opticalflow_aux.h"
 #include "../kernels/flowUtil.h"
+#include "../common/timer.h"
 
 #include <arm_neon.h>
+
+using namespace timer;
 
 #if (VECTOR_WIDTH == 4)
 typedef float32x4_t v4sf;
@@ -70,45 +73,23 @@ void get_derivatives(
   // derivatives are computed on the mean of the first image and the warped second image
   color_image_t *tmp_im2 = color_image_new(im2->width,im2->height);    
 
+  int height = im2->height;
+  int width = im2->width;
+  int stride = im2->stride;
+
   cu::getMeanImageAndDiff(im1->c1, im2->c1, tmp_im2->c1, dt->c1, im1->height, im1->stride);
 
   // compute all other derivatives
-  color_image_convolve_hv(dx, tmp_im2, deriv, NULL);
-  color_image_convolve_hv(dy, tmp_im2, NULL, deriv);
-  color_image_convolve_hv(dxx, dx, deriv, NULL);
-  color_image_convolve_hv(dxy, dx, NULL, deriv);
-  color_image_convolve_hv(dyy, dy, NULL, deriv);
-  color_image_convolve_hv(dxt, dt, deriv, NULL);
-  color_image_convolve_hv(dyt, dt, NULL, deriv);
+  cu::colorImageDerivative(dx->c1,  tmp_im2->c1, height, width, stride, true); // horizontal
+  cu::colorImageDerivative(dy->c1,  tmp_im2->c1, height, width, stride, false);
+  cu::colorImageDerivative(dxx->c1, dx->c1,      height, width, stride, true);
+  cu::colorImageDerivative(dxy->c1, dx->c1,      height, width, stride, false);
+  cu::colorImageDerivative(dyy->c1, dy->c1,      height, width, stride, false);
+  cu::colorImageDerivative(dxt->c1, dt->c1,      height, width, stride, true);
+  cu::colorImageDerivative(dyt->c1, dt->c1,      height, width, stride, false);
+
   // free memory
   color_image_delete(tmp_im2);
-
-
-
-//   // derivatives are computed on the mean of the first image and the warped second image
-//   color_image_t *tmp_im2 = color_image_new(im2->width,im2->height);    
-//   v4sf *tmp_im2p = (v4sf*) tmp_im2->c1, *dtp = (v4sf*) dt->c1, *im1p = (v4sf*) im1->c1, *im2p = (v4sf*) im2->c1;
-// #if (VECTOR_WIDTH == 4)
-//   const v4sf half = {0.5f,0.5f,0.5f,0.5f};
-// #else
-//   const v4sf half = 0.5f;
-// #endif
-//   int i=0;
-//   for(i=0 ; i<3*im1->height*im1->stride/VECTOR_WIDTH; i++){
-//     *tmp_im2p = half * ( (*im2p) + (*im1p) );
-//     *dtp = (*im2p)-(*im1p);
-//     dtp+=1; im1p+=1; im2p+=1; tmp_im2p+=1;
-//   }   
-//   // compute all other derivatives
-//   color_image_convolve_hv(dx, tmp_im2, deriv, NULL);
-//   color_image_convolve_hv(dy, tmp_im2, NULL, deriv);
-//   color_image_convolve_hv(dxx, dx, deriv, NULL);
-//   color_image_convolve_hv(dxy, dx, NULL, deriv);
-//   color_image_convolve_hv(dyy, dy, NULL, deriv);
-//   color_image_convolve_hv(dxt, dt, deriv, NULL);
-//   color_image_convolve_hv(dyt, dt, NULL, deriv);
-//   // free memory
-//   color_image_delete(tmp_im2);
 }
 
 
