@@ -109,47 +109,43 @@ void compute_smoothness(image_t *dst_horiz, image_t *dst_vert, const image_t *uu
   cu::imageDerivative(vy->c1, vv->c1, deriv_flow, height, width, stride, false);
 
   // compute smoothness
-  v4sf *uxp = (v4sf*) ux->c1, *vxp = (v4sf*) vx->c1, *uyp = (v4sf*) uy->c1, *vyp = (v4sf*) vy->c1, *sp = (v4sf*) smoothness->c1;
-#if (VECTOR_WIDTH == 4)
-  const v4sf qa = {quarter_alpha,quarter_alpha,quarter_alpha,quarter_alpha};
-  const v4sf epsmooth = {epsilon_smooth,epsilon_smooth,epsilon_smooth,epsilon_smooth};
-#else
-  const v4sf qa = quarter_alpha;
-  const v4sf epsmooth = epsilon_smooth;
-#endif
-  for(j=0 ; j< height*stride/VECTOR_WIDTH ; j++){
-#if (VECTOR_WIDTH == 4)
-    *sp = qa / vsqrtq_f32(
-        (*uxp)*(*uxp) + (*uyp)*(*uyp) + (*vxp)*(*vxp) + (*vyp)*(*vyp) + epsmooth );
-#else
+  float *uxp = (float*) ux->c1, *vxp = (float*) vx->c1, *uyp = (float*) uy->c1, *vyp = (float*) vy->c1, *sp = (float*) smoothness->c1;
+  const float qa = quarter_alpha;
+  const float epsmooth = epsilon_smooth;
+
+  for(j=0 ; j< height*stride; j++){
     *sp = qa / sqrtf(
         (*uxp)*(*uxp) + (*uyp)*(*uyp) + (*vxp)*(*vxp) + (*vyp)*(*vyp) + epsmooth );
-#endif
+
     sp+=1;uxp+=1; uyp+=1; vxp+=1; vyp+=1;
   }
+
   image_delete(ux); image_delete(uy); image_delete(vx); image_delete(vy); 
+
+
   // compute dst_horiz
-  v4sf *dsthp = (v4sf*) dst_horiz->c1; sp = (v4sf*) smoothness->c1;
-  float *sp_shift = (float*) memalign(16, stride*sizeof(float)); // aligned shifted copy of the current line
+  float *dsthp = (float*) dst_horiz->c1; sp = (float*) smoothness->c1;
   for(j=0;j<height;j++){
     // create an aligned copy
     float *spf = (float*) sp;
-    memcpy(sp_shift, spf+1, sizeof(float)*(stride-1));
-    v4sf *sps = (v4sf*) sp_shift;
-    int i;
-    for(i=0;i<stride/VECTOR_WIDTH;i++){
-      *dsthp = (*sp) + (*sps);
-      dsthp+=1; sp+=1; sps+=1;
+
+    for(int i = 0; i < stride; i++){
+      *dsthp = (*sp) + (*(sp + 1));
+      dsthp+=1; sp+=1;
     }
+
+    // Cleanup extra columns
     memset( &dst_horiz->c1[j*stride+width-1], 0, sizeof(float)*(stride-width+1));
   }
-  free(sp_shift);
+
   // compute dst_vert
-  v4sf *dstvp = (v4sf*) dst_vert->c1, *sp_bottom = (v4sf*) (smoothness->c1+stride); sp = (v4sf*) smoothness->c1;
-  for(j=0 ; j<(height-1)*stride/VECTOR_WIDTH ; j++){
+  float *dstvp = (float*) dst_vert->c1, *sp_bottom = (float*) (smoothness->c1+stride); sp = (float*) smoothness->c1;
+  for(j = 0 ; j < (height - 1) * stride; j++){
     *dstvp = (*sp) + (*sp_bottom);
     dstvp+=1; sp+=1; sp_bottom+=1;
   }
+
+  // Cleanup last row
   memset( &dst_vert->c1[(height-1)*stride], 0, sizeof(float)*stride);
   image_delete(smoothness);
 }
