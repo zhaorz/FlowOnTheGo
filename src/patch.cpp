@@ -50,10 +50,10 @@ namespace OFC {
             cudaMalloc ((void**) &pDevicePatchX, patch_x.size() * sizeof(float)) );
         checkCudaErrors(
             cudaMalloc ((void**) &pDevicePatchY, patch_y.size() * sizeof(float)) );*/
-        checkCudaErrors(
+        /*checkCudaErrors(
             cudaMalloc ((void**) &pDeviceRawDiff, patch.size() * sizeof(float)) );
         checkCudaErrors(
-            cudaMalloc ((void**) &pDeviceCostDiff, patch.size() * sizeof(float)) );
+            cudaMalloc ((void**) &pDeviceCostDiff, patch.size() * sizeof(float)) );*/
         checkCudaErrors(
             cudaMalloc ((void**) &pDeviceWeights, 4 * sizeof(float)) );
 
@@ -80,8 +80,8 @@ namespace OFC {
     cudaFree(pDevicePatchX);
     cudaFree(pDevicePatchY);*/
 
-    cudaFree(pDeviceRawDiff);
-    cudaFree(pDeviceCostDiff);
+    // cudaFree(pDeviceRawDiff);
+    // cudaFree(pDeviceCostDiff);
     cudaFree(pDeviceWeights);
 
     delete p_state;
@@ -181,7 +181,7 @@ namespace OFC {
     p_state->cost = 0.0;
   }
 
-  void PatClass::OptimizeStart(const Eigen::Vector2f p_prev) {
+  void PatClass::OptimizeStart(const Eigen::Vector2f p_prev, float c) {
 
     p_state->p_org = p_prev;
     p_state->p_cur = p_prev;
@@ -209,7 +209,7 @@ namespace OFC {
       p_state->mares_old = 1e20; // for rate of change, keep mares from last iteration in here. Set high so that loop condition is definitely true on first iteration
       p_state->has_converged=0;
 
-      OptimizeComputeErrImg(false);
+      OptimizeComputeErrImg(false, c);
 
       p_state->has_opt_started = 1;
       p_state->invalid = false;
@@ -263,7 +263,7 @@ namespace OFC {
 
       }
 
-      OptimizeComputeErrImg(true);
+      OptimizeComputeErrImg(true, -0.0);
 
     }
 
@@ -282,7 +282,7 @@ namespace OFC {
     const float alpha = -1.0;
 
     gettimeofday(&tv_start, nullptr);
-    // raw = patch - raw
+    // raw = raw - patch
     CUBLAS_CHECK (
         cublasSaxpy(op->cublasHandle, patch.size(), &alpha,
           pDevicePatch, 1, pDeviceRawDiff, 1) );
@@ -304,11 +304,14 @@ namespace OFC {
 
   }
 
-  void PatClass::OptimizeComputeErrImg(bool interp) {
+  void PatClass::OptimizeComputeErrImg(bool interp, float c) {
 
-    if (interp)
+    if (interp) {
       InterpolatePatch();
-    ComputeCostErr();
+      ComputeCostErr();
+    } else {
+      p_state->cost = c;
+    }
 
     // Compute step norm
     p_state->delta_p_sq_norm = p_state->delta_p.squaredNorm();

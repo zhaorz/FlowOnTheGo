@@ -23,13 +23,15 @@
 
 __global__ void kernelInterpolateAndComputeErr(
     dev_patch_state* states, float** raw_diff, float** costs,
-    const float* I1, int n_patches, int padding, int patch_size,
+    float** patches, const float* I1, int n_patches, 
+    int padding, int patch_size,
     int width_pad, bool project) {
 
   int patchId = blockIdx.x;
   int tid = threadIdx.x;
   float* raw = raw_diff[patchId];
   float* cost = costs[patchId];
+  float* patch = patches[patchId];
   dev_patch_state state = states[patchId];
 
   
@@ -72,7 +74,7 @@ __global__ void kernelInterpolateAndComputeErr(
 
   }
 
-  // Mean normalize
+  // Compute mean
   __shared__ float mean;
 
   if (tid == 0) {
@@ -87,11 +89,21 @@ __global__ void kernelInterpolateAndComputeErr(
 
   __syncthreads();
 
+  // Normalize and compute cost
   for (int i = tid; i < patch_size * patch_size * 3;
       i+= 3 * patch_size) {
     raw[i] -= mean;
+    raw[i] -= patch[i];
+    cost[i] = raw[i] * raw[i];
   }
 
+  if (tid == 0) {
+    float c = 0.0;
+    for (int i = 0; i < patch_size * patch_size * 3; i++) {
+      c += cost[i];
+    }
+    states[patchId].cost = c;
+  }
 
 }
 
@@ -100,15 +112,16 @@ __global__ void kernelInterpolateAndComputeErr(
 namespace cu {
 
   void interpolateAndComputeErr(dev_patch_state* states,
-      float** raw_diff, float** costs, const float* I1, int n_patches,
-      const opt_params* op, const img_params* i_params, bool project) {
+      float** raw_diff, float** costs, float** patches, const float* I1,
+      int n_patches, const opt_params* op,
+      const img_params* i_params, bool project) {
 
     int nBlocks = n_patches;
     int nThreadsPerBlock = 3 * op->patch_size;
 
     kernelInterpolateAndComputeErr<<<nBlocks, nThreadsPerBlock>>>(
-        states, raw_diff, costs, I1, n_patches, i_params->padding,
-        op->patch_size, i_params->width_pad, project);
+        states, raw_diff, costs, patches, I1, n_patches,
+        i_params->padding, op->patch_size, i_params->width_pad, project);
 
 
   }

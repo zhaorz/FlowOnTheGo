@@ -310,20 +310,19 @@ namespace OFC {
   void PatGridClass::OptimizeSetup() {
 
     cu::interpolateAndComputeErr(pDevicePatchStates,
-        pDeviceRaws, pDeviceCosts, I1, n_patches,
-        op, i_params, false);
+        pDeviceRaws, pDeviceCosts, pDevicePatches, I1,
+        n_patches, op, i_params, false);
 
+    float* raw, *costs;
+    float c;
     for (int i = 0; i < n_patches; ++i) {
+      patches[i]->setRawP(pHostDeviceRaws[i]);
+      patches[i]->setCostP(pHostDeviceCosts[i]);
       checkCudaErrors(
-          cudaMemcpy(patches[i]->getRawP(), 
-            pHostDeviceRaws[i], op->n_vals * sizeof(float),
+          cudaMemcpy(&c, &(pDevicePatchStates[i].cost), sizeof(float),
             cudaMemcpyDeviceToHost) );
-      /*checkCudaErrors(
-          cudaMemcpy(patches[i]->getCostP, 
-            pHostDeviceCosts[i], op->n_vals * sizeof(float),
-            cudaMemcpyDeviceToHost) );*/
 
-      patches[i]->OptimizeStart(p_init[i]);
+      patches[i]->OptimizeStart(p_init[i], c);
     }
 
   }

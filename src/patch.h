@@ -76,7 +76,7 @@ namespace OFC {
           const Eigen::Vector2f _midpoint);
       void SetTargetImage(const float * _I1);
 
-      void OptimizeStart(const Eigen::Vector2f p_prev);
+      void OptimizeStart(const Eigen::Vector2f p_prev, float c);
       void OptimizeIter();
 
       inline const bool IsConverged() const { return p_state->has_converged; }
@@ -86,6 +86,8 @@ namespace OFC {
       inline float * GetDeviceCostDiffPtr() const { return (float*) pDeviceCostDiff; }
       inline float * getCostP() { return (float*) pDeviceCostDiff; }
       inline float * getRawP() { return (float*) pDeviceRawDiff; }
+      inline void setRawP(float* raw) { pDeviceRawDiff = raw; }
+      inline void setCostP(float* cost) { pDeviceCostDiff = cost; }
 
 
       inline const Eigen::Vector2f* GetCurP() const { return &(p_state->p_cur); }
@@ -98,7 +100,7 @@ namespace OFC {
 
     private:
 
-      void OptimizeComputeErrImg(bool interp);
+      void OptimizeComputeErrImg(bool interp, float cost);
       void UpdateMidpoint();
       void ResetPatchState();
       void ComputeHessian(float H00, float H01, float H11);

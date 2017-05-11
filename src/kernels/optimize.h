@@ -30,8 +30,9 @@ using namespace OFC;
 namespace cu {
 
   void interpolateAndComputeErr(dev_patch_state* states,
-      float** raw_diff, float** costs, const float* I1, int n_patches,
-      const opt_params* op, const img_params* i_params, bool project);
+      float** raw_diff, float** costs, float** patches, const float* I1,
+      int n_patches, const opt_params* op,
+      const img_params* i_params, bool project);
 
 
 }
