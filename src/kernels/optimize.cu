@@ -89,6 +89,8 @@ __device__ void calcProjection(dev_patch_state* states,
 
   }
 
+  __syncthreads();
+
 }
 
 
@@ -117,6 +119,7 @@ __global__ void kernelInterpolateAndComputeErr(
       calcProjection(states, patchX, patchY, tempX, tempY, raw, patch_size,
           out_thresh, lb, ubw, ubh);
     }
+    __syncthreads();
 
 
     // Interpolate the patch
@@ -158,6 +161,8 @@ __global__ void kernelInterpolateAndComputeErr(
 
     }
 
+    __syncthreads();
+
     // Compute mean
     __shared__ float mean;
 
@@ -180,6 +185,8 @@ __global__ void kernelInterpolateAndComputeErr(
       raw[i] -= patch[i];
       cost[i] = raw[i] * raw[i];
     }
+
+    __syncthreads();
 
     if (tid == 0) {
       float c = 0.0;
@@ -215,6 +222,8 @@ __global__ void kernelInterpolateAndComputeErr(
     }
 
     notFirst = true;
+
+    __syncthreads();
 
   }
 
