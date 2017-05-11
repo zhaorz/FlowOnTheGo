@@ -55,6 +55,10 @@ namespace OFC {
       float** pHostDevicePatches, **pHostDevicePatchXs, **pHostDevicePatchYs;
       float* pDeviceMidpointX, * pDeviceMidpointY;
 
+      // Raw Diff and Costs
+      float** pDeviceRaws, **pDeviceCosts;
+      float** pHostDeviceRaws, **pHostDeviceCosts;
+
       // Hessian
       // TODO: Can we shared memory?
       float** pDeviceTempXX, ** pDeviceTempXY, ** pDeviceTempYY;

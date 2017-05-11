@@ -209,7 +209,7 @@ namespace OFC {
       p_state->mares_old = 1e20; // for rate of change, keep mares from last iteration in here. Set high so that loop condition is definitely true on first iteration
       p_state->has_converged=0;
 
-      OptimizeComputeErrImg();
+      OptimizeComputeErrImg(true);
 
       p_state->has_opt_started = 1;
       p_state->invalid = false;
@@ -263,7 +263,7 @@ namespace OFC {
 
       }
 
-      OptimizeComputeErrImg();
+      OptimizeComputeErrImg(true);
 
     }
 
@@ -304,9 +304,10 @@ namespace OFC {
 
   }
 
-  void PatClass::OptimizeComputeErrImg() {
+  void PatClass::OptimizeComputeErrImg(bool interp) {
 
-    InterpolatePatch();
+    if (interp)
+      InterpolatePatch();
     ComputeCostErr();
 
     // Compute step norm

@@ -84,6 +84,8 @@ namespace OFC {
       inline const Eigen::Vector2f GetTargMidpoint() const { return p_state->midpoint_cur; }
       inline const bool IsValid() const { return !p_state->invalid; }
       inline float * GetDeviceCostDiffPtr() const { return (float*) pDeviceCostDiff; }
+      inline float * getCostP() { return (float*) pDeviceCostDiff; }
+      inline float * getRawP() { return (float*) pDeviceRawDiff; }
 
 
       inline const Eigen::Vector2f* GetCurP() const { return &(p_state->p_cur); }
@@ -96,7 +98,7 @@ namespace OFC {
 
     private:
 
-      void OptimizeComputeErrImg();
+      void OptimizeComputeErrImg(bool interp);
       void UpdateMidpoint();
       void ResetPatchState();
       void ComputeHessian(float H00, float H01, float H11);

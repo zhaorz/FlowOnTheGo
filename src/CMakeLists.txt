@@ -79,6 +79,7 @@ set(KERNELS
   kernels/densify.cu
   kernels/interpolate.cu
   kernels/extract.cu
+  kernels/optimize.cu
   kernels/warmup.cpp
   kernels/sobel.cpp
   kernels/pyramid.cpp

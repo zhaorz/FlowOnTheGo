@@ -123,7 +123,8 @@ __global__ void kernelExtractPatchesAndHessians(
 
 // TODO: merge this with above kernel?
 __global__ void kernelInitCoarserOF(
-    float* flowPrev, dev_patch_state* states, int width) {
+    float* flowPrev, dev_patch_state* states, int width,
+    int lb, int ub_w, int ub_h) {
 
   int patchId = blockIdx.x;
   int x = floor(states[patchId].midpoint_orgx / 2);
@@ -135,6 +136,31 @@ __global__ void kernelInitCoarserOF(
   states[patchId].p_curx = flowPrev[2 * i] * 2;
   states[patchId].p_cury = flowPrev[2 * i + 1] * 2;
 
+  states[patchId].midpoint_curx += states[patchId].p_curx;
+  states[patchId].midpoint_cury += states[patchId].p_cury;
+
+  //Check if initial position is already invalid
+  if (states[patchId].midpoint_curx < lb
+      || states[patchId].midpoint_cury < lb
+      || states[patchId].midpoint_curx > ub_w
+      || states[patchId].midpoint_cury > ub_h) {
+
+    states[patchId].has_converged = 1;
+    states[patchId].has_opt_started = 1;
+
+  } else {
+
+    states[patchId].count = 0; // reset iteration counter
+    states[patchId].delta_p_sq_norm = 1e-10;
+    states[patchId].delta_p_sq_norm_init = 1e-10;  // set to arbitrary low value, s.t. that loop condition is definitely true on first iteration
+    states[patchId].mares = 1e5;          // mean absolute residual
+    states[patchId].mares_old = 1e20; // for rate of change, keep mares from last iteration in here. Set high so that loop condition is definitely true on first iteration
+    states[patchId].has_converged = 0;
+
+    states[patchId].has_opt_started = 1;
+    states[patchId].invalid = false;
+
+  }
 }
 
 
@@ -182,12 +208,14 @@ namespace cu {
 
 
   void initCoarserOF(float* flowPrev, dev_patch_state* states,
-      int n_patches, int width) {
+      int n_patches, const img_params* i_params) {
 
     int nBlocks = n_patches;
     int nThreadsPerBlock = 1;
 
-    kernelInitCoarserOF<<<nBlocks, nThreadsPerBlock>>>(flowPrev, states, width);
+    kernelInitCoarserOF<<<nBlocks, nThreadsPerBlock>>>(
+        flowPrev, states, i_params->width / 2, i_params->l_bound,
+        i_params->u_bound_width, i_params->u_bound_height);
 
   }
 

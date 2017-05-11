@@ -48,7 +48,7 @@ namespace cu {
       const opt_params* op, const img_params* i_params);
 
   void initCoarserOF(float* flowPrev, dev_patch_state* states,
-      int n_patches, int width);
+      int n_patches, const img_params* i_params);
 
 
 }

@@ -17,6 +17,7 @@
 #include "common/timer.h"
 #include "kernels/densify.h"
 #include "kernels/extract.h"
+#include "kernels/optimize.h"
 
 #include <stdio.h>
 
@@ -104,6 +105,11 @@ namespace OFC {
       checkCudaErrors(
           cudaMalloc((void**) &pDeviceTempYY, n_patches * sizeof(float*)) );
 
+      checkCudaErrors(
+          cudaMalloc((void**) &pDeviceRaws, n_patches * sizeof(float*)) );
+      checkCudaErrors(
+          cudaMalloc((void**) &pDeviceCosts, n_patches * sizeof(float*)) );
+
       pHostDevicePatches = new float*[n_patches];
       pHostDevicePatchXs = new float*[n_patches];
       pHostDevicePatchYs = new float*[n_patches];
@@ -111,6 +117,9 @@ namespace OFC {
       pHostDeviceTempXX = new float*[n_patches];
       pHostDeviceTempXY = new float*[n_patches];
       pHostDeviceTempYY = new float*[n_patches];
+
+      pHostDeviceRaws = new float*[n_patches];
+      pHostDeviceCosts = new float*[n_patches];
 
       for (int i = 0; i < n_patches; i++) {
 
@@ -127,6 +136,11 @@ namespace OFC {
             cudaMalloc((void**) &pHostDeviceTempXY[i], op->n_vals * sizeof(float)) );
         checkCudaErrors(
             cudaMalloc((void**) &pHostDeviceTempYY[i], op->n_vals * sizeof(float)) );
+
+        checkCudaErrors(
+            cudaMalloc((void**) &pHostDeviceRaws[i], op->n_vals * sizeof(float)) );
+        checkCudaErrors(
+            cudaMalloc((void**) &pHostDeviceCosts[i], op->n_vals * sizeof(float)) );
 
         pHostDevicePatchStates[i].has_converged = false;
         pHostDevicePatchStates[i].has_opt_started = false;
@@ -168,8 +182,16 @@ namespace OFC {
       checkCudaErrors( cudaMemcpy(pDeviceTempYY, pHostDeviceTempYY,
           n_patches * sizeof(float*), cudaMemcpyHostToDevice) );
 
+
+      checkCudaErrors( cudaMemcpy(pDeviceRaws, pHostDeviceRaws,
+            n_patches * sizeof(float*), cudaMemcpyHostToDevice) );
+      checkCudaErrors( cudaMemcpy(pDeviceCosts, pHostDeviceCosts,
+            n_patches * sizeof(float*), cudaMemcpyHostToDevice) );
+
+
       checkCudaErrors( cudaMemcpy(pDevicePatchStates, pHostDevicePatchStates,
             n_patches * sizeof(dev_patch_state), cudaMemcpyHostToDevice) );
+
 
       // Hessian
       H00 = new float[n_patches];
@@ -189,13 +211,16 @@ namespace OFC {
 
     for (int i = 0; i < n_patches; ++i) {
 
-      checkCudaErrors( cudaFree(pHostDevicePatches[i]) );
-      checkCudaErrors( cudaFree(pHostDevicePatchXs[i]) );
-      checkCudaErrors( cudaFree(pHostDevicePatchYs[i]) );
+      cudaFree(pHostDevicePatches[i]);
+      cudaFree(pHostDevicePatchXs[i]);
+      cudaFree(pHostDevicePatchYs[i]);
 
       cudaFree(pHostDeviceTempXX[i]);
       cudaFree(pHostDeviceTempXY[i]);
       cudaFree(pHostDeviceTempYY[i]);
+
+      cudaFree(pHostDeviceRaws[i]);
+      cudaFree(pHostDeviceCosts[i]);
 
       delete patches[i];
     }
@@ -203,6 +228,12 @@ namespace OFC {
     cudaFree(pDevicePatches);
     cudaFree(pDevicePatchXs);
     cudaFree(pDevicePatchYs);
+
+    cudaFree(pDeviceRaws);
+    cudaFree(pDeviceCosts);
+
+    delete pHostDeviceRaws;
+    delete pHostDeviceCosts;
 
     delete pHostDevicePatches;
     delete pHostDevicePatchXs;
@@ -214,6 +245,7 @@ namespace OFC {
 
     delete midpointX_host;
     delete midpointY_host;
+
     cudaFree(pDeviceMidpointX);
     cudaFree(pDeviceMidpointY);
 
@@ -239,20 +271,9 @@ namespace OFC {
 
     gettimeofday(&tv_start, nullptr);
 
-    // cu::extractPatchesAndHessians(pDevicePatches, pDevicePatchXs, pDevicePatchYs,
-    //     I0, I0x, I0y, pDeviceH00, pDeviceH01, pDeviceH11,
-    //     pDeviceTempXX, pDeviceTempXY, pDeviceTempYY,
-    //     pDeviceMidpointX, pDeviceMidpointY, n_patches, op, i_params);
     cu::extractPatchesAndHessians(pDevicePatches, pDevicePatchXs, pDevicePatchYs,
         I0, I0x, I0y, pDeviceTempXX, pDeviceTempXY, pDeviceTempYY,
         pDevicePatchStates, n_patches, op, i_params);
-
-    // checkCudaErrors(
-    //     cudaMemcpy(H00, pDeviceH00, n_patches * sizeof(float), cudaMemcpyDeviceToHost) );
-    // checkCudaErrors(
-    //     cudaMemcpy(H01, pDeviceH01, n_patches * sizeof(float), cudaMemcpyDeviceToHost) );
-    // checkCudaErrors(
-    //     cudaMemcpy(H11, pDeviceH11, n_patches * sizeof(float), cudaMemcpyDeviceToHost) );
 
     gettimeofday(&tv_end, nullptr);
     extractTime += (tv_end.tv_sec - tv_start.tv_sec) * 1000.0f +
@@ -288,7 +309,20 @@ namespace OFC {
 
   void PatGridClass::OptimizeSetup() {
 
+    cu::interpolateAndComputeErr(pDevicePatchStates,
+        pDeviceRaws, pDeviceCosts, I1, n_patches,
+        op, i_params, false);
+
     for (int i = 0; i < n_patches; ++i) {
+      checkCudaErrors(
+          cudaMemcpy(patches[i]->getRawP(), 
+            pHostDeviceRaws[i], op->n_vals * sizeof(float),
+            cudaMemcpyDeviceToHost) );
+      /*checkCudaErrors(
+          cudaMemcpy(patches[i]->getCostP, 
+            pHostDeviceCosts[i], op->n_vals * sizeof(float),
+            cudaMemcpyDeviceToHost) );*/
+
       patches[i]->OptimizeStart(p_init[i]);
     }
 
@@ -323,7 +357,7 @@ namespace OFC {
           flow_size * sizeof(float), cudaMemcpyHostToDevice) );
 
     cu::initCoarserOF(devFlowPrev, pDevicePatchStates,
-        n_patches, i_params->width / 2);
+        n_patches, i_params);
 
     for (int ip = 0; ip < n_patches; ++ip) {
 
