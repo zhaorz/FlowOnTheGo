@@ -312,7 +312,8 @@ namespace OFC {
 
 
       // Variational refinement, (Step 5 in Algorithm 1 of paper)
-      if (op.use_var_ref) {
+      // if (op.use_var_ref) {
+      if (false) {
         float* I0H, * I1H;
         int elemSize = 3 * sizeof(float);
         int size = iparams[ii].width_pad * iparams[ii].height_pad * elemSize;

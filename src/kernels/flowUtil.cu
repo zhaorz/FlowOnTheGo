@@ -8,8 +8,11 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 
+#include "../common/timer.h"
 #include "../FDF1.0.1/image.h"
 #include "flowUtil.h"
+
+using namespace timer;
 
 #define datanorm        0.1f*0.1f      //0.01f // square of the normalization factor
 #define epsilon_color  (0.001f*0.001f) //0.000001f
@@ -167,6 +170,44 @@ __global__ void kernelSubLaplacianVert(
 
 }
 
+__global__ void kernelSubLaplacianHorizFillCoeffs(
+    float *src, float *weights, float *coeffs, int height, int width) {
+
+  int tidx = blockIdx.x * blockDim.x + threadIdx.x;
+  int col  = tidx % width;
+
+  // Do not calculate the last column
+  if (tidx < height * width && col != width - 1) {
+    float *pSrc    = src + tidx,
+          *pWeight = weights + tidx,
+          *pCoeff  = coeffs + tidx;
+
+    *pCoeff = (*pWeight) * ( *(pSrc + 1) - *pSrc );
+  }
+}
+
+__global__ void kernelSubLaplacianHorizApplyCoeffs(
+    float *dst, float *coeffs, int height, int width) {
+
+  int tidx = blockIdx.x * blockDim.x + threadIdx.x;
+  int col  = tidx % width;
+
+  if (tidx < height * width) {
+
+    float *pDst   = dst + tidx,
+          *pCoeff = coeffs + tidx;
+
+    float update = 0.0;
+
+    if (col != 0)
+      update -= *(pCoeff - 1);
+    if (col != width - 1)
+      update += *pCoeff;
+
+    *pDst += update;
+  }
+}
+
 
 namespace cu {
 
@@ -269,52 +310,77 @@ namespace cu {
   void subLaplacianHoriz(
       float *src, float *dst, float *weights, int height, int width, int stride) {
 
-    const int offset = stride - width;
+    auto start_coeff_malloc = now();
+    float *pDeviceCoeffs;
+    checkCudaErrors( cudaMalloc((void**) &pDeviceCoeffs, height * stride * sizeof(float)) );
+    calc_print_elapsed("laplacian coeff malloc", start_coeff_malloc);
 
-    float *src_ptr = src,
-          *dst_ptr = dst,
-          *weight_horiz_ptr = weights;
+    // Setup device pointers
+    float *pDeviceSrc, *pDeviceDst, *pDeviceWeights;
+    checkCudaErrors( cudaHostGetDevicePointer(&pDeviceSrc, src, 0) );
+    checkCudaErrors( cudaHostGetDevicePointer(&pDeviceDst, dst, 0) );
+    checkCudaErrors( cudaHostGetDevicePointer(&pDeviceWeights, weights, 0) );
 
-    float *coeffs = new float[height * stride];
+    int N = height * width;
+    int nThreadsPerBlock = 64;
+    int nBlocks = (N + nThreadsPerBlock - 1) / nThreadsPerBlock;
 
-    float *coeffs_ptr = coeffs;
+    auto start_kernels = now();
+    kernelSubLaplacianHorizFillCoeffs<<<nBlocks, nThreadsPerBlock>>>(
+        pDeviceSrc, pDeviceWeights, pDeviceCoeffs, height, width);
 
-    // Calculate coeffs
-    for(int j = 0; j < height; j++) { // faster than for(j=0;j<src->height;j++)
-      for(int i = 0; i < width - 1; i++) {
-        float tmp = (*weight_horiz_ptr)*((*(src_ptr+1))-(*src_ptr));
+    kernelSubLaplacianHorizApplyCoeffs<<<nBlocks, nThreadsPerBlock>>>(
+        pDeviceDst, pDeviceCoeffs, height, width);
+    calc_print_elapsed("laplacian kernels", start_kernels);
 
-        *coeffs_ptr = tmp;
-        src_ptr++;
-        weight_horiz_ptr++;
-        coeffs_ptr++;
-      }
-      src_ptr += offset+1;
-      weight_horiz_ptr += offset+1;
-      coeffs_ptr += offset+1;
-    }
+    cudaFree(pDeviceCoeffs);
 
-    coeffs_ptr = coeffs;
+    // const int offset = stride - width;
 
-    // Apply
-    for(int j = 0; j < height; j++) { // faster than for(j=0;j<src->height;j++)
-      for(int i = 0; i < width; i++) {
-        float update = 0.0;
+    // float *src_ptr = src,
+    //       *dst_ptr = dst,
+    //       *weight_horiz_ptr = weights;
 
-        if (i != width - 1)
-          update += *coeffs_ptr;
-        if (i != 0)
-          update -= *(coeffs_ptr-1);
+    // float *coeffs = new float[height * stride];
 
-        *dst_ptr += update;
-        dst_ptr++;
-        coeffs_ptr++;
-      }
-      dst_ptr += offset;
-      coeffs_ptr += offset;
-    }
+    // float *coeffs_ptr = coeffs;
 
-    delete[] coeffs;
+    // // Calculate coeffs
+    // for(int j = 0; j < height; j++) { // faster than for(j=0;j<src->height;j++)
+    //   for(int i = 0; i < width - 1; i++) {
+    //     float tmp = (*weight_horiz_ptr)*((*(src_ptr+1))-(*src_ptr));
+
+    //     *coeffs_ptr = tmp;
+    //     src_ptr++;
+    //     weight_horiz_ptr++;
+    //     coeffs_ptr++;
+    //   }
+    //   src_ptr += offset+1;
+    //   weight_horiz_ptr += offset+1;
+    //   coeffs_ptr += offset+1;
+    // }
+
+    // coeffs_ptr = coeffs;
+
+    // // Apply
+    // for(int j = 0; j < height; j++) { // faster than for(j=0;j<src->height;j++)
+    //   for(int i = 0; i < width; i++) {
+    //     float update = 0.0;
+
+    //     if (i != width - 1)
+    //       update += *coeffs_ptr;
+    //     if (i != 0)
+    //       update -= *(coeffs_ptr-1);
+
+    //     *dst_ptr += update;
+    //     dst_ptr++;
+    //     coeffs_ptr++;
+    //   }
+    //   dst_ptr += offset;
+    //   coeffs_ptr += offset;
+    // }
+
+    // delete[] coeffs;
   }
 
   // TODO: Non-deterministic, see what's up
