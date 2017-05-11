@@ -385,6 +385,26 @@ __global__ void kernelFlowMag(
 }
 
 
+__global__ void kernelFlowMagElt(
+    float *dst,  float *ux,  float *uy,  float *vx,  float *vy,
+    float qa, float epsmooth, int height, int width, int stride) {
+
+  int tidx = blockIdx.x * blockDim.x + threadIdx.x;
+
+  if (tidx < height * stride) {
+    float *uxp = ux + tidx,
+          *uyp = uy + tidx,
+          *vxp = vx + tidx,
+          *vyp = vy + tidx,
+          *sp  = dst + tidx;
+
+    *sp = qa / sqrtf(
+        (*uxp)*(*uxp) + (*uyp)*(*uyp) + (*vxp)*(*vxp) + (*vyp)*(*vyp) + epsmooth );
+
+  }
+}
+
+
 __global__ void kernelSmoothnessHoriz(
     float *dst, float *smoothness, int height, int width, int stride) {
 
@@ -437,10 +457,8 @@ __global__ void kernelSmoothnessVert(
     for (int iBlock = 0; iBlock < nBlocks; iBlock++) {
 
       for (int j = 0; j < BLOCK_HEIGHT && j1 < height - 1; j++, j1++) {
-        // *dstp = (*sp) + (*sp_next);
         *dstp1 = *sp;
 
-        // dstp += stride; sp += stride; sp_next += stride;
         dstp1 += stride; sp += stride;
       }
 
@@ -451,6 +469,23 @@ __global__ void kernelSmoothnessVert(
       }
 
     }
+  }
+}
+
+
+__global__ void kernelSmoothnessHorizVert(
+    float *dst_horiz, float *dst_vert, float *smoothness, int height, int width, int stride) {
+
+  int tidx = blockIdx.x * blockDim.x + threadIdx.x;
+
+  if (tidx < height * stride) {
+
+    float *dst_horiz_p = dst_horiz + tidx,
+          *dst_vert_p  = dst_vert  + tidx,
+          *sp          = smoothness + tidx;
+
+    *dst_horiz_p = *sp + *(sp + 1);
+    *dst_vert_p  = *sp + *(sp + stride);
   }
 }
 
@@ -779,24 +814,35 @@ namespace cu {
     checkCudaErrors( cudaHostGetDevicePointer(&d_vx,            vx,         0) );
     checkCudaErrors( cudaHostGetDevicePointer(&d_vy,            vy,         0) );
 
-    int N = stride;
+    int N = height * stride;
     int nThreadsPerBlock = 128;
     int nBlocks = (N + nThreadsPerBlock - 1) / nThreadsPerBlock;
 
+    std::cout << "nBlocks: " << nBlocks << std::endl;
+    std::cout << "nThreads: " << nThreadsPerBlock << std::endl;
+
     auto start_flow_mag = now();
-    kernelFlowMag<<<nBlocks, nThreadsPerBlock>>> (
+    // kernelFlowMag<<<nBlocks, nThreadsPerBlock>>> (
+    //     d_smoothness, d_ux, d_uy, d_vx, d_vy,
+    //     qa, epsmooth, height, width, stride);
+
+    kernelFlowMagElt<<<nBlocks, nThreadsPerBlock>>> (
         d_smoothness, d_ux, d_uy, d_vx, d_vy,
         qa, epsmooth, height, width, stride);
 
     cudaDeviceSynchronize();
     calc_print_elapsed("smoothness flow_mag", start_flow_mag);
 
-    auto start_smooth = now();
-    kernelSmoothnessHoriz<<< nBlocks, nThreadsPerBlock >>> (
-        d_dst_horiz, d_smoothness, height, width, stride);
 
-    kernelSmoothnessVert<<< nBlocks, nThreadsPerBlock >>> (
-        d_dst_vert, d_smoothness, height, width, stride);
+    auto start_smooth = now();
+    // kernelSmoothnessHoriz<<< nBlocks, nThreadsPerBlock >>> (
+    //     d_dst_horiz, d_smoothness, height, width, stride);
+
+    // kernelSmoothnessVert<<< nBlocks, nThreadsPerBlock >>> (
+    //     d_dst_vert, d_smoothness, height, width, stride);
+
+    kernelSmoothnessHorizVert<<< nBlocks, nThreadsPerBlock >>> (
+        d_dst_horiz, d_dst_vert, d_smoothness, height, width, stride);
 
     cudaDeviceSynchronize();
     calc_print_elapsed("smoothness horiz vert", start_smooth);
