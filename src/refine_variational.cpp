@@ -9,6 +9,7 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include "common/cuda_helper.h"
+#include "kernels/flowUtil.h"
 
 #include <Eigen/Core>
 #include <Eigen/LU>
@@ -220,13 +221,19 @@ namespace OFC {
 
       // update flow plus flow increment
       auto start_flow_update = now();
-      int i;
-      v4sf *uup = (v4sf*) uu->c1, *vvp = (v4sf*) vv->c1, *wxp = (v4sf*) wx->c1, *wyp = (v4sf*) wy->c1, *dup = (v4sf*) du->c1, *dvp = (v4sf*) dv->c1;
-      for( i=0 ; i<height*stride/VECTOR_WIDTH ; i++) {
-        (*uup) = (*wxp) + (*dup);
-        (*vvp) = (*wyp) + (*dvp);
-        uup+=1; vvp+=1; wxp+=1; wyp+=1;dup+=1;dvp+=1;
-      }
+
+      cu::flowUpdate(
+          uu->c1, vv->c1, wx->c1, wy->c1, du->c1, dv->c1,
+          height, width, stride);
+
+      // int i;
+      // float *uup = (float*) uu->c1, *vvp = (float*) vv->c1, *wxp = (float*) wx->c1, *wyp = (float*) wy->c1, *dup = (float*) du->c1, *dvp = (float*) dv->c1;
+      // for( i=0 ; i<height*stride; i++) {
+      //   (*uup) = (*wxp) + (*dup);
+      //   (*vvp) = (*wyp) + (*dvp);
+      //   uup+=1; vvp+=1; wxp+=1; wyp+=1;dup+=1;dvp+=1;
+      // }
+
       calc_print_elapsed(("RefLevelOF " + iterStr + " flow update").c_str(), start_flow_update);
 
       calc_print_elapsed(("RefLevelOF " + iterStr + " [total]").c_str(), start_iteration);

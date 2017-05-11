@@ -64,6 +64,9 @@ namespace cu {
       float quarter_alpha, float epsilon_smooth,
       int height, int width, int stride);
 
+  void flowUpdate(
+      float *flowX, float *flowY, float *wx, float *wy, float *du, float *dv,
+      int height, int width, int stride);
 
 }
 

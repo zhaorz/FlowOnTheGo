@@ -721,4 +721,19 @@ namespace cu {
     cudaDeviceSynchronize();
   }
 
+
+  void flowUpdate(
+      float *flowX, float *flowY, float *wx, float *wy, float *du, float *dv,
+      int height, int width, int stride) {
+
+    int i;
+    float *uup =  flowX, *vvp =  flowY, *wxp =  wx, *wyp =  wy, *dup =  du, *dvp =  dv;
+    for( i=0 ; i<height*stride; i++) {
+      (*uup) = (*wxp) + (*dup);
+      (*vvp) = (*wyp) + (*dvp);
+      uup+=1; vvp+=1; wxp+=1; wyp+=1;dup+=1;dvp+=1;
+    }
+
+  }
+
 }
