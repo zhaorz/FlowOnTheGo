@@ -398,6 +398,28 @@ __global__ void kernelSmoothnessHorizVert(
 }
 
 
+__global__ void kernelFlowUpdate(
+    float *uu, float *vv, float *wx, float *wy, float *du, float *dv,
+    int height, int width, int stride) {
+
+  int tidx = blockIdx.x * blockDim.x + threadIdx.x;
+
+  if (tidx < height * stride) {
+
+    float *uup = uu + tidx,
+          *vvp = vv + tidx,
+          *wxp = wx + tidx,
+          *wyp = wy + tidx,
+          *dup = du + tidx,
+          *dvp = dv + tidx;
+
+    (*uup) = (*wxp) + (*dup);
+    (*vvp) = (*wyp) + (*dvp);
+  }
+
+}
+
+
 
 namespace cu {
 
@@ -723,16 +745,30 @@ namespace cu {
 
 
   void flowUpdate(
-      float *flowX, float *flowY, float *wx, float *wy, float *du, float *dv,
+      float *uu, float *vv, float *wx, float *wy, float *du, float *dv,
       int height, int width, int stride) {
 
-    int i;
-    float *uup =  flowX, *vvp =  flowY, *wxp =  wx, *wyp =  wy, *dup =  du, *dvp =  dv;
-    for( i=0 ; i<height*stride; i++) {
-      (*uup) = (*wxp) + (*dup);
-      (*vvp) = (*wyp) + (*dvp);
-      uup+=1; vvp+=1; wxp+=1; wyp+=1;dup+=1;dvp+=1;
-    }
+    float *d_uu,
+          *d_vv,
+          *d_wx,
+          *d_wy,
+          *d_du,
+          *d_dv;
+
+    checkCudaErrors( cudaHostGetDevicePointer(&d_uu, uu, 0) );
+    checkCudaErrors( cudaHostGetDevicePointer(&d_vv, vv, 0) );
+    checkCudaErrors( cudaHostGetDevicePointer(&d_wx, wx, 0) );
+    checkCudaErrors( cudaHostGetDevicePointer(&d_wy, wy, 0) );
+    checkCudaErrors( cudaHostGetDevicePointer(&d_du, du, 0) );
+    checkCudaErrors( cudaHostGetDevicePointer(&d_dv, dv, 0) );
+
+    int N = height * stride;
+    int nThreadsPerBlock = 128;
+    int nBlocks = (N + nThreadsPerBlock - 1) / nThreadsPerBlock;
+
+    kernelFlowUpdate<<< nBlocks, nThreadsPerBlock >>> (
+        d_uu, d_vv, d_wx, d_wy, d_du, d_dv,
+        height, width, stride);
 
   }
 
