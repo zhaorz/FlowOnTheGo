@@ -170,6 +170,45 @@ __global__ void kernelSubLaplacianVert(
 
 }
 
+__global__ void kernelSubLaplacianHoriz(
+    float *src, float *dst, float *weights, float *coeffs, int height, int width, int stride) {
+
+  int tidx = blockIdx.x * blockDim.x + threadIdx.x;
+  int col  = tidx % width;
+
+  // Do not calculate the last column
+  if (tidx < width && col != width - 1) {
+    float *pSrc    = src + tidx,
+          *pWeight = weights + tidx,
+          *pCoeff  = coeffs + tidx;
+
+    for (int j = 0; j < height; j++) {
+      *pCoeff = (*pWeight) * ( *(pSrc + 1) - *pSrc );
+
+      pSrc += stride; pWeight += stride; pCoeff += stride;
+    }
+  }
+
+  if (tidx < width) {
+
+    float *pDst   = dst + tidx,
+          *pCoeff = coeffs + tidx;
+
+    for (int j = 0; j < height; j++) {
+      float update = 0.0;
+
+      if (col != 0)
+        update -= *(pCoeff - 1);
+      if (col != width - 1)
+        update += *pCoeff;
+
+      *pDst += update;
+
+      pDst += stride; pCoeff += stride;
+    }
+  }
+
+}
 __global__ void kernelSubLaplacianHorizFillCoeffs(
     float *src, float *weights, float *coeffs, int height, int width, int stride) {
 
@@ -334,11 +373,14 @@ namespace cu {
     int nBlocks = (N + nThreadsPerBlock - 1) / nThreadsPerBlock;
 
     auto start_kernels = now();
-    kernelSubLaplacianHorizFillCoeffs<<<nBlocks, nThreadsPerBlock>>>(
-        pDeviceSrc, pDeviceWeights, pDeviceCoeffs, height, width, stride);
+    kernelSubLaplacianHoriz<<<nBlocks, nThreadsPerBlock>>>(
+        pDeviceSrc, pDeviceDst, pDeviceWeights, pDeviceCoeffs, height, width, stride);
 
-    kernelSubLaplacianHorizApplyCoeffs<<<nBlocks, nThreadsPerBlock>>>(
-        pDeviceDst, pDeviceCoeffs, height, width, stride);
+    // kernelSubLaplacianHorizFillCoeffs<<<nBlocks, nThreadsPerBlock>>>(
+    //     pDeviceSrc, pDeviceWeights, pDeviceCoeffs, height, width, stride);
+
+    // kernelSubLaplacianHorizApplyCoeffs<<<nBlocks, nThreadsPerBlock>>>(
+    //     pDeviceDst, pDeviceCoeffs, height, width, stride);
     calc_print_elapsed("laplacian kernels", start_kernels);
 
     cudaFree(pDeviceCoeffs);
