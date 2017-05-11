@@ -265,6 +265,74 @@ __global__ void kernelSubLaplacianHorizApplyCoeffs(
   }
 }
 
+__global__ void kernelSorStep(
+    float *du, float *dv,
+    float *a11, float *a12, float *a22,
+    const float *b1, const float *b2,
+    const float *horiz, const float *vert,
+    const int iterations, const float omega,
+    int height, int width, int stride, bool odd) {
+
+  int tidx = blockIdx.x * blockDim.x + threadIdx.x;
+  int j  = tidx / width;
+  int i  = tidx % width;
+
+  bool shouldRun = (odd)
+    ? ((i + j) % 2 == 1)
+    : ((i + j) % 2 == 0);
+
+  if (tidx < width * height && shouldRun) {
+
+    float sigma_u,sigma_v,sum_dpsis,A11,A22,A12,B1,B2;
+    sigma_u = 0.0f;
+    sigma_v = 0.0f;
+    sum_dpsis = 0.0f;
+
+    int here  = j * stride + i;
+    int left  = j * stride + i - 1;
+    int right = j * stride + i + 1;
+    int up    = (j-1) * stride + i;
+    int down  = (j+1) * stride + i;
+
+    if(j>0)
+    {
+      sigma_u   -= vert[up] * du[up];
+      sigma_v   -= vert[up] * dv[up];
+      sum_dpsis += vert[up];
+    }
+    if(i>0)
+    {
+      sigma_u   -= horiz[left] * du[left];
+      sigma_v   -= horiz[left] * dv[left];
+      sum_dpsis += horiz[left];
+    }
+    if(j<height-1)
+    {
+      sigma_u   -= vert[here] * du[down];
+      sigma_v   -= vert[here] * dv[down];
+      sum_dpsis += vert[here];
+    }
+    if(i<width-1)
+    {
+      sigma_u   -= horiz[here] * du[right];
+      sigma_v   -= horiz[here] * dv[right];
+      sum_dpsis += horiz[here];
+    }
+
+    A11 = a11[here] + sum_dpsis;
+    A12 = a12[here];
+    A22 = a22[here] + sum_dpsis;
+
+    B1 = b1[here] - sigma_u;
+    B2 = b2[here] - sigma_v;
+
+    du[here] = (1.0f-omega) * du[here] + omega/A11 * (B1 - A12 * dv[here]);
+    dv[here] = (1.0f-omega) * dv[here] + omega/A22 * (B2 - A12 * du[here]);
+
+  }
+}
+
+
 
 namespace cu {
 
@@ -410,6 +478,63 @@ namespace cu {
     kernelSubLaplacianVert<<<nBlocks, nThreadsPerBlock>>>(
         d_src, d_src + stride, d_dst, d_dst + stride, d_weights, height, stride);
 
+  }
+
+  void sor(
+      float *du, float *dv,
+      float *a11, float *a12, float *a22,
+      float *b1, float *b2,
+      float *horiz, float *vert,
+      int iterations, float omega,
+      int height, int width, int stride) {
+
+    // Device setup
+    float 
+      *d_du,
+      *d_dv,
+      *d_a11,
+      *d_a12,
+      *d_a22,
+      *d_b1,
+      *d_b2,
+      *d_horiz,
+      *d_vert;
+
+    checkCudaErrors( cudaHostGetDevicePointer(&d_du,    du, 0) );
+    checkCudaErrors( cudaHostGetDevicePointer(&d_dv,    dv, 0) );
+    checkCudaErrors( cudaHostGetDevicePointer(&d_a11,   a11, 0) );
+    checkCudaErrors( cudaHostGetDevicePointer(&d_a12,   a12, 0) );
+    checkCudaErrors( cudaHostGetDevicePointer(&d_a22,   a22, 0) );
+    checkCudaErrors( cudaHostGetDevicePointer(&d_b1,    b1, 0) );
+    checkCudaErrors( cudaHostGetDevicePointer(&d_b2,    b2, 0) );
+    checkCudaErrors( cudaHostGetDevicePointer(&d_horiz, horiz, 0) );
+    checkCudaErrors( cudaHostGetDevicePointer(&d_vert,  vert, 0) );
+
+    int N = width * height;
+    int nThreadsPerBlock = 64;
+    int nBlocks = (N + nThreadsPerBlock - 1) / nThreadsPerBlock;
+
+    for(int iter = 0 ; iter<iterations ; iter++)
+    {
+
+      kernelSorStep<<<nBlocks, nThreadsPerBlock>>>(
+          d_du, d_dv,
+          d_a11, d_a12, d_a22,
+          d_b1, d_b2,
+          d_horiz, d_vert,
+          iterations, omega,
+          height, width, stride, true);
+
+      cudaDeviceSynchronize();
+
+      kernelSorStep<<<nBlocks, nThreadsPerBlock>>>(
+          d_du, d_dv,
+          d_a11, d_a12, d_a22,
+          d_b1, d_b2,
+          d_horiz, d_vert,
+          iterations, omega,
+          height, width, stride, false);
+    }  
   }
 
 }

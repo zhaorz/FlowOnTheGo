@@ -40,6 +40,14 @@ namespace cu {
   void subLaplacianVert(
       float *src, float *dst, float *weights, int height, int stride);
 
+  void sor(
+      float *du, float *dv,
+      float *a11, float *a12, float *a22,
+      float *b1, float *b2,
+      float *horiz, float *vert,
+      int iterations, float omega,
+      int height, int width, int stride);
+
 }
 
 #endif // end __KERNEL_FLOW_UTIL_H__
