@@ -76,7 +76,7 @@ namespace OFC {
           const Eigen::Vector2f _midpoint);
       void SetTargetImage(const float * _I1);
 
-      void OptimizeStart(const Eigen::Vector2f p_prev, float c);
+      void OptimizeStart(const Eigen::Vector2f p_prev, bool conv);
       void OptimizeIter();
 
       inline const bool IsConverged() const { return p_state->has_converged; }

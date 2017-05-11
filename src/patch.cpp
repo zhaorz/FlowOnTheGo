@@ -181,7 +181,7 @@ namespace OFC {
     p_state->cost = 0.0;
   }
 
-  void PatClass::OptimizeStart(const Eigen::Vector2f p_prev, float c) {
+  void PatClass::OptimizeStart(const Eigen::Vector2f p_prev, bool conv) {
 
     p_state->p_org = p_prev;
     p_state->p_cur = p_prev;
@@ -209,7 +209,8 @@ namespace OFC {
       p_state->mares_old = 1e20; // for rate of change, keep mares from last iteration in here. Set high so that loop condition is definitely true on first iteration
       p_state->has_converged=0;
 
-      OptimizeComputeErrImg(false, c);
+     //  OptimizeComputeErrImg(false, c);
+      p_state->has_converged = conv;
 
       p_state->has_opt_started = 1;
       p_state->invalid = false;

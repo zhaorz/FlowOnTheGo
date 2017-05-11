@@ -25,7 +25,8 @@ __global__ void kernelInterpolateAndComputeErr(
     dev_patch_state* states, float** raw_diff, float** costs,
     float** patches, const float* I1, int n_patches, 
     int padding, int patch_size,
-    int width_pad, bool project) {
+    int width_pad, int gd_iter, float res_thresh, float dp_thresh,
+    float dr_thresh, bool project) {
 
   int patchId = blockIdx.x;
   int tid = threadIdx.x;
@@ -103,6 +104,31 @@ __global__ void kernelInterpolateAndComputeErr(
       c += cost[i];
     }
     states[patchId].cost = c;
+
+    // Check convergence
+
+    // Compute step norm
+    states[patchId].delta_p_sq_norm = 
+      states[patchId].delta_px * states[patchId].delta_px + 
+      states[patchId].delta_py * states[patchId].delta_py;
+
+    if (states[patchId].count == 1)
+      states[patchId].delta_p_sq_norm_init = states[patchId].delta_p_sq_norm;
+
+    // Check early termination criterions
+    states[patchId].mares_old = states[patchId].mares;
+    states[patchId].mares = c / 3 * patch_size * patch_size;
+
+    if (!((states[patchId].count < gd_iter) & (states[patchId].mares > res_thresh)
+          & ((states[patchId].count < gd_iter) 
+            | (states[patchId].delta_p_sq_norm / states[patchId].delta_p_sq_norm_init >= dp_thresh))
+          & ((states[patchId].count < gd_iter) 
+            | (states[patchId].mares / states[patchId].mares_old <= dr_thresh)))) {
+
+      states[patchId].has_converged = 1;
+
+    }
+
   }
 
 }
@@ -121,7 +147,9 @@ namespace cu {
 
     kernelInterpolateAndComputeErr<<<nBlocks, nThreadsPerBlock>>>(
         states, raw_diff, costs, patches, I1, n_patches,
-        i_params->padding, op->patch_size, i_params->width_pad, project);
+        i_params->padding, op->patch_size, i_params->width_pad, 
+        op->grad_descent_iter, op->res_thresh, op->dp_thresh,
+        op->dr_thresh, project);
 
 
   }
