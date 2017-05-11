@@ -48,6 +48,10 @@ namespace cu {
       int iterations, float omega,
       int height, int width, int stride);
 
+  void getMeanImageAndDiff(
+      float *img1, float *img2, float *avgImg, float *diff,
+      int height, int stride);
+
 }
 
 #endif // end __KERNEL_FLOW_UTIL_H__

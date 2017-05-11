@@ -332,6 +332,31 @@ __global__ void kernelSorStep(
   }
 }
 
+__global__ void kernelGetMeanImageAndDiff(
+    float *img1, float *img2, float *avgImg, float *diff,
+    int height, int stride) {
+
+  int tidx = blockIdx.x * blockDim.x + threadIdx.x;
+
+  // For 3 channels images
+  if (tidx < 3 * stride) {
+    float
+      *pImg1   = img1 + tidx,
+      *pImg2   = img2 + tidx,
+      *pAvgImg = avgImg + tidx,
+      *pDiff   = diff + tidx;
+
+    for (int j = 0; j < height; j++) {
+      *pAvgImg = 0.5 * ((*pImg1) + (*pImg2));
+      *pDiff   = (*pImg2) - (*pImg1);
+
+      pImg1 += stride; pImg2 += stride; pAvgImg += stride; pDiff += stride;
+    }
+
+  }
+
+}
+
 
 
 namespace cu {
@@ -491,14 +516,14 @@ namespace cu {
     // Device setup
     float 
       *d_du,
-      *d_dv,
-      *d_a11,
-      *d_a12,
-      *d_a22,
-      *d_b1,
-      *d_b2,
-      *d_horiz,
-      *d_vert;
+    *d_dv,
+    *d_a11,
+    *d_a12,
+    *d_a22,
+    *d_b1,
+    *d_b2,
+    *d_horiz,
+    *d_vert;
 
     checkCudaErrors( cudaHostGetDevicePointer(&d_du,    du, 0) );
     checkCudaErrors( cudaHostGetDevicePointer(&d_dv,    dv, 0) );
@@ -535,6 +560,31 @@ namespace cu {
           iterations, omega,
           height, width, stride, false);
     }  
+  }
+
+  void getMeanImageAndDiff(
+      float *img1, float *img2, float *avgImg, float *diff,
+      int height, int stride) {
+
+    float
+      *d_img1,
+      *d_img2,
+      *d_avgImg,
+      *d_diff;
+
+    checkCudaErrors( cudaHostGetDevicePointer(&d_img1,   img1,   0) );
+    checkCudaErrors( cudaHostGetDevicePointer(&d_img2,   img2,   0) );
+    checkCudaErrors( cudaHostGetDevicePointer(&d_avgImg, avgImg, 0) );
+    checkCudaErrors( cudaHostGetDevicePointer(&d_diff,   diff,   0) );
+
+    int N = 3 * stride;
+    int nThreadsPerBlock = 64;
+    int nBlocks = (N + nThreadsPerBlock - 1) / nThreadsPerBlock;
+
+    kernelGetMeanImageAndDiff<<<nBlocks, nThreadsPerBlock>>>(
+        d_img1, d_img2, d_avgImg, d_diff,
+        height, stride);
+
   }
 
 }
