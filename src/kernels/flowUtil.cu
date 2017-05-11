@@ -394,7 +394,6 @@ namespace cu {
     calc_print_elapsed("laplacian cudaFree", start_free);
   }
 
-  // TODO: Non-deterministic, see what's up
   void subLaplacianVert(
       float *src, float *dst, float *weights, int height, int stride) {
 
