@@ -24,19 +24,13 @@ namespace OFC {
       void AggregateFlowDense(float *flowout);
 
       // Optimizes grid to convergence of each patch
-      void OptimizeSetup();
       void Optimize();
-      bool AllConverged();
-      //Optimize each patch in grid for one iteration, visualize displacement vector, repeat
-      //void OptimizeAndVisualize(const float sc_fct_tmp);  // needed for verbosity >= 3, DISVISUAL
 
       inline const int GetNumPatches() const { return n_patches; }
       inline const int GetNumPatchesW() const { return n_patches_width; }
       inline const int GetNumPatchesH() const { return n_patches_height; }
 
       inline const Eigen::Vector2f GetRefPatchPos(int i) const { return midpoints_ref[i]; } // Get reference  patch position
-      inline const Eigen::Vector2f GetQuePatchPos(int i) const { return patches[i]->GetTargMidpoint(); } // Get target/query patch position
-      inline const Eigen::Vector2f GetQuePatchDis(int i) const { return midpoints_ref[i]-patches[i]->GetTargMidpoint(); } // Get query patch displacement from reference patch
 
       void printTimings();
 
@@ -53,7 +47,6 @@ namespace OFC {
 
       float** pDevicePatches, ** pDevicePatchXs, ** pDevicePatchYs;
       float** pHostDevicePatches, **pHostDevicePatchXs, **pHostDevicePatchYs;
-      float* pDeviceMidpointX, * pDeviceMidpointY;
 
       // Raw Diff and Costs
       float** pDeviceRaws, **pDeviceCosts;
@@ -79,12 +72,13 @@ namespace OFC {
       double aggregateTime;
       double meanTime;
       double extractTime;
+      double optiTime;
 
-      float* midpointX_host;
-      float* midpointY_host;
-      std::vector<OFC::PatClass*> patches; // Patch Objects
+      // float* midpointX_host;
+      // float* midpointY_host;
+      // std::vector<OFC::PatClass*> patches; // Patch Objects
       std::vector<Eigen::Vector2f> midpoints_ref; // Midpoints for reference patches
-      std::vector<Eigen::Vector2f> p_init; // starting parameters for query patches
+      // std::vector<Eigen::Vector2f> p_init; // starting parameters for query patches
   };
 
 }

@@ -100,7 +100,7 @@ __global__ void kernelInterpolateAndComputeErr(
     float** tempXX, float** tempYY,
     int n_patches, int padding, int patch_size,
     int width_pad, int gd_iter, float res_thresh, float dp_thresh,
-    float dr_thresh, float out_thresh, int lb, int ubw, int ubh) {
+    float dr_thresh, float out_thresh, int lb, int ubw, int ubh, bool proj) {
 
   int patchId = blockIdx.x;
   int tid = threadIdx.x;
@@ -124,7 +124,8 @@ __global__ void kernelInterpolateAndComputeErr(
 
     // Interpolate the patch
 
-    float pos0, pos1, pos2, pos3, resid0, resid1, w0, w1, w2, w3;
+    int pos0, pos1, pos2, pos3;
+    float resid0, resid1, w0, w1, w2, w3;
 
     // Compute the bilinear weight vector, for patch without orientation/scale change
     // weight vector is constant for all pixels
@@ -141,6 +142,9 @@ __global__ void kernelInterpolateAndComputeErr(
     w2 = resid0 * (1- resid1);
     w3 = (1 - resid0) * (1 - resid1);
 
+    // if (tid == 0) {
+    //   printf("Weights %.2f, %.2f, %.2f, %.2f\n", w0, w1, w2, w3);
+    // }
     pos0 += padding;
     pos1 += padding;
 
@@ -150,7 +154,8 @@ __global__ void kernelInterpolateAndComputeErr(
 
 
     for (int i = tid, j = starty; i < patch_size * patch_size * 3;
-        i += 3 * patch_size, j += 3 * width_pad) {
+         i += 3 * patch_size, j++) {
+
 
       const float* img_e = I1 + x;
       const float* img_a = img_e + j * width_pad * 3;
@@ -158,6 +163,9 @@ __global__ void kernelInterpolateAndComputeErr(
       const float* img_b = img_a - 3;
       const float* img_d = img_c - 3;
       raw[i] = w0 * (*img_a) + w1 * (*img_b) + w2 * (*img_c) + w3 * (*img_d);
+      // if (tid == 0) {
+      //   printf("img_d %.2f\n", *img_d);
+      // }
 
     }
 
@@ -172,7 +180,11 @@ __global__ void kernelInterpolateAndComputeErr(
       for (int i = 0; i < patch_size * patch_size * 3; i++) {
         mean += raw[i];
       }
-      mean /= patch_size * patch_size * 3;
+      // printf("sum %.2f\n", mean);
+      mean /= (patch_size * patch_size * 3);
+
+      // printf("mean %.2f\n", mean);
+      // printf("pos0, pos1, (%d, %d)\n", pos0, pos1);
 
     }
 
@@ -194,6 +206,7 @@ __global__ void kernelInterpolateAndComputeErr(
         c += cost[i];
       }
       states[patchId].cost = c;
+      // printf("cost %.2f\n", c);
 
       // Check convergence
 
@@ -237,7 +250,7 @@ namespace cu {
       float** raw_diff, float** costs, float** patches, float** patchXs,
       float** patchYs, float** tempXX, float** tempYY, const float* I1,
       int n_patches, const opt_params* op,
-      const img_params* i_params) {
+      const img_params* i_params, bool notFirst) {
 
     int nBlocks = n_patches;
     int nThreadsPerBlock = 3 * op->patch_size;
@@ -248,7 +261,7 @@ namespace cu {
         i_params->padding, op->patch_size, i_params->width_pad, 
         op->grad_descent_iter, op->res_thresh, op->dp_thresh,
         op->dr_thresh, op->outlier_thresh, i_params->l_bound, i_params->u_bound_width,
-        i_params->u_bound_height);
+        i_params->u_bound_height, notFirst);
 
 
   }

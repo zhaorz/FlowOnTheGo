@@ -46,17 +46,11 @@ namespace OFC {
 
       n_patches = n_patches_width * n_patches_height;
       midpoints_ref.resize(n_patches);
-      p_init.resize(n_patches);
-      patches.reserve(n_patches);
 
       checkCudaErrors(
           cudaMalloc ((void**) &pDevicePatchStates, n_patches * sizeof(dev_patch_state)) );
       pHostDevicePatchStates = new dev_patch_state[n_patches];
 
-      midpointX_host = new float[n_patches];
-      midpointY_host = new float[n_patches];
-
-      int patch_id = 0;
       for (int x = 0; x < n_patches_width; ++x) {
         for (int y = 0; y < n_patches_height; ++y) {
 
@@ -64,25 +58,10 @@ namespace OFC {
 
           midpoints_ref[i][0] = x * steps + offsetw;
           midpoints_ref[i][1] = y * steps + offseth;
-          midpointX_host[i] = x * steps + offsetw;
-          midpointY_host[i] = y * steps + offseth;
-          p_init[i].setZero();
-
-          patches.push_back(new OFC::PatClass(i_params, op, patch_id));
-          patch_id++;
 
         }
       }
 
-      // Midpoint
-      checkCudaErrors(
-          cudaMalloc ((void**) &pDeviceMidpointX, n_patches * sizeof(float)) );
-      checkCudaErrors(
-          cudaMalloc ((void**) &pDeviceMidpointY, n_patches * sizeof(float)) );
-      checkCudaErrors( cudaMemcpy(pDeviceMidpointX, midpointX_host,
-          n_patches * sizeof(float), cudaMemcpyHostToDevice) );
-      checkCudaErrors( cudaMemcpy(pDeviceMidpointY, midpointY_host,
-          n_patches * sizeof(float), cudaMemcpyHostToDevice) );
 
       // Aggregate flow
       checkCudaErrors(
@@ -205,7 +184,9 @@ namespace OFC {
       aggregateTime = 0.0;
       meanTime = 0.0;
       extractTime = 0.0;
+      optiTime = 0.0;
     }
+
 
   PatGridClass::~PatGridClass() {
 
@@ -222,7 +203,6 @@ namespace OFC {
       cudaFree(pHostDeviceRaws[i]);
       cudaFree(pHostDeviceCosts[i]);
 
-      delete patches[i];
     }
 
     cudaFree(pDevicePatches);
@@ -243,12 +223,6 @@ namespace OFC {
     delete pHostDeviceTempXY;
     delete pHostDeviceTempYY;
 
-    delete midpointX_host;
-    delete midpointY_host;
-
-    cudaFree(pDeviceMidpointX);
-    cudaFree(pDeviceMidpointY);
-
     cudaFree(pDeviceH00);
     cudaFree(pDeviceH01);
     cudaFree(pDeviceH11);
@@ -262,6 +236,7 @@ namespace OFC {
     cudaFree(pDeviceTempYY);
 
   }
+
 
   void PatGridClass::InitializeGrid(const float * _I0, const float * _I0x, const float * _I0y) {
 
@@ -279,74 +254,29 @@ namespace OFC {
     extractTime += (tv_end.tv_sec - tv_start.tv_sec) * 1000.0f +
       (tv_end.tv_usec - tv_start.tv_usec) / 1000.0f;
 
-   /* float H00, H01, H11;
-
-    for (int i = 0; i < n_patches; ++i) {
-      checkCudaErrors(
-          cudaMemcpy(&H00, &(pDevicePatchStates[i].H00), sizeof(float), cudaMemcpyDeviceToHost) );
-      checkCudaErrors(
-          cudaMemcpy(&H01, &(pDevicePatchStates[i].H01), sizeof(float), cudaMemcpyDeviceToHost) );
-      checkCudaErrors(
-          cudaMemcpy(&H11, &(pDevicePatchStates[i].H11), sizeof(float), cudaMemcpyDeviceToHost) );
-
-      patches[i]->InitializePatch(pHostDevicePatches[i],
-          pHostDevicePatchXs[i], pHostDevicePatchYs[i],
-          H00, H01, H11, midpoints_ref[i]);
-      p_init[i].setZero();
-    }*/
-
   }
+
 
   void PatGridClass::SetTargetImage(const float * _I1) {
 
     I1 = _I1;
 
-    /*for (int i = 0; i < n_patches; ++i) {
-      patches[i]->SetTargetImage(I1);
-    }*/
-
   }
 
-  void PatGridClass::OptimizeSetup() {
-
-    /*cu::interpolateAndComputeErr(pDevicePatchStates,
-        pDeviceRaws, pDeviceCosts, pDevicePatches, I1,
-        n_patches, op, i_params, false);
-
-    bool conv;
-    for (int i = 0; i < n_patches; ++i) {
-      patches[i]->setRawP(pHostDeviceRaws[i]);
-      patches[i]->setCostP(pHostDeviceCosts[i]);
-      checkCudaErrors(
-          cudaMemcpy(&conv, &(pDevicePatchStates[i].has_converged), sizeof(bool),
-            cudaMemcpyDeviceToHost) );
-
-      patches[i]->OptimizeStart(p_init[i], conv);
-    }*/
-
-  }
 
   void PatGridClass::Optimize() {
 
+    gettimeofday(&tv_start, nullptr);
+
     cu::interpolateAndComputeErr(pDevicePatchStates, pDeviceRaws, pDeviceCosts,
         pDevicePatches, pDevicePatchXs, pDevicePatchYs, pDeviceTempXX, pDeviceTempYY,
-        I1, n_patches, op, i_params);
-    // #pragma omp parallel for schedule(static)
-    /*for (int i = 0; i < n_patches; ++i) {
-      patches[i]->OptimizeIter();
-    }*/
+        I1, n_patches, op, i_params, true);
 
+    gettimeofday(&tv_end, nullptr);
+    optiTime += (tv_end.tv_sec - tv_start.tv_sec) * 1000.0f +
+      (tv_end.tv_usec - tv_start.tv_usec) / 1000.0f;
   }
 
-  bool PatGridClass::AllConverged() {
-
-    for (int i = 0; i < n_patches; ++i) {
-      if (!patches[i]->IsConverged())
-        return false;
-    }
-
-    return true;
-  }
 
   void PatGridClass::InitializeFromCoarserOF(const float * flow_prev) {
 
@@ -360,23 +290,9 @@ namespace OFC {
     cu::initCoarserOF(devFlowPrev, pDevicePatchStates,
         n_patches, i_params);
 
-    for (int ip = 0; ip < n_patches; ++ip) {
-
-      // int x = floor(midpoints_ref[ip][0] / 2);
-      // int y = floor(midpoints_ref[ip][1] / 2);
-      // int i = y * (i_params->width / 2) + x;
-
-      // p_init[ip](0) = flow_prev[2 * i] * 2;
-      // p_init[ip](1) = flow_prev[2 * i + 1] * 2;
-
-      /*checkCudaErrors( cudaMemcpy(&(p_init[ip](0)), &(pDevicePatchStates[ip].p_orgx),
-            sizeof(float), cudaMemcpyDeviceToHost) );
-      checkCudaErrors( cudaMemcpy(&(p_init[ip](1)), &(pDevicePatchStates[ip].p_orgy),
-            sizeof(float), cudaMemcpyDeviceToHost) );*/
-
-    }
 
   }
+
 
   void PatGridClass::AggregateFlowDense(float *flowout) {
 
@@ -430,16 +346,14 @@ namespace OFC {
       op, i_params);*/
     for (int ip = 0; ip < n_patches; ++ip) {
 
-        //const Eigen::Vector2f* fl = patches[ip]->GetCurP(); // flow displacement of this patch
+      float* pweight = pHostDeviceCosts[ip]; // use image error as weight
 
-        float* pweight = pHostDeviceCosts[ip]; // use image error as weight
-
-        cu::densifyPatch(
-            pweight, pDeviceFlowOut, pDeviceWeights,
-            pDevicePatchStates, ip,
-            midpoints_ref[ip][0], midpoints_ref[ip][1],
-            i_params->width, i_params->height,
-            op->patch_size, op->min_errval);
+      cu::densifyPatch(
+          pweight, pDeviceFlowOut, pDeviceWeights,
+          pDevicePatchStates, ip,
+          midpoints_ref[ip][0], midpoints_ref[ip][1],
+          i_params->width, i_params->height,
+          op->patch_size, op->min_errval);
 
     }
 
@@ -460,47 +374,16 @@ namespace OFC {
       (tv_end.tv_usec - tv_start.tv_usec) / 1000.0f;
   }
 
+
   void PatGridClass::printTimings() {
-
-    double tot_hessianTime = 0,
-           tot_projectionTime = 0, tot_costTime = 0,
-           tot_interpolateTime = 0, tot_meanTime = 0;
-    int tot_hessianCalls = 0,
-        tot_projectionCalls = 0, tot_costCalls = 0,
-        tot_interpolateCalls = 0, tot_meanCalls = 0;
-
-    for (auto & element : patches) {
-      tot_hessianTime += element->hessianTime;
-      tot_projectionTime += element->projectionTime;
-      tot_costTime += element->costTime;
-      tot_interpolateTime += element->interpolateTime;
-      tot_meanTime += element->meanTime;
-
-      tot_hessianCalls += element->hessianCalls;
-      tot_projectionCalls += element->projectionCalls;
-      tot_costCalls += element->costCalls;
-      tot_interpolateCalls += element->interpolateCalls;
-      tot_meanCalls += element->meanCalls;
-    }
 
     cout << endl;
     cout << "===============Timings (ms)===============" << endl;
-    cout << "Avg grad descent iterations:        " << float(tot_costCalls) / float(n_patches) << endl;
-    cout << "[hessian]      " << tot_hessianTime;
-    cout << "  tot => " << tot_hessianTime / tot_hessianCalls << " avg" << endl;
-    cout << "[project]      " << tot_projectionTime;
-    cout << "  tot => " << tot_projectionTime / tot_projectionCalls << " avg" << endl;
-    cout << "[cost]         " << tot_costTime;
-    cout << "  tot => " << tot_costTime / tot_costCalls << " avg" << endl;
-    cout << "[interpolate]  " << tot_interpolateTime;
-    cout << "  tot => " << tot_interpolateTime / tot_interpolateCalls << " avg" << endl;
-    cout << "[mean norm]    " << tot_meanTime;
-    cout << "  tot => " << tot_meanTime / tot_meanCalls << " avg" << endl;
     cout << "[extract]      " << extractTime << endl;
+    cout << "[optiTime]      " << optiTime << endl;
     cout << "[aggregate]    " << aggregateTime << endl;
     cout << "[flow norm]    " << meanTime << endl;
     cout << "==========================================" << endl;
-
 
   }
 

@@ -95,7 +95,7 @@ set(COMMON
 set(CODEFILES
   run_dense.cpp
   oflow.cpp
-  patch.cpp
+  # patch.cpp
   patchgrid.cpp
   refine_variational.cpp
   FDF1.0.1/image.c
