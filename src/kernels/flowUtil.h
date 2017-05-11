@@ -58,6 +58,13 @@ namespace cu {
   void imageDerivative(
       float *dst, float *src, float *pDeviceKernel, int height, int width, int stride, bool horiz);
 
+  void smoothnessTerm(
+      float *dst_horiz, float *dst_vert, float *smoothness,
+      const float *ux, const float *uy, const float *vx, const float *vy,
+      float quarter_alpha, float epsilon_smooth,
+      int height, int width, int stride);
+
+
 }
 
 #endif // end __KERNEL_FLOW_UTIL_H__

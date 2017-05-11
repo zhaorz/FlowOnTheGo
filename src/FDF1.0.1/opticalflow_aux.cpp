@@ -120,9 +120,6 @@ void compute_smoothness(image_t *dst_horiz, image_t *dst_vert, const image_t *uu
     sp+=1;uxp+=1; uyp+=1; vxp+=1; vyp+=1;
   }
 
-  image_delete(ux); image_delete(uy); image_delete(vx); image_delete(vy); 
-
-
   // compute dst_horiz
   float *dsthp = (float*) dst_horiz->c1; sp = (float*) smoothness->c1;
   for(j=0;j<height;j++){
@@ -133,20 +130,23 @@ void compute_smoothness(image_t *dst_horiz, image_t *dst_vert, const image_t *uu
       *dsthp = (*sp) + (*(sp + 1));
       dsthp+=1; sp+=1;
     }
-
-    // Cleanup extra columns
-    memset( &dst_horiz->c1[j*stride+width-1], 0, sizeof(float)*(stride-width+1));
   }
 
   // compute dst_vert
   float *dstvp = (float*) dst_vert->c1, *sp_bottom = (float*) (smoothness->c1+stride); sp = (float*) smoothness->c1;
-  for(j = 0 ; j < (height - 1) * stride; j++){
+  for(j = 1 ; j < (height - 1) * stride; j++){
     *dstvp = (*sp) + (*sp_bottom);
     dstvp+=1; sp+=1; sp_bottom+=1;
   }
 
+  // Cleanup extra columns
+  for(j=0;j<height;j++){
+    memset(&dst_horiz->c1[j*stride+width-1], 0, sizeof(float)*(stride-width+1));
+  }
   // Cleanup last row
   memset( &dst_vert->c1[(height-1)*stride], 0, sizeof(float)*stride);
+
+  image_delete(ux); image_delete(uy); image_delete(vx); image_delete(vy); 
   image_delete(smoothness);
 }
 
