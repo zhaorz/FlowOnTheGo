@@ -13,11 +13,13 @@
 #include <arm_neon.h>
 
 #include "refine_variational.h"
+#include "common/timer.h"
 
 using std::cout;
 using std::endl;
 using std::vector;
 
+using namespace timer;
 
 namespace OFC {
 
@@ -47,6 +49,7 @@ namespace OFC {
       // copy flow initialization into FV structs
       static int noparam = 2; // Optical flow
 
+      auto start_flow_sep = now();
       std::vector<image_t*> flow_sep(noparam);
 
       for (int i = 0; i < noparam; ++i)
@@ -71,11 +74,15 @@ namespace OFC {
 
       copyimage(_I0, I0);
       copyimage(_I1, I1);
+      calc_print_elapsed("refine: flow_sep", start_flow_sep);
 
       // Call solver
+      auto start_solver = now();
       RefLevelOF(flow_sep[0], flow_sep[1], I0, I1);
+      calc_print_elapsed("RefLevelOF [total]", start_solver);
 
       // Copy flow result back
+      auto start_copy = now();
       for (int iy = 0; iy < i_params->height; ++iy) {
         for (int ix = 0; ix < i_params->width; ++ix) {
 
@@ -86,6 +93,7 @@ namespace OFC {
 
         }
       }
+      calc_print_elapsed("refine: copy back", start_copy);
 
       // free FV structs
       for (int i = 0; i < noparam; ++i )
@@ -132,6 +140,7 @@ namespace OFC {
     int stride = wx->stride;
 
 
+    auto start_setup = now();
     image_t *du = image_new(width,height), *dv = image_new(width,height), // the flow increment
             *mask = image_new(width,height), // mask containing 0 if a point goes outside image boundary, 1 otherwise
             *smooth_horiz = image_new(width,height), *smooth_vert = image_new(width,height), // horiz: (i,j) contains the diffusivity coeff. from (i,j) to (i+1,j)
@@ -143,35 +152,57 @@ namespace OFC {
                   *Ix = color_image_new(width,height), *Iy = color_image_new(width,height), *Iz = color_image_new(width,height), // first order derivatives
                   *Ixx = color_image_new(width,height), *Ixy = color_image_new(width,height),
                   *Iyy = color_image_new(width,height), *Ixz = color_image_new(width,height), *Iyz = color_image_new(width,height); // second order derivatives
+    calc_print_elapsed("RefLevelOF setup", start_setup);
 
     // warp second image
+    auto start_image_warp = now();
     image_warp(w_im2, mask, im2, wx, wy);
+    calc_print_elapsed("RefLevelOF image_warp", start_image_warp);
+
     // compute derivatives
+    auto start_get_derivs = now();
     get_derivatives(im1, w_im2, deriv, Ix, Iy, Iz, Ixx, Ixy, Iyy, Ixz, Iyz);
+    calc_print_elapsed("RefLevelOF get_derivatives", start_get_derivs);
+
     // erase du and dv
+    auto start_image_erase = now();
     image_erase(du);
     image_erase(dv);
+    calc_print_elapsed("RefLevelOF image_erase", start_image_erase);
+
     // initialize uu and vv
     memcpy(uu->c1,wx->c1,wx->stride*wx->height*sizeof(float));
     memcpy(vv->c1,wy->c1,wy->stride*wy->height*sizeof(float));
     // inner fixed point iterations
     for(i_inner_iteration = 0 ; i_inner_iteration < vr.inner_iter ; i_inner_iteration++) {
+      auto start_iteration = now();
+      std::string iterStr = "[" + std::to_string(i_inner_iteration) + "]";
 
       //  compute robust function and system
+      auto start_smooth = now();
       compute_smoothness(smooth_horiz, smooth_vert, uu, vv, deriv_flow, vr.tmp_quarter_alpha );
-      //compute_data_and_match(a11, a12, a22, b1, b2, mask, wx, wy, du, dv, uu, vv, Ix, Iy, Iz, Ixx, Ixy, Iyy, Ixz, Iyz, desc_weight, desc_flow_x, desc_flow_y, vr.tmp_half_delta_over3, vr.tmp_half_beta, vr.tmp_half_gamma_over3);
+      calc_print_elapsed(("RefLevelOF " + iterStr + " smoothness").c_str(), start_smooth);
+
+      auto start_data = now();
       compute_data(a11, a12, a22, b1, b2, mask, wx, wy, du, dv, uu, vv, Ix, Iy, Iz, Ixx, Ixy, Iyy, Ixz, Iyz, vr.tmp_half_delta_over3, vr.tmp_half_beta, vr.tmp_half_gamma_over3);
+      calc_print_elapsed(("RefLevelOF " + iterStr + " data").c_str(), start_data);
+
+      auto start_lapalcian = now();
       sub_laplacian(b1, wx, smooth_horiz, smooth_vert);
       sub_laplacian(b2, wy, smooth_horiz, smooth_vert);
+      calc_print_elapsed(("RefLevelOF " + iterStr + " laplacian").c_str(), start_lapalcian);
 
       // solve system
 // #ifdef WITH_OPENMP
+      auto start_sor = now();
       sor_coupled_slow_but_readable(du, dv, a11, a12, a22, b1, b2, smooth_horiz, smooth_vert, vr.solve_iter, vr.sor_omega); // slower but parallelized
+      calc_print_elapsed(("RefLevelOF " + iterStr + " sor").c_str(), start_sor);
 // #else
 //      sor_coupled(du, dv, a11, a12, a22, b1, b2, smooth_horiz, smooth_vert, vr.solve_iter, vr.sor_omega);
 // #endif
 
       // update flow plus flow increment
+      auto start_flow_update = now();
       int i;
       v4sf *uup = (v4sf*) uu->c1, *vvp = (v4sf*) vv->c1, *wxp = (v4sf*) wx->c1, *wyp = (v4sf*) wy->c1, *dup = (v4sf*) du->c1, *dvp = (v4sf*) dv->c1;
       for( i=0 ; i<height*stride/VECTOR_WIDTH ; i++) {
@@ -179,13 +210,19 @@ namespace OFC {
         (*vvp) = (*wyp) + (*dvp);
         uup+=1; vvp+=1; wxp+=1; wyp+=1;dup+=1;dvp+=1;
       }
+      calc_print_elapsed(("RefLevelOF " + iterStr + " flow update").c_str(), start_flow_update);
+
+      calc_print_elapsed(("RefLevelOF " + iterStr + " [total]").c_str(), start_iteration);
 
     }
     // add flow increment to current flow
+    auto start_increment_flow = now();
     memcpy(wx->c1,uu->c1,uu->stride*uu->height*sizeof(float));
     memcpy(wy->c1,vv->c1,vv->stride*vv->height*sizeof(float));
+    calc_print_elapsed("RefLevelOF increment flow", start_increment_flow);
 
     // free memory
+    auto start_cleanup = now();
     image_delete(du); image_delete(dv);
     image_delete(mask);
     image_delete(smooth_horiz); image_delete(smooth_vert);
@@ -196,7 +233,7 @@ namespace OFC {
     color_image_delete(w_im2);
     color_image_delete(Ix); color_image_delete(Iy); color_image_delete(Iz);
     color_image_delete(Ixx); color_image_delete(Ixy); color_image_delete(Iyy); color_image_delete(Ixz); color_image_delete(Iyz);
-
+    calc_print_elapsed("RefLevelOF cleanup", start_cleanup);
   }
 
 

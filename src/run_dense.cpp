@@ -15,6 +15,7 @@
 #include "kernels/warmup.h"
 #include "kernels/pad.h"
 #include "common/timer.h"
+#include "common/cuda_helper.h"
 
 
 using namespace std;
@@ -112,6 +113,8 @@ int AutoFirstScaleSelect(int imgwidth, int fratio, int patchsize) {
 
 
 int main( int argc, char** argv ) {
+
+  initializeCuda(argc, argv);
 
   // Warmup GPU
   cu::warmup();

@@ -517,6 +517,13 @@ inline void initializeCuda(int argc, char** argv) {
   //Get GPU information
   checkCudaErrors(cudaGetDevice(&devID));
   checkCudaErrors(cudaGetDeviceProperties(&props, devID));
+
+  if (props.canMapHostMemory) {
+    if (props.integrated)
+      printf("Device is an integrated GPU\n");
+    printf("Device supports zero copy, enabling page locked memory mapping\n\n");
+    checkCudaErrors( cudaSetDeviceFlags(cudaDeviceMapHost) );
+  }
 }
 
 #endif // end __CUDA_HELPER_H__
