@@ -25,7 +25,7 @@ namespace OFC {
 
       // Optimizes grid to convergence of each patch
       void OptimizeSetup();
-      void OptimizeStep();
+      void Optimize();
       bool AllConverged();
       //Optimize each patch in grid for one iteration, visualize displacement vector, repeat
       //void OptimizeAndVisualize(const float sc_fct_tmp);  // needed for verbosity >= 3, DISVISUAL

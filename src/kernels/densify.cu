@@ -16,11 +16,13 @@
 
 __global__ void kernelDensifyPatch(
     float* pDeviceCostDiff, float* pDeviceFlowOut, float* pDeviceWeights,
-    float flowX, float flowY,
+    dev_patch_state* states, int ip,
     int midpointX, int midpointY,
     int width, int height,
     int patchSize, float minErrVal) {
 
+  float flowX = states[ip].p_curx;
+  float flowY = states[ip].p_cury;
   int lower_bound = -patchSize / 2;
 
   int x = threadIdx.x + lower_bound;
@@ -105,7 +107,7 @@ namespace cu {
 
   void densifyPatch(
       float* pDeviceCostDiff, float* pDeviceFlowOut, float* pDeviceWeights,
-      float flowX, float flowY,
+      dev_patch_state* states, int ip,
       int midpointX, int midpointY,
       int width, int height,
       int patchSize, float minErrVal) {
@@ -115,7 +117,7 @@ namespace cu {
 
     kernelDensifyPatch<<<nBlocks, nThreadsPerBlock>>>(
         pDeviceCostDiff, pDeviceFlowOut, pDeviceWeights,
-        flowX, flowY,
+        states, ip,
         midpointX, midpointY,
         width, height,
         patchSize, minErrVal);

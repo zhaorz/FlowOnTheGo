@@ -27,7 +27,7 @@ namespace cu {
 
   void densifyPatch(
       float* pDeviceCostDiff, float* pDeviceFlowOut, float* pDeviceWeights,
-      float flowX, float flowY,
+      dev_patch_state* states, int ip, 
       int midpointX, int midpointY,
       int width, int height,
       int patchSize, float minErrVal);

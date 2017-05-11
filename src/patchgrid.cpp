@@ -279,7 +279,7 @@ namespace OFC {
     extractTime += (tv_end.tv_sec - tv_start.tv_sec) * 1000.0f +
       (tv_end.tv_usec - tv_start.tv_usec) / 1000.0f;
 
-    float H00, H01, H11;
+   /* float H00, H01, H11;
 
     for (int i = 0; i < n_patches; ++i) {
       checkCudaErrors(
@@ -293,7 +293,7 @@ namespace OFC {
           pHostDevicePatchXs[i], pHostDevicePatchYs[i],
           H00, H01, H11, midpoints_ref[i]);
       p_init[i].setZero();
-    }
+    }*/
 
   }
 
@@ -301,15 +301,15 @@ namespace OFC {
 
     I1 = _I1;
 
-    for (int i = 0; i < n_patches; ++i) {
+    /*for (int i = 0; i < n_patches; ++i) {
       patches[i]->SetTargetImage(I1);
-    }
+    }*/
 
   }
 
   void PatGridClass::OptimizeSetup() {
 
-    cu::interpolateAndComputeErr(pDevicePatchStates,
+    /*cu::interpolateAndComputeErr(pDevicePatchStates,
         pDeviceRaws, pDeviceCosts, pDevicePatches, I1,
         n_patches, op, i_params, false);
 
@@ -322,16 +322,19 @@ namespace OFC {
             cudaMemcpyDeviceToHost) );
 
       patches[i]->OptimizeStart(p_init[i], conv);
-    }
+    }*/
 
   }
 
-  void PatGridClass::OptimizeStep() {
+  void PatGridClass::Optimize() {
 
+    cu::interpolateAndComputeErr(pDevicePatchStates, pDeviceRaws, pDeviceCosts,
+        pDevicePatches, pDevicePatchXs, pDevicePatchYs, pDeviceTempXX, pDeviceTempYY,
+        I1, n_patches, op, i_params);
     // #pragma omp parallel for schedule(static)
-    for (int i = 0; i < n_patches; ++i) {
+    /*for (int i = 0; i < n_patches; ++i) {
       patches[i]->OptimizeIter();
-    }
+    }*/
 
   }
 
@@ -366,10 +369,10 @@ namespace OFC {
       // p_init[ip](0) = flow_prev[2 * i] * 2;
       // p_init[ip](1) = flow_prev[2 * i + 1] * 2;
 
-      checkCudaErrors( cudaMemcpy(&(p_init[ip](0)), &(pDevicePatchStates[ip].p_orgx),
+      /*checkCudaErrors( cudaMemcpy(&(p_init[ip](0)), &(pDevicePatchStates[ip].p_orgx),
             sizeof(float), cudaMemcpyDeviceToHost) );
       checkCudaErrors( cudaMemcpy(&(p_init[ip](1)), &(pDevicePatchStates[ip].p_orgy),
-            sizeof(float), cudaMemcpyDeviceToHost) );
+            sizeof(float), cudaMemcpyDeviceToHost) );*/
 
     }
 
@@ -426,20 +429,18 @@ namespace OFC {
       pDeviceMidpointX, pDeviceMidpointY, n_patches,
       op, i_params);*/
     for (int ip = 0; ip < n_patches; ++ip) {
-      if (patches[ip]->IsValid()) {
 
-        const Eigen::Vector2f* fl = patches[ip]->GetCurP(); // flow displacement of this patch
+        //const Eigen::Vector2f* fl = patches[ip]->GetCurP(); // flow displacement of this patch
 
-        float* pweight = patches[ip]->GetDeviceCostDiffPtr(); // use image error as weight
+        float* pweight = pHostDeviceCosts[ip]; // use image error as weight
 
         cu::densifyPatch(
             pweight, pDeviceFlowOut, pDeviceWeights,
-            (*fl)[0], (*fl)[1],
+            pDevicePatchStates, ip,
             midpoints_ref[ip][0], midpoints_ref[ip][1],
             i_params->width, i_params->height,
             op->patch_size, op->min_errval);
 
-      }
     }
 
     gettimeofday(&tv_end, nullptr);
