@@ -68,6 +68,9 @@ namespace cu {
       float *uu, float *vv, float *wx, float *wy, float *du, float *dv,
       int height, int width, int stride);
 
+  void warpImage(
+      color_image_t *dst, image_t *mask, const color_image_t *src, const image_t *wx, const image_t *wy);
+
 }
 
 #endif // end __KERNEL_FLOW_UTIL_H__

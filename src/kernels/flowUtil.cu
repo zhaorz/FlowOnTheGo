@@ -772,4 +772,48 @@ namespace cu {
 
   }
 
+  /*
+     Warp an image `src` into `dst` using warp vectors `wx`, `wy`.
+     Store `mask[i]` = 0 or 1 if pixel i goes outisde or inside image bounds.
+   */
+  void warpImage(
+      color_image_t *dst, image_t *mask, const color_image_t *src, const image_t *wx, const image_t *wy) {
+
+    int i, j, offset, incr_line = mask->stride-mask->width, x, y, x1, x2, y1, y2;
+    float xx, yy, dx, dy;
+    for(j=0,offset=0 ; j<src->height ; j++)
+    {
+      for(i=0 ; i<src->width ; i++,offset++)
+      {
+        xx = i+wx->c1[offset];
+        yy = j+wy->c1[offset];
+        x = floor(xx);
+        y = floor(yy);
+        dx = xx-x;
+        dy = yy-y;
+        mask->c1[offset] = (xx>=0 && xx<=src->width-1 && yy>=0 && yy<=src->height-1);
+        x1 = MINMAX_TA(x,src->width);
+        x2 = MINMAX_TA(x+1,src->width);
+        y1 = MINMAX_TA(y,src->height);
+        y2 = MINMAX_TA(y+1,src->height);
+        dst->c1[offset] = 
+          src->c1[y1*src->stride+x1]*(1.0f-dx)*(1.0f-dy) +
+          src->c1[y1*src->stride+x2]*dx*(1.0f-dy) +
+          src->c1[y2*src->stride+x1]*(1.0f-dx)*dy +
+          src->c1[y2*src->stride+x2]*dx*dy;
+        dst->c2[offset] = 
+          src->c2[y1*src->stride+x1]*(1.0f-dx)*(1.0f-dy) +
+          src->c2[y1*src->stride+x2]*dx*(1.0f-dy) +
+          src->c2[y2*src->stride+x1]*(1.0f-dx)*dy +
+          src->c2[y2*src->stride+x2]*dx*dy;
+        dst->c3[offset] = 
+          src->c3[y1*src->stride+x1]*(1.0f-dx)*(1.0f-dy) +
+          src->c3[y1*src->stride+x2]*dx*(1.0f-dy) +
+          src->c3[y2*src->stride+x1]*(1.0f-dx)*dy +
+          src->c3[y2*src->stride+x2]*dx*dy;
+      }
+      offset += incr_line;
+    }
+  }
+
 }
