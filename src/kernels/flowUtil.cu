@@ -176,39 +176,49 @@ __global__ void kernelSubLaplacianHoriz(
   int tidx = blockIdx.x * blockDim.x + threadIdx.x;
   int col  = tidx % width;
 
-  // Do not calculate the last column
-  if (tidx < width && col != width - 1) {
-    float *pSrc    = src + tidx,
-          *pWeight = weights + tidx,
-          *pCoeff  = coeffs + tidx;
-
-    for (int j = 0; j < height; j++) {
-      *pCoeff = (*pWeight) * ( *(pSrc + 1) - *pSrc );
-
-      pSrc += stride; pWeight += stride; pCoeff += stride;
-    }
-  }
+  const int BLOCK_HEIGHT = 4;
 
   if (tidx < width) {
+    float *pSrc         = src + tidx,
+          *pDst         = dst + tidx,
+          *pWeight      = weights + tidx,
+          *pCoeffCalc   = coeffs + tidx,
+          *pCoeffUpdate = pCoeffCalc;
 
-    float *pDst   = dst + tidx,
-          *pCoeff = coeffs + tidx;
+    int nBlocks = (height + BLOCK_HEIGHT - 1) / BLOCK_HEIGHT;
+    int jCalc = 0;
+    int jUpdate = 0;
 
-    for (int j = 0; j < height; j++) {
-      float update = 0.0;
+    // Block calculation and update so coeffs fit in cache
 
-      if (col != 0)
-        update -= *(pCoeff - 1);
-      if (col != width - 1)
-        update += *pCoeff;
+    for (int iBlock = 0; iBlock < nBlocks; iBlock++) {
 
-      *pDst += update;
+      // Calc coeffs
+      for (int j = 0; j < BLOCK_HEIGHT && jCalc < height; j++, jCalc++) {
+        // Do not calculate the last column
+        if (col != width - 1)
+          *pCoeffCalc = (*pWeight) * ( *(pSrc + 1) - *pSrc );
 
-      pDst += stride; pCoeff += stride;
+        pSrc += stride; pWeight += stride; pCoeffCalc += stride;
+      }
+
+      // Update dst
+      for (int j = 0; j < BLOCK_HEIGHT && jUpdate < height; j++, jUpdate++) {
+        float update = 0.0;
+
+        if (col != 0)
+          update -= *(pCoeffUpdate - 1);
+        if (col != width - 1)
+          update += *pCoeffUpdate;
+
+        *pDst += update;
+
+        pDst += stride; pCoeffUpdate += stride;
+      }
     }
   }
-
 }
+
 __global__ void kernelSubLaplacianHorizFillCoeffs(
     float *src, float *weights, float *coeffs, int height, int width, int stride) {
 
@@ -363,10 +373,12 @@ namespace cu {
     calc_print_elapsed("laplacian coeff malloc", start_coeff_malloc);
 
     // Setup device pointers
+    auto start_device_ptr = now();
     float *pDeviceSrc, *pDeviceDst, *pDeviceWeights;
     checkCudaErrors( cudaHostGetDevicePointer(&pDeviceSrc, src, 0) );
     checkCudaErrors( cudaHostGetDevicePointer(&pDeviceDst, dst, 0) );
     checkCudaErrors( cudaHostGetDevicePointer(&pDeviceWeights, weights, 0) );
+    calc_print_elapsed("laplacian get device ptrs", start_device_ptr);
 
     int N = width;
     int nThreadsPerBlock = 64;
@@ -375,62 +387,11 @@ namespace cu {
     auto start_kernels = now();
     kernelSubLaplacianHoriz<<<nBlocks, nThreadsPerBlock>>>(
         pDeviceSrc, pDeviceDst, pDeviceWeights, pDeviceCoeffs, height, width, stride);
-
-    // kernelSubLaplacianHorizFillCoeffs<<<nBlocks, nThreadsPerBlock>>>(
-    //     pDeviceSrc, pDeviceWeights, pDeviceCoeffs, height, width, stride);
-
-    // kernelSubLaplacianHorizApplyCoeffs<<<nBlocks, nThreadsPerBlock>>>(
-    //     pDeviceDst, pDeviceCoeffs, height, width, stride);
     calc_print_elapsed("laplacian kernels", start_kernels);
 
+    auto start_free = now();
     cudaFree(pDeviceCoeffs);
-
-    // const int offset = stride - width;
-
-    // float *src_ptr = src,
-    //       *dst_ptr = dst,
-    //       *weight_horiz_ptr = weights;
-
-    // float *coeffs = new float[height * stride];
-
-    // float *coeffs_ptr = coeffs;
-
-    // // Calculate coeffs
-    // for(int j = 0; j < height; j++) { // faster than for(j=0;j<src->height;j++)
-    //   for(int i = 0; i < width - 1; i++) {
-    //     float tmp = (*weight_horiz_ptr)*((*(src_ptr+1))-(*src_ptr));
-
-    //     *coeffs_ptr = tmp;
-    //     src_ptr++;
-    //     weight_horiz_ptr++;
-    //     coeffs_ptr++;
-    //   }
-    //   src_ptr += offset+1;
-    //   weight_horiz_ptr += offset+1;
-    //   coeffs_ptr += offset+1;
-    // }
-
-    // coeffs_ptr = coeffs;
-
-    // // Apply
-    // for(int j = 0; j < height; j++) { // faster than for(j=0;j<src->height;j++)
-    //   for(int i = 0; i < width; i++) {
-    //     float update = 0.0;
-
-    //     if (i != width - 1)
-    //       update += *coeffs_ptr;
-    //     if (i != 0)
-    //       update -= *(coeffs_ptr-1);
-
-    //     *dst_ptr += update;
-    //     dst_ptr++;
-    //     coeffs_ptr++;
-    //   }
-    //   dst_ptr += offset;
-    //   coeffs_ptr += offset;
-    // }
-
-    // delete[] coeffs;
+    calc_print_elapsed("laplacian cudaFree", start_free);
   }
 
   // TODO: Non-deterministic, see what's up
