@@ -22,62 +22,70 @@
 //The system form is the same as in opticalflow.c
 void sor_coupled_slow_but_readable(image_t *du, image_t *dv, image_t *a11, image_t *a12, image_t *a22, const image_t *b1, const image_t *b2, const image_t *dpsis_horiz, const image_t *dpsis_vert, const int iterations, const float omega)
 {  
-    int i,j,iter;
-    for(iter = 0 ; iter<iterations ; iter++)
-    {
-    #pragma omp parallel for
+  int stride = du->stride;
+  int i,j,iter;
+  for(iter = 0 ; iter<iterations ; iter++)
+  {
+#pragma omp parallel for
     for(j=0 ; j<du->height ; j++)
     {
       float sigma_u,sigma_v,sum_dpsis,A11,A22,A12,B1,B2;//,det;
       for(i=0 ; i<du->width ; i++)
       {
-          sigma_u = 0.0f;
-          sigma_v = 0.0f;
-          sum_dpsis = 0.0f;
-          if(j>0)
-          {
-            sigma_u -= dpsis_vert->c1[(j-1)*du->stride+i]*du->c1[(j-1)*du->stride+i];
-            sigma_v -= dpsis_vert->c1[(j-1)*du->stride+i]*dv->c1[(j-1)*du->stride+i];
-            sum_dpsis += dpsis_vert->c1[(j-1)*du->stride+i];
-          }
-          if(i>0)
-          {
-            sigma_u -= dpsis_horiz->c1[j*du->stride+i-1]*du->c1[j*du->stride+i-1];
-            sigma_v -= dpsis_horiz->c1[j*du->stride+i-1]*dv->c1[j*du->stride+i-1];
-            sum_dpsis += dpsis_horiz->c1[j*du->stride+i-1];
-          }
-          if(j<du->height-1)
-          {
-            sigma_u -= dpsis_vert->c1[j*du->stride+i]*du->c1[(j+1)*du->stride+i];
-            sigma_v -= dpsis_vert->c1[j*du->stride+i]*dv->c1[(j+1)*du->stride+i];
-            sum_dpsis += dpsis_vert->c1[j*du->stride+i];
-          }
-          if(i<du->width-1)
-          {
-            sigma_u -= dpsis_horiz->c1[j*du->stride+i]*du->c1[j*du->stride+i+1];
-            sigma_v -= dpsis_horiz->c1[j*du->stride+i]*dv->c1[j*du->stride+i+1];
-            sum_dpsis += dpsis_horiz->c1[j*du->stride+i];
-          }
-          A11 = a11->c1[j*du->stride+i]+sum_dpsis;
-          A12 = a12->c1[j*du->stride+i];
-          A22 = a22->c1[j*du->stride+i]+sum_dpsis;
-          //det = A11*A22-A12*A12;
-          B1 = b1->c1[j*du->stride+i]-sigma_u;
-          B2 = b2->c1[j*du->stride+i]-sigma_v;
-//           du->c1[j*du->stride+i] = (1.0f-omega)*du->c1[j*du->stride+i] +omega*( A22*B1-A12*B2)/det;
-//           dv->c1[j*du->stride+i] = (1.0f-omega)*dv->c1[j*du->stride+i] +omega*(-A12*B1+A11*B2)/det;
-          du->c1[j*du->stride+i] = (1.0f-omega)*du->c1[j*du->stride+i] + omega/A11 *(B1 - A12* dv->c1[j*du->stride+i] );
-          dv->c1[j*du->stride+i] = (1.0f-omega)*dv->c1[j*du->stride+i] + omega/A22 *(B2 - A12* du->c1[j*du->stride+i] );
-          
-          
+        sigma_u = 0.0f;
+        sigma_v = 0.0f;
+        sum_dpsis = 0.0f;
+
+        int here  = j * stride + i;
+        int left  = j * stride + i - 1;
+        int right = j * stride + i + 1;
+        int up    = (j-1) * stride + i;
+        int down  = (j+1) * stride + i;
+
+        if(j>0)
+        {
+          sigma_u   -= dpsis_vert->c1[up] * du->c1[up];
+          sigma_v   -= dpsis_vert->c1[up] * dv->c1[up];
+          sum_dpsis += dpsis_vert->c1[up];
+        }
+        if(i>0)
+        {
+          sigma_u   -= dpsis_horiz->c1[left] * du->c1[left];
+          sigma_v   -= dpsis_horiz->c1[left] * dv->c1[left];
+          sum_dpsis += dpsis_horiz->c1[left];
+        }
+        if(j<du->height-1)
+        {
+          sigma_u   -= dpsis_vert->c1[here] * du->c1[down];
+          sigma_v   -= dpsis_vert->c1[here] * dv->c1[down];
+          sum_dpsis += dpsis_vert->c1[here];
+        }
+        if(i<du->width-1)
+        {
+          sigma_u   -= dpsis_horiz->c1[here] * du->c1[right];
+          sigma_v   -= dpsis_horiz->c1[here] * dv->c1[right];
+          sum_dpsis += dpsis_horiz->c1[here];
+        }
+
+        A11 = a11->c1[here] + sum_dpsis;
+        A12 = a12->c1[here];
+        A22 = a22->c1[here] + sum_dpsis;
+
+        B1 = b1->c1[here] - sigma_u;
+        B2 = b2->c1[here] - sigma_v;
+
+        du->c1[here] = (1.0f-omega) * du->c1[here] + omega/A11 * (B1 - A12 * dv->c1[here]);
+        dv->c1[here] = (1.0f-omega) * dv->c1[here] + omega/A22 * (B2 - A12 * du->c1[here]);
+
+
       }
     }
   }  
 }
 
- // THIS IS A FASTER VERSION BUT UNREADABLE, ONLY OPTICAL FLOW WITHOUT OPENMP PARALLELIZATION
- // the first iteration is separated from the other to compute the inverse of the 2x2 block diagonal
- // each iteration is split in two first line / middle lines / last line, and the left block is computed separately on each line
+// THIS IS A FASTER VERSION BUT UNREADABLE, ONLY OPTICAL FLOW WITHOUT OPENMP PARALLELIZATION
+// the first iteration is separated from the other to compute the inverse of the 2x2 block diagonal
+// each iteration is split in two first line / middle lines / last line, and the left block is computed separately on each line
 // void sor_coupled(image_t *du, image_t *dv, image_t *a11, image_t *a12, image_t *a22, const image_t *b1, const image_t *b2, const image_t *dpsis_horiz, const image_t *dpsis_vert, const int iterations, const float omega){
 //     //sor_coupled_slow(du,dv,a11,a12,a22,b1,b2,dpsis_horiz,dpsis_vert,iterations,omega); return; printf("test\n");
 //   
