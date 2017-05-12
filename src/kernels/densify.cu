@@ -53,18 +53,16 @@ __global__ void kernelDensifyPatch(
 
 __global__ void kernelDensifyPatches(
     float** costs, float* flow, float* weights,
-    float* flowXs, float* flowYs, bool* valid,
-    float* midpointX, float* midpointY,
+    dev_patch_state* states,
     int width, int height,
     int patch_size, float minErrVal) {
 
   int patchId = blockIdx.x;
   int tid = threadIdx.x;
-  if (!valid[patchId]) return;
 
   int lower_bound = -patch_size / 2;
-  int xt = midpointX[patchId] + lower_bound;
-  int yt = midpointY[patchId] + lower_bound;
+  int xt = states[patchId].midpoint_orgx + lower_bound;
+  int yt = states[patchId].midpoint_orgy + lower_bound;
   int offset = (xt + yt * width) + tid;
 
   float* cost = costs[patchId];
@@ -82,8 +80,8 @@ __global__ void kernelDensifyPatches(
       // Weight contribution RGB
       atomicAdd(&weights[j], absw);
 
-      atomicAdd(&flow[2 * j], flowXs[patchId] * absw);
-      atomicAdd(&flow[2 * j + 1], flowYs[patchId] * absw);
+      atomicAdd(&flow[2 * j], states[patchId].p_curx * absw);
+      atomicAdd(&flow[2 * j + 1], states[patchId].p_cury * absw);
     }
 
   }
@@ -92,13 +90,13 @@ __global__ void kernelDensifyPatches(
 
 
 __global__ void kernelNormalizeFlow(
-    float* pDeviceFlowOut, float* pDeviceWeights, int N) {
+    float* pDeviceFlowOut, float* pDeviceWeights, int N, int numBlocks) {
 
   int i = blockIdx.x * blockDim.x + threadIdx.x;
 
-  if (i < N && pDeviceWeights[i] > 0) {
-    pDeviceFlowOut[2 * i]     /= pDeviceWeights[i];
-    pDeviceFlowOut[2 * i + 1] /= pDeviceWeights[i];
+  for (; i < N; i+= blockDim.x * numBlocks) {
+    if (pDeviceWeights[i / 2] > 0) 
+      pDeviceFlowOut[i]  /= pDeviceWeights[i / 2];
   }
 
 }
@@ -127,15 +125,14 @@ namespace cu {
       float* pDeviceFlowOut, float* pDeviceWeights, int N) {
 
     int nThreadsPerBlock = 64;
-    int nBlocks = (N + nThreadsPerBlock - 1) / nThreadsPerBlock;
+    int nBlocks = 10;
 
-    kernelNormalizeFlow<<<nBlocks, nThreadsPerBlock>>>(pDeviceFlowOut, pDeviceWeights, N);
+    kernelNormalizeFlow<<<nBlocks, nThreadsPerBlock>>>(pDeviceFlowOut, pDeviceWeights, N, nBlocks);
   }
 
   void densifyPatches(
       float** costs, float* flow, float* weights,
-      float* flowXs, float* flowYs, bool* valid,
-      float* midpointX, float* midpointY, int n_patches,
+      dev_patch_state* states, int n_patches,
       const opt_params* op, const img_params* i_params) {
 
     int nBlocks = n_patches;
@@ -143,8 +140,7 @@ namespace cu {
 
     kernelDensifyPatches<<<nBlocks, nThreadsPerBlock>>>(
         costs, flow, weights,
-        flowXs, flowYs, valid,
-        midpointX,  midpointY,
+        states,
         i_params->width, i_params->height,
         op->patch_size, op->min_errval);
 

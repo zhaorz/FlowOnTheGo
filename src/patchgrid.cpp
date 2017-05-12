@@ -171,6 +171,11 @@ namespace OFC {
       checkCudaErrors( cudaMemcpy(pDevicePatchStates, pHostDevicePatchStates,
             n_patches * sizeof(dev_patch_state), cudaMemcpyHostToDevice) );
 
+      // Prev flow
+      int flow_size = i_params->width * i_params->height / 2;
+      checkCudaErrors(
+          cudaMalloc ((void**) &pDevFlowPrev, flow_size * sizeof(float)) );
+
 
       // Hessian
       H00 = new float[n_patches];
@@ -185,6 +190,7 @@ namespace OFC {
       meanTime = 0.0;
       extractTime = 0.0;
       optiTime = 0.0;
+      coarseTime = 0.0;
     }
 
 
@@ -222,6 +228,8 @@ namespace OFC {
     delete pHostDeviceTempXX;
     delete pHostDeviceTempXY;
     delete pHostDeviceTempYY;
+
+    cudaFree(pDevFlowPrev);
 
     cudaFree(pDeviceH00);
     cudaFree(pDeviceH01);
@@ -280,56 +288,23 @@ namespace OFC {
 
   void PatGridClass::InitializeFromCoarserOF(const float * flow_prev) {
 
-    float * devFlowPrev;
     int flow_size = i_params->width * i_params->height / 2;
-    checkCudaErrors(
-        cudaMalloc ((void**) &devFlowPrev, flow_size * sizeof(float)) );
-    checkCudaErrors( cudaMemcpy(devFlowPrev, flow_prev,
+    checkCudaErrors( cudaMemcpy(pDevFlowPrev, flow_prev,
           flow_size * sizeof(float), cudaMemcpyHostToDevice) );
 
-    cu::initCoarserOF(devFlowPrev, pDevicePatchStates,
+    gettimeofday(&tv_start, nullptr);
+
+    cu::initCoarserOF(pDevFlowPrev, pDevicePatchStates,
         n_patches, i_params);
 
+    gettimeofday(&tv_end, nullptr);
+    coarseTime += (tv_end.tv_sec - tv_start.tv_sec) * 1000.0f +
+      (tv_end.tv_usec - tv_start.tv_usec) / 1000.0f;
 
   }
 
 
   void PatGridClass::AggregateFlowDense(float *flowout) {
-
-    /*bool isValid[n_patches];
-      float flowXs[n_patches];
-      float flowYs[n_patches];
-      float* costs[n_patches];
-
-      for (int i = 0; i < n_patches; i++) {
-      isValid[i] = patches[i]->IsValid();
-      flowXs[i] = (*(patches[i]->GetCurP()))[0];
-      flowYs[i] = (*(patches[i]->GetCurP()))[1];
-      costs[i] = patches[i]->GetDeviceCostDiffPtr();
-      }
-
-      bool *deviceIsValid;
-      float* deviceFlowXs, * deviceFlowYs;
-      float** deviceCosts;
-
-      checkCudaErrors(
-      cudaMalloc ((void**) &deviceIsValid, n_patches * sizeof(bool)) );
-      checkCudaErrors(
-      cudaMalloc ((void**) &deviceFlowXs, n_patches * sizeof(float)) );
-      checkCudaErrors(
-      cudaMalloc ((void**) &deviceFlowYs, n_patches * sizeof(float)) );
-      checkCudaErrors(
-      cudaMalloc ((void**) &deviceCosts, n_patches * sizeof(float*)) );
-
-      checkCudaErrors( cudaMemcpy(deviceIsValid, isValid,
-      n_patches * sizeof(bool), cudaMemcpyHostToDevice) );
-      checkCudaErrors( cudaMemcpy(deviceFlowXs, flowXs,
-      n_patches * sizeof(float), cudaMemcpyHostToDevice) );
-      checkCudaErrors( cudaMemcpy(deviceFlowYs, flowYs,
-      n_patches * sizeof(float), cudaMemcpyHostToDevice) );
-      checkCudaErrors( cudaMemcpy(deviceCosts, costs,
-      n_patches * sizeof(float*), cudaMemcpyHostToDevice) );*/
-
 
     gettimeofday(&tv_start, nullptr);
 
@@ -339,39 +314,28 @@ namespace OFC {
     checkCudaErrors(
         cudaMemset (pDeviceFlowOut, 0.0, i_params->width * i_params->height * 2 * sizeof(float)) );
 
-    /*cu::densifyPatches(
-      deviceCosts, pDeviceFlowOut, pDeviceWeights,
-      deviceFlowXs, deviceFlowYs, deviceIsValid,
-      pDeviceMidpointX, pDeviceMidpointY, n_patches,
-      op, i_params);*/
-    for (int ip = 0; ip < n_patches; ++ip) {
-
-      float* pweight = pHostDeviceCosts[ip]; // use image error as weight
-
-      cu::densifyPatch(
-          pweight, pDeviceFlowOut, pDeviceWeights,
-          pDevicePatchStates, ip,
-          midpoints_ref[ip][0], midpoints_ref[ip][1],
-          i_params->width, i_params->height,
-          op->patch_size, op->min_errval);
-
-    }
+    cu::densifyPatches(
+        pDeviceCosts, pDeviceFlowOut, pDeviceWeights,
+        pDevicePatchStates, n_patches, op, i_params);
 
     gettimeofday(&tv_end, nullptr);
     aggregateTime += (tv_end.tv_sec - tv_start.tv_sec) * 1000.0f +
       (tv_end.tv_usec - tv_start.tv_usec) / 1000.0f;
 
     gettimeofday(&tv_start, nullptr);
+
     // Normalize all pixels
-    cu::normalizeFlow(pDeviceFlowOut, pDeviceWeights, i_params->width * i_params->height);
+    cu::normalizeFlow(pDeviceFlowOut, pDeviceWeights, 2 * i_params->width * i_params->height);
+
+    gettimeofday(&tv_end, nullptr);
+    meanTime += (tv_end.tv_sec - tv_start.tv_sec) * 1000.0f +
+      (tv_end.tv_usec - tv_start.tv_usec) / 1000.0f;
 
     checkCudaErrors(
         cudaMemcpy(flowout, pDeviceFlowOut,
           i_params->width * i_params->height * 2 * sizeof(float), cudaMemcpyDeviceToHost) );
 
-    gettimeofday(&tv_end, nullptr);
-    meanTime += (tv_end.tv_sec - tv_start.tv_sec) * 1000.0f +
-      (tv_end.tv_usec - tv_start.tv_usec) / 1000.0f;
+
   }
 
 
@@ -380,6 +344,7 @@ namespace OFC {
     cout << endl;
     cout << "===============Timings (ms)===============" << endl;
     cout << "[extract]      " << extractTime << endl;
+    cout << "[coarse]       " << coarseTime << endl;
     cout << "[optiTime]      " << optiTime << endl;
     cout << "[aggregate]    " << aggregateTime << endl;
     cout << "[flow norm]    " << meanTime << endl;

@@ -52,6 +52,9 @@ namespace OFC {
       float** pDeviceRaws, **pDeviceCosts;
       float** pHostDeviceRaws, **pHostDeviceCosts;
 
+      // Previous flow
+      float* pDevFlowPrev;
+
       // Hessian
       // TODO: Can we shared memory?
       float** pDeviceTempXX, ** pDeviceTempXY, ** pDeviceTempYY;
@@ -72,6 +75,7 @@ namespace OFC {
       double aggregateTime;
       double meanTime;
       double extractTime;
+      double coarseTime;
       double optiTime;
 
       // float* midpointX_host;
