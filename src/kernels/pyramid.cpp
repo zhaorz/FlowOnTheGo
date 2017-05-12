@@ -88,6 +88,7 @@ namespace cu {
           pDeviceIx, nSrcStep, oROI,
           pDeviceWew, nMaskSize, nAnchor, eBorderType)
         );
+    cudaDeviceSynchronize();
     compute_time += calc_print_elapsed("sobel: Ixs[0]", start_dx);
 
     // dy's
@@ -102,6 +103,7 @@ namespace cu {
           pDeviceIy, nSrcStep, oROI,
           pDeviceWew, nMaskSize, nAnchor, eBorderType)
         );
+    cudaDeviceSynchronize();
     compute_time += calc_print_elapsed("sobel: Iys[0]", start_dy);
 
     ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -127,6 +129,7 @@ namespace cu {
         nppiCopyConstBorder_32f_C3R (
           pDeviceIy, nSrcStep, oSize,
           Iys[0], nDstStep, oPadSize, padding, padding, PAD_VAL) );
+    cudaDeviceSynchronize();
 
 
     ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -175,6 +178,7 @@ namespace cu {
             pDeviceIx, nSrcStep, oROI,
             pDeviceWew, nMaskSize, nAnchor, eBorderType)
           );
+      cudaDeviceSynchronize();
       compute_time += calc_print_elapsed("sobel: Ixs[i]", start_dx);
 
       // dy's
@@ -189,6 +193,7 @@ namespace cu {
             pDeviceIy, nSrcStep, oROI,
             pDeviceWew, nMaskSize, nAnchor, eBorderType)
           );
+      cudaDeviceSynchronize();
       compute_time += calc_print_elapsed("sobel: Iys[i]", start_dy);
 
       //////////////////////////////////////////////////////////////////////////////////////////////
@@ -215,6 +220,7 @@ namespace cu {
           nppiCopyConstBorder_32f_C3R (
             pDeviceIy, nSrcStep, oSize,
             Iys[i], nDstStep, oPadSize, padding, padding, PAD_VAL) );
+      cudaDeviceSynchronize();
 
     }
 

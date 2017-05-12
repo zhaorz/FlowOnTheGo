@@ -389,21 +389,29 @@ __global__ void kernelGetMeanImageAndDiff(
 
 __global__ void kernelFlowMag(
     float *dst,  float *ux,  float *uy,  float *vx,  float *vy,
-    float qa, float epsmooth, int height, int width, int stride) {
+    float qa, float epsmooth, int height, int width, int stride, int N) {
 
-  int tidx = blockIdx.x * blockDim.x + threadIdx.x;
+  int i = blockIdx.x * blockDim.x + threadIdx.x;
 
-  if (tidx < height * stride) {
-    float *uxp = ux + tidx,
-          *uyp = uy + tidx,
-          *vxp = vx + tidx,
-          *vyp = vy + tidx,
-          *sp  = dst + tidx;
-
-    *sp = qa / sqrtf(
-        (*uxp)*(*uxp) + (*uyp)*(*uyp) + (*vxp)*(*vxp) + (*vyp)*(*vyp) + epsmooth );
-
+  for (; i < N; i+= blockDim.x * gridDim.x) {
+    dst[i] = qa / sqrt(
+        (ux[i])*(ux[i]) + (uy[i])*(uy[i]) + (vx[i])*(vx[i]) + (vy[i])*(vy[i]) + epsmooth );
   }
+
+  // if (tidx < stride) {
+  //   float *uxp = ux + tidx,
+  //         *uyp = uy + tidx,
+  //         *vxp = vx + tidx,
+  //         *vyp = vy + tidx,
+  //         *sp  = dst + tidx;
+
+  //   for (int j = 0; j < height; j++) {
+  //     *sp = qa / sqrtf(
+  //         (*uxp)*(*uxp) + (*uyp)*(*uyp) + (*vxp)*(*vxp) + (*vyp)*(*vyp) + epsmooth );
+
+  //     uxp += stride; uyp += stride; vxp += stride; vyp += stride; sp += stride; 
+  //   }
+  // }
 }
 
 __global__ void kernelSmoothnessHorizVert(
@@ -868,6 +876,7 @@ namespace cu {
 
     float *d_dst_horiz, *d_dst_vert, *d_smoothness, *d_ux, *d_uy, *d_vx, *d_vy;
 
+    auto start_getdeviceptr = now();
     checkCudaErrors( cudaHostGetDevicePointer(&d_dst_horiz,     dst_horiz,  0) );
     checkCudaErrors( cudaHostGetDevicePointer(&d_dst_vert,      dst_vert,   0) );
     checkCudaErrors( cudaHostGetDevicePointer(&d_smoothness,    smoothness, 0) );
@@ -875,19 +884,26 @@ namespace cu {
     checkCudaErrors( cudaHostGetDevicePointer(&d_uy,            uy,         0) );
     checkCudaErrors( cudaHostGetDevicePointer(&d_vx,            vx,         0) );
     checkCudaErrors( cudaHostGetDevicePointer(&d_vy,            vy,         0) );
+    calc_print_elapsed("smoothnessTerm get device ptrs", start_getdeviceptr);
 
-    int N = height * stride;
-    int nThreadsPerBlock = 128;
-    int nBlocks = (N + nThreadsPerBlock - 1) / nThreadsPerBlock;
+    int N = height * width;
+    int nThreadsPerBlock = 64;
+    int nBlocks = 10;
 
+    auto start_mag = now();
     kernelFlowMag<<<nBlocks, nThreadsPerBlock>>> (
         d_smoothness, d_ux, d_uy, d_vx, d_vy,
-        qa, epsmooth, height, width, stride);
-
+        qa, epsmooth, height, width, stride, N);
     cudaDeviceSynchronize();
+    calc_print_elapsed("smoothnessTerm magnitude", start_mag);
 
+    N = height * stride;
+    nBlocks = (N + nThreadsPerBlock - 1) / nThreadsPerBlock;
+
+    auto start_horizvert = now();
     kernelSmoothnessHorizVert<<< nBlocks, nThreadsPerBlock >>> (
         d_dst_horiz, d_dst_vert, d_smoothness, height, width, stride);
+    calc_print_elapsed("smoothnessTerm horiz vert", start_horizvert);
 
     cudaDeviceSynchronize();
   }
@@ -956,26 +972,33 @@ namespace cu {
   void computeSmoothness(
       image_t *dst_horiz, image_t *dst_vert, const image_t *uu, const image_t *vv, float *deriv_flow, const float quarter_alpha) {
 
+    auto start_setup = now();
     const int width = uu->width, height = vv->height, stride = uu->stride;
     image_t *ux = image_new(width,height),
             *vx = image_new(width,height),
             *uy = image_new(width,height),
             *vy = image_new(width,height),
             *smoothness = image_new(width,height);
+    calc_print_elapsed("smoothness setup", start_setup);
 
     // compute derivatives [-0.5 0 0.5]
+    auto start_derivs = now();
     cu::imageDerivative(ux->c1, uu->c1, deriv_flow, height, width, stride, true);
     cu::imageDerivative(vx->c1, vv->c1, deriv_flow, height, width, stride, true);
     cu::imageDerivative(uy->c1, uu->c1, deriv_flow, height, width, stride, false);
     cu::imageDerivative(vy->c1, vv->c1, deriv_flow, height, width, stride, false);
+    calc_print_elapsed("smoothness derivatives", start_derivs);
 
+    auto start_calc = now();
     cu::smoothnessTerm(
         dst_horiz->c1, dst_vert->c1, smoothness->c1,
         ux->c1, uy->c1, vx->c1, vy->c1,
         quarter_alpha, epsilon_smooth,
         height, width, stride);
+    calc_print_elapsed("smoothness term", start_calc);
 
     // Cleanup extra columns
+    auto start_cleanup = now();
     for(int j = 0; j < height; j++){
       memset(&dst_horiz->c1[j*stride+width-1], 0, sizeof(float)*(stride-width+1));
     }
@@ -984,6 +1007,7 @@ namespace cu {
 
     image_delete(ux); image_delete(uy); image_delete(vx); image_delete(vy); 
     image_delete(smoothness);
+    calc_print_elapsed("smoothness cleanup", start_cleanup);
   }
 
   void getDerivatives(

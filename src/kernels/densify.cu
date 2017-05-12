@@ -120,6 +120,9 @@ namespace cu {
         midpointX, midpointY,
         width, height,
         patchSize, minErrVal);
+
+    cudaDeviceSynchronize();
+
   }
 
   void normalizeFlow(float* pHostFlowOut,
@@ -130,6 +133,9 @@ namespace cu {
 
     kernelNormalizeFlow<<<nBlocks, nThreadsPerBlock>>>(pDeviceFlowOut,
         pHostFlowOut, pDeviceWeights, N, nBlocks);
+    
+    cudaDeviceSynchronize();
+
   }
 
   void densifyPatches(
@@ -145,6 +151,8 @@ namespace cu {
         states,
         i_params->width, i_params->height,
         op->patch_size, op->min_errval);
+
+    cudaDeviceSynchronize();
 
   }
 
