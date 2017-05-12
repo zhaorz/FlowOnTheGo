@@ -102,7 +102,6 @@ set(CODEFILES
   # FDF1.0.1/image.c
   FDF1.0.1/image.cpp
   FDF1.0.1/opticalflow_aux.cpp
-  FDF1.0.1/solver.cpp
   )
 
 # GrayScale, Optical Flow

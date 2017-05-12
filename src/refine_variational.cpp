@@ -47,11 +47,6 @@ namespace OFC {
       vr.tmp_half_delta_over3 = vr.delta * 0.5f / 3.0f;
       vr.tmp_half_beta = vr.beta * 0.5f;
 
-      float deriv_filter[3] = {0.0f, -8.0f / 12.0f, 1.0f / 12.0f};
-      deriv = convolution_new(2, deriv_filter, 0);
-      float deriv_filter_flow[2] = {0.0f, -0.5f};
-      deriv_flow = convolution_new(1, deriv_filter_flow, 0);
-
       float pHostColorDerivativeKernel[5] = { 1.0 / 12.0, 2.0 / 3.0, 0.0, -2.0 / 3.0, 1.0 / 12.0 };
       checkCudaErrors( cudaMalloc((void**) &pDeviceColorDerivativeKernel, 5 * sizeof(float)) );
       checkCudaErrors(
@@ -116,10 +111,6 @@ namespace OFC {
       // free FV structs
       for (int i = 0; i < noparam; ++i )
         image_delete(flow_sep[i]);
-
-      convolution_delete(deriv);
-      convolution_delete(deriv_flow);
-
 
       color_image_delete(I0);
       color_image_delete(I1);
@@ -213,13 +204,11 @@ namespace OFC {
       calc_print_elapsed(("RefLevelOF " + iterStr + " laplacian").c_str(), start_lapalcian);
 
       // solve system
-// #ifdef WITH_OPENMP
       auto start_sor = now();
-      sor_coupled_slow_but_readable(du, dv, a11, a12, a22, b1, b2, smooth_horiz, smooth_vert, vr.solve_iter, vr.sor_omega); // slower but parallelized
+      cu::sor(du->c1, dv->c1, a11->c1, a12->c1, a22->c1,
+          b1->c1, b2->c1, smooth_horiz->c1, smooth_vert->c1,
+          vr.solve_iter, vr.sor_omega, du->height, du->width, du->stride);
       calc_print_elapsed(("RefLevelOF " + iterStr + " sor").c_str(), start_sor);
-// #else
-//      sor_coupled(du, dv, a11, a12, a22, b1, b2, smooth_horiz, smooth_vert, vr.solve_iter, vr.sor_omega);
-// #endif
 
       // update flow plus flow increment
       auto start_flow_update = now();
