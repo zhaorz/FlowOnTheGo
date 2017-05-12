@@ -189,11 +189,11 @@ namespace OFC {
     cu::constructImgPyramids(I0, I0s, I0xs, I0ys,
         pDeviceIx, pDeviceIy, pDeviceTmp, pDeviceWew,
         iparams.width, iparams.height,
-        op.patch_size, op.coarsest_scale + 1);
+        op.patch_size, op.finest_scale, op.coarsest_scale);
     cu::constructImgPyramids(I1, I1s, I1xs, I1ys,
         pDeviceIx, pDeviceIy, pDeviceTmp, pDeviceWew,
         iparams.width, iparams.height,
-        op.patch_size, op.coarsest_scale + 1);
+        op.patch_size, op.finest_scale, op.coarsest_scale);
 
     // Timing, image gradients and pyramid
     if (op.verbosity > 1) {
@@ -218,7 +218,7 @@ namespace OFC {
     printf("Constructing pyramids\n");
     ConstructImgPyramids(_iparams);
 
-    if (op.verbosity > 1) cout << ", cflow " << endl;
+    std::cout << "coarsest: " <<  op.coarsest_scale << " finest: " << op.finest_scale << std::endl;
 
     // Variables for algorithm timings
     struct timeval tv_start_all, tv_end_all, tv_start_all_global, tv_end_all_global;

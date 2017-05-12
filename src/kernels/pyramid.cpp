@@ -33,7 +33,7 @@ namespace cu {
       Npp32f* src, float** Is, float** Ixs, float** Iys,
       Npp32f* pDeviceIx, Npp32f* pDeviceIy, Npp32f* pDeviceTmp,
       Npp32f* pDeviceWew, int width, int height,
-      int padding, int nLevels) {
+      int padding, int finest_scale, int coarsest_scale) {
 
     // Timing
     auto start_total = now();
@@ -72,39 +72,39 @@ namespace cu {
 
     Npp32f* pDeviceI = src;
 
-    ////////////////////////////////////////////////////////////////////////////////////////////////
-    // Apply first gradients to Is[0]
-    ////////////////////////////////////////////////////////////////////////////////////////////////
+    // ////////////////////////////////////////////////////////////////////////////////////////////////
+    // // Apply first gradients to Is[0]
+    // ////////////////////////////////////////////////////////////////////////////////////////////////
 
-    // dx's
-    auto start_dx = now();
-    NPP_CHECK_NPP(
-        // nppiFilterSobelHorizBorder_32f_C3R (
-        //   pDeviceI, nSrcStep, oSize, oOffset,
-        //   pDeviceIx, nSrcStep, oROI, eBorderType)
+    // // dx's
+    // auto start_dx = now();
+    // NPP_CHECK_NPP(
+    //     // nppiFilterSobelHorizBorder_32f_C3R (
+    //     //   pDeviceI, nSrcStep, oSize, oOffset,
+    //     //   pDeviceIx, nSrcStep, oROI, eBorderType)
 
-        nppiFilterRowBorder_32f_C3R (
-          pDeviceI, nSrcStep, oSize, oOffset,
-          pDeviceIx, nSrcStep, oROI,
-          pDeviceWew, nMaskSize, nAnchor, eBorderType)
-        );
-    cudaDeviceSynchronize();
-    compute_time += calc_print_elapsed("sobel: Ixs[0]", start_dx);
+    //     nppiFilterRowBorder_32f_C3R (
+    //       pDeviceI, nSrcStep, oSize, oOffset,
+    //       pDeviceIx, nSrcStep, oROI,
+    //       pDeviceWew, nMaskSize, nAnchor, eBorderType)
+    //     );
+    // cudaDeviceSynchronize();
+    // compute_time += calc_print_elapsed("sobel: Ixs[0]", start_dx);
 
-    // dy's
-    auto start_dy = now();
-    NPP_CHECK_NPP(
-        // nppiFilterSobelVertBorder_32f_C3R (
-        //   pDeviceI, nSrcStep, oSize, oOffset,
-        //   pDeviceIy, nSrcStep, oROI, eBorderType)
+    // // dy's
+    // auto start_dy = now();
+    // NPP_CHECK_NPP(
+    //     // nppiFilterSobelVertBorder_32f_C3R (
+    //     //   pDeviceI, nSrcStep, oSize, oOffset,
+    //     //   pDeviceIy, nSrcStep, oROI, eBorderType)
 
-        nppiFilterColumnBorder_32f_C3R (
-          pDeviceI, nSrcStep, oSize, oOffset,
-          pDeviceIy, nSrcStep, oROI,
-          pDeviceWew, nMaskSize, nAnchor, eBorderType)
-        );
-    cudaDeviceSynchronize();
-    compute_time += calc_print_elapsed("sobel: Iys[0]", start_dy);
+    //     nppiFilterColumnBorder_32f_C3R (
+    //       pDeviceI, nSrcStep, oSize, oOffset,
+    //       pDeviceIy, nSrcStep, oROI,
+    //       pDeviceWew, nMaskSize, nAnchor, eBorderType)
+    //     );
+    // cudaDeviceSynchronize();
+    // compute_time += calc_print_elapsed("sobel: Iys[0]", start_dy);
 
     ////////////////////////////////////////////////////////////////////////////////////////////////
     // Pad Is[0] I, dx, dy
@@ -115,21 +115,24 @@ namespace cu {
     int nDstStep = oPadSize.width * elemSize;
 
     // Pad original
-    NPP_CHECK_NPP(
-        nppiCopyReplicateBorder_32f_C3R (
-          pDeviceI, nSrcStep, oSize,
-          Is[0], nDstStep, oPadSize, padding, padding) );
+    // auto start_initial_pad = now();
+    // NPP_CHECK_NPP(
+    //     nppiCopyReplicateBorder_32f_C3R (
+    //       pDeviceI, nSrcStep, oSize,
+    //       Is[0], nDstStep, oPadSize, padding, padding) );
+    // cudaDeviceSynchronize();
+    // compute_time += calc_print_elapsed("initial pad", start_initial_pad);
 
     // Pad dx, dy
-    NPP_CHECK_NPP(
-        nppiCopyConstBorder_32f_C3R (
-          pDeviceIx, nSrcStep, oSize,
-          Ixs[0], nDstStep, oPadSize, padding, padding, PAD_VAL) );
-    NPP_CHECK_NPP(
-        nppiCopyConstBorder_32f_C3R (
-          pDeviceIy, nSrcStep, oSize,
-          Iys[0], nDstStep, oPadSize, padding, padding, PAD_VAL) );
-    cudaDeviceSynchronize();
+    // NPP_CHECK_NPP(
+    //     nppiCopyConstBorder_32f_C3R (
+    //       pDeviceIx, nSrcStep, oSize,
+    //       Ixs[0], nDstStep, oPadSize, padding, padding, PAD_VAL) );
+    // NPP_CHECK_NPP(
+    //     nppiCopyConstBorder_32f_C3R (
+    //       pDeviceIy, nSrcStep, oSize,
+    //       Iys[0], nDstStep, oPadSize, padding, padding, PAD_VAL) );
+    // cudaDeviceSynchronize();
 
 
     ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -137,7 +140,17 @@ namespace cu {
     ////////////////////////////////////////////////////////////////////////////////////////////////
 
 
-    for (int i = 1; i < nLevels; i++) {
+    for (int i = finest_scale; i <= coarsest_scale; i++) {
+      if (i == finest_scale) {
+        // Calculate the scale to get from level 0 to finest_scale
+        for (int k = 0; k < finest_scale - 1; k++) {
+          scaleX *= 0.5;
+          scaleY *= 0.5;
+        }
+      } else {
+        scaleX = 0.5;
+        scaleY = 0.5;
+      }
 
       // Get the new size
       NppiRect srcRect = { 0, 0, width, height };
@@ -146,16 +159,19 @@ namespace cu {
           nppiGetResizeRect (srcRect, &dstRect, scaleX, scaleY, shiftX, shiftY, eInterpolation) );
 
       std::cout << "constructImgPyramids level " << i << ": "
-        << dstRect.width << "x" << dstRect.height << std::endl;
+        << dstRect.width << "x" << dstRect.height 
+        << " scaleX: " << scaleX << " scaleY: " << scaleY << std::endl;
 
       int nDstStep = dstRect.width * elemSize;
 
       // Resize I => Tmp
+      auto start_resize = now();
       NPP_CHECK_NPP(
           nppiResizeSqrPixel_32f_C3R (
             pDeviceI, oSize, nSrcStep, srcRect,
             pDeviceTmp, nDstStep, dstRect,
             scaleX, scaleY, shiftX, shiftY, eInterpolation) );
+      compute_time += calc_print_elapsed("resize I => Tmp", start_resize);
 
       // Put the resized image back into I
       std::swap(pDeviceI, pDeviceTmp);
@@ -206,6 +222,7 @@ namespace cu {
       nDstStep = oPadSize.width * elemSize;
 
       // Pad original
+      auto start_padding = now();
       NPP_CHECK_NPP(
           nppiCopyReplicateBorder_32f_C3R (
             pDeviceI, nSrcStep, oSize,
@@ -221,6 +238,7 @@ namespace cu {
             pDeviceIy, nSrcStep, oSize,
             Iys[i], nDstStep, oPadSize, padding, padding, PAD_VAL) );
       cudaDeviceSynchronize();
+      compute_time += calc_print_elapsed("padding", start_padding);
 
     }
 
