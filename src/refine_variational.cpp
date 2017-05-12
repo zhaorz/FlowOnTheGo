@@ -170,6 +170,7 @@ namespace OFC {
     calc_print_elapsed("RefLevelOF image_erase", start_image_erase);
 
     // initialize uu and vv
+    // TODO: use cudaMemcpy
     memcpy(uu->c1,wx->c1,wx->stride*wx->height*sizeof(float));
     memcpy(vv->c1,wy->c1,wy->stride*wy->height*sizeof(float));
     // inner fixed point iterations
@@ -217,6 +218,7 @@ namespace OFC {
 
     }
     // add flow increment to current flow
+    // TODO: use cudaMemcpy
     auto start_increment_flow = now();
     memcpy(wx->c1,uu->c1,uu->stride*uu->height*sizeof(float));
     memcpy(wy->c1,vv->c1,vv->stride*vv->height*sizeof(float));
