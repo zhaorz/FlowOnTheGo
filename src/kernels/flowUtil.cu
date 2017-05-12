@@ -644,7 +644,7 @@ namespace cu {
     auto start_vert = now();
     kernelSubLaplacianVert<<<nBlocks, nThreadsPerBlock>>>(
         d_src, d_src + stride, d_dst, d_dst + stride, d_weights, height, stride);
-    calc_print_elapsed("laplacian vert", start_vert);
+    // calc_print_elapsed("laplacian vert", start_vert);
 
   }
 

@@ -90,12 +90,12 @@ namespace OFC {
 
       copyimage(_I0, I0);
       copyimage(_I1, I1);
-      calc_print_elapsed("refine: flow_sep", start_flow_sep);
+      // calc_print_elapsed("refine: flow_sep", start_flow_sep);
 
       // Call solver
       auto start_solver = now();
       RefLevelOF(flow_sep[0], flow_sep[1], I0, I1);
-      calc_print_elapsed("RefLevelOF [total]", start_solver);
+      // calc_print_elapsed("RefLevelOF [total]", start_solver);
 
       // Copy flow result back
       auto start_copy = now();
@@ -109,7 +109,7 @@ namespace OFC {
 
         }
       }
-      calc_print_elapsed("refine: copy back", start_copy);
+      // calc_print_elapsed("refine: copy back", start_copy);
 
       // free FV structs
       for (int i = 0; i < noparam; ++i )
@@ -164,12 +164,12 @@ namespace OFC {
                   *Ix = color_image_new(width,height), *Iy = color_image_new(width,height), *Iz = color_image_new(width,height), // first order derivatives
                   *Ixx = color_image_new(width,height), *Ixy = color_image_new(width,height),
                   *Iyy = color_image_new(width,height), *Ixz = color_image_new(width,height), *Iyz = color_image_new(width,height); // second order derivatives
-    calc_print_elapsed("RefLevelOF setup", start_setup);
+    // calc_print_elapsed("RefLevelOF setup", start_setup);
 
     // warp second image
     auto start_image_warp = now();
     cu::warpImage(w_im2, mask, im2, wx, wy);
-    calc_print_elapsed("RefLevelOF image_warp", start_image_warp);
+    // calc_print_elapsed("RefLevelOF image_warp", start_image_warp);
 
     // compute derivatives
     auto start_get_derivs = now();
@@ -180,7 +180,7 @@ namespace OFC {
     auto start_image_erase = now();
     image_erase(du);
     image_erase(dv);
-    calc_print_elapsed("RefLevelOF image_erase", start_image_erase);
+    // calc_print_elapsed("RefLevelOF image_erase", start_image_erase);
 
     // initialize uu and vv
     memcpy(uu->c1,wx->c1,wx->stride*wx->height*sizeof(float));
@@ -219,16 +219,16 @@ namespace OFC {
       cu::flowUpdate(
           uu->c1, vv->c1, wx->c1, wy->c1, du->c1, dv->c1,
           height, width, stride);
-      calc_print_elapsed(("RefLevelOF " + iterStr + " flow update").c_str(), start_flow_update);
+      // calc_print_elapsed(("RefLevelOF " + iterStr + " flow update").c_str(), start_flow_update);
 
-      calc_print_elapsed(("RefLevelOF " + iterStr + " [total]").c_str(), start_iteration);
+      // calc_print_elapsed(("RefLevelOF " + iterStr + " [total]").c_str(), start_iteration);
 
     }
     // add flow increment to current flow
     auto start_increment_flow = now();
     memcpy(wx->c1,uu->c1,uu->stride*uu->height*sizeof(float));
     memcpy(wy->c1,vv->c1,vv->stride*vv->height*sizeof(float));
-    calc_print_elapsed("RefLevelOF increment flow", start_increment_flow);
+    // calc_print_elapsed("RefLevelOF increment flow", start_increment_flow);
 
     // free memory
     auto start_cleanup = now();
@@ -242,7 +242,7 @@ namespace OFC {
     color_image_delete(w_im2);
     color_image_delete(Ix); color_image_delete(Iy); color_image_delete(Iz);
     color_image_delete(Ixx); color_image_delete(Ixy); color_image_delete(Iyy); color_image_delete(Ixz); color_image_delete(Iyz);
-    calc_print_elapsed("RefLevelOF cleanup", start_cleanup);
+    // calc_print_elapsed("RefLevelOF cleanup", start_cleanup);
   }
 
 

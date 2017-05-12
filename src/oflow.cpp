@@ -94,7 +94,10 @@ namespace OFC {
         iparams[i].height_pad = iparams[i].height + 2 * _iparams.padding;
         iparams[i].curr_lvl = sl;
 
-        flow[i]   = new float[2 * iparams[i].width * iparams[i].height];
+        // flow[i]   = new float[2 * iparams[i].width * iparams[i].height];
+        checkCudaErrors(
+            cudaHostAlloc((void**) &(flow[i]),
+              2 * iparams[i].width * iparams[i].height * sizeof(float), cudaHostAllocMapped) );
         grid[i]   = new OFC::PatGridClass(&(iparams[i]), &op);
       }
 
@@ -147,7 +150,7 @@ namespace OFC {
 
     for (int sl = op.coarsest_scale; sl >= op.finest_scale; --sl) {
 
-      delete[] flow[sl - op.finest_scale];
+      cudaFree(flow[sl - op.finest_scale]);
       delete grid[sl - op.finest_scale];
 
     }

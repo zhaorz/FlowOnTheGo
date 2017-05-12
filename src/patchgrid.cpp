@@ -288,13 +288,9 @@ namespace OFC {
 
   void PatGridClass::InitializeFromCoarserOF(const float * flow_prev) {
 
-    int flow_size = i_params->width * i_params->height / 2;
-    checkCudaErrors( cudaMemcpy(pDevFlowPrev, flow_prev,
-          flow_size * sizeof(float), cudaMemcpyHostToDevice) );
-
     gettimeofday(&tv_start, nullptr);
 
-    cu::initCoarserOF(pDevFlowPrev, pDevicePatchStates,
+    cu::initCoarserOF(flow_prev, pDevicePatchStates,
         n_patches, i_params);
 
     gettimeofday(&tv_end, nullptr);
@@ -325,15 +321,11 @@ namespace OFC {
     gettimeofday(&tv_start, nullptr);
 
     // Normalize all pixels
-    cu::normalizeFlow(pDeviceFlowOut, pDeviceWeights, 2 * i_params->width * i_params->height);
+    cu::normalizeFlow(flowout, pDeviceFlowOut, pDeviceWeights, 2 * i_params->width * i_params->height);
 
     gettimeofday(&tv_end, nullptr);
     meanTime += (tv_end.tv_sec - tv_start.tv_sec) * 1000.0f +
       (tv_end.tv_usec - tv_start.tv_usec) / 1000.0f;
-
-    checkCudaErrors(
-        cudaMemcpy(flowout, pDeviceFlowOut,
-          i_params->width * i_params->height * 2 * sizeof(float), cudaMemcpyDeviceToHost) );
 
 
   }
