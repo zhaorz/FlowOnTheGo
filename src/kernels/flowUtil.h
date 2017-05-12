@@ -81,7 +81,9 @@ namespace cu {
       color_image_t *dst, image_t *mask, const color_image_t *src, const image_t *wx, const image_t *wy);
 
   void computeSmoothness(
-      image_t *dst_horiz, image_t *dst_vert, const image_t *uu, const image_t *vv, float *deriv_flow, const float quarter_alpha);
+      image_t *dst_horiz, image_t *dst_vert, const image_t *uu, const image_t *vv, float *deriv_flow,
+      image_t *ux, image_t *uy, image_t *vx, image_t *vy, image_t *smoothness, 
+      const float quarter_alpha);
 
   void getDerivatives(
       const color_image_t *im1, const color_image_t *im2, float *pDeviceKernel,
