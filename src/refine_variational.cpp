@@ -185,7 +185,7 @@ namespace OFC {
     checkCudaErrors( cudaMemcpy(vv->c1,wy->c1,wy->stride*wy->height*sizeof(float), cudaMemcpyDeviceToDevice) );
 
     // inner fixed point iterations
-    for(i_inner_iteration = 0 ; i_inner_iteration < vr.inner_iter ; i_inner_iteration++) {
+    for(i_inner_iteration = 0 ; i_inner_iteration < vr.inner_iter; i_inner_iteration++) {
       auto start_iteration = now();
       std::string iterStr = "[" + std::to_string(i_inner_iteration) + "]";
 

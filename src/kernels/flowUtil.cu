@@ -1087,10 +1087,11 @@ namespace cu {
 
     // Cleanup extra columns
     auto start_cleanup = now();
-    for(int j = 0; j < height; j++){
-      // memset(&dst_horiz->c1[j*stride+width-1], 0, sizeof(float)*(stride-width+1));
-      checkCudaErrors( cudaMemset(&dst_horiz->c1[j*stride+width-1], 0, sizeof(float)*(stride-width+1)) );
-    }
+    // // Doesn't really affect the output
+    // for(int j = 0; j < height; j++){
+    //   // memset(&dst_horiz->c1[j*stride+width-1], 0, sizeof(float)*(stride-width+1));
+    //   checkCudaErrors( cudaMemset(&dst_horiz->c1[j*stride+width-1], 0, sizeof(float)*(stride-width+1)) );
+    // }
     cudaDeviceSynchronize();
     calc_print_elapsed("smoothness column cleanup", start_cleanup);
     // Cleanup last row
