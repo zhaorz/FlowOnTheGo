@@ -119,18 +119,14 @@ void opticalFlowStream(cv::VideoCapture cap) {
   // Get the first three frames
   ////////////////////////////////////////////////////////////////////////////////////////////////
 
-  cv::Mat I0_mat, I1_mat, I2_mat;
-  cv::Mat I0_fmat, I1_fmat, I2_fmat;
-  cap >> I0_mat;
-  cap >> I1_mat;
-  cap >> I2_mat;
+  cv::Mat I_mat, oldI_mat;
+  cv::Mat I_fmat, oldI_fmat;
+  cap >> I_mat;
 
-  int width_org = I0_mat.size().width;    // unpadded original image size
-  int height_org = I0_mat.size().height;  // unpadded original image size
+  int width_org = I_mat.size().width;    // unpadded original image size
+  int height_org = I_mat.size().height;  // unpadded original image size
   
-  I0_mat.convertTo(I0_fmat, CV_32F);
-  I1_mat.convertTo(I1_fmat, CV_32F);
-  I2_mat.convertTo(I2_fmat, CV_32F);
+  I_mat.convertTo(I_fmat, CV_32F);
 
   ////////////////////////////////////////////////////////////////////////////////////////////////
   // Set up parameters
@@ -155,21 +151,16 @@ void opticalFlowStream(cv::VideoCapture cap) {
   int channels = 3;
   int elemSize = channels * sizeof(Npp32f);
 
-  Npp32f* I0, *I1, *I2;
+  Npp32f* I, *oldI;
 
   auto start_cuda_malloc = now();
-  checkCudaErrors( cudaMalloc((void**) &I0, width_org * height_org * elemSize) );
-  checkCudaErrors( cudaMalloc((void**) &I1, width_org * height_org * elemSize) );
-  checkCudaErrors( cudaMalloc((void**) &I2, width_org * height_org * elemSize) );
+  checkCudaErrors( cudaMalloc((void**) &I, width_org * height_org * elemSize) );
+  checkCudaErrors( cudaMalloc((void**) &oldI, width_org * height_org * elemSize) );
   calc_print_elapsed("I0, I1 cudaMalloc", start_cuda_malloc);
 
   auto start_memcpy_hd = now();
   checkCudaErrors(
-      cudaMemcpy(I0, (float*) I0_fmat.data, width_org * height_org * elemSize, cudaMemcpyHostToDevice) );
-  checkCudaErrors(
-      cudaMemcpy(I1, (float*) I1_fmat.data, width_org * height_org * elemSize, cudaMemcpyHostToDevice) );
-  checkCudaErrors(
-      cudaMemcpy(I2, (float*) I2_fmat.data, width_org * height_org * elemSize, cudaMemcpyHostToDevice) );
+      cudaMemcpy(I, (float*) I_fmat.data, width_org * height_org * elemSize, cudaMemcpyHostToDevice) );
   calc_print_elapsed("cudaMemcpy I0, I1 H->D", start_memcpy_hd);
 
   ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -185,25 +176,13 @@ void opticalFlowStream(cv::VideoCapture cap) {
   if (div > 0) padh = max_scale - div;
 
   if (padh > 0 || padw > 0) {
-    Npp32f* I0Padded = cu::pad(
-        I0, width_org, height_org, floor((float) padh / 2.0f), ceil((float) padh / 2.0f),
+    Npp32f* IPadded = cu::pad(
+        I, width_org, height_org, floor((float) padh / 2.0f), ceil((float) padh / 2.0f),
         floor((float) padw / 2.0f), ceil((float) padw / 2.0f), true);
 
-    Npp32f* I1Padded = cu::pad(
-        I1, width_org, height_org, floor((float) padh / 2.0f), ceil((float) padh / 2.0f),
-        floor((float) padw / 2.0f), ceil((float) padw / 2.0f), true);
+    cudaFree(I);
 
-    Npp32f* I2Padded = cu::pad(
-        I2, width_org, height_org, floor((float) padh / 2.0f), ceil((float) padh / 2.0f),
-        floor((float) padw / 2.0f), ceil((float) padw / 2.0f), true);
-
-    cudaFree(I0);
-    cudaFree(I1);
-    cudaFree(I2);
-
-    I0 = I0Padded;
-    I1 = I1Padded;
-    I2 = I2Padded;
+    I = IPadded;
   }
 
   img_params iparams;
@@ -217,7 +196,7 @@ void opticalFlowStream(cv::VideoCapture cap) {
   ////////////////////////////////////////////////////////////////////////////////////////////////
 
   OFClass ofc(op, iparams);
-  ofc.first(I0, iparams);
+  ofc.first(I, iparams);
 
   float scale_fact = pow(2, op.finest_scale);
   float* flow, * oldFlow;
@@ -228,31 +207,34 @@ void opticalFlowStream(cv::VideoCapture cap) {
       cudaMalloc((void**) &(oldFlow), 2 * iparams.height / scale_fact
         * iparams.width / scale_fact * sizeof(float)) );
 
-  ofc.next(I1, iparams, nullptr, oldFlow);
-  ofc.next(I2, iparams, oldFlow, flow);
+  ofc.next(I, iparams, nullptr, oldFlow);
 
   cv::Mat flow_mat(iparams.height / scale_fact , iparams.width / scale_fact,
       CV_32FC2);
-  // cv::Mat flow_mat1(iparams.height / scale_fact , iparams.width / scale_fact,
-  //     CV_32FC2);
-  // cv::Mat flow_mat2(iparams.height / scale_fact , iparams.width / scale_fact,
-  //     CV_32FC2);
+
+  cv::Mat rgb;
+  cv::Mat flow_uv[2];
+  cv::Mat mag, ang;
+  cv::Mat hsv_split[3], hsv;
 
   int count = 0;
   while (true) {
+    std::swap(I,      oldI);
+    cv::swap(I_mat,  oldI_mat);
+    cv::swap(I_fmat, oldI_fmat);
 
     // Get a new frame
-    cap >> I0_mat;
+    cap >> I_mat;
 
-    cv::imshow("FlowOnTheGo", I0_mat);
+    cv::imshow("FlowOnTheGo", I_mat);
 
-    I0_mat.convertTo(I0_fmat, CV_32F);
+    I_mat.convertTo(I_fmat, CV_32F);
     checkCudaErrors(
-        cudaMemcpy(I0, (float*) I0_fmat.data, width_org * height_org * elemSize, cudaMemcpyHostToDevice) );
+        cudaMemcpy(I, (float*) I_fmat.data, width_org * height_org * elemSize, cudaMemcpyHostToDevice) );
 
     std::swap(flow, oldFlow);
 
-    ofc.next(I0, iparams, oldFlow, flow);
+    ofc.next(I, iparams, oldFlow, flow);
 
     checkCudaErrors(
         cudaMemcpy(flow_mat.data, flow, 2 * iparams.height / scale_fact 
@@ -267,35 +249,25 @@ void opticalFlowStream(cv::VideoCapture cap) {
     flow_mat = flow_mat(cv::Rect((int) floor((float) padw / 2.0f),(int) floor((float) padh / 2.0f),
           width_org, height_org));
 
+
+    // Draw the flow
+    cv::split(flow_mat, flow_uv);
+    cv::multiply(flow_uv[1], -1, flow_uv[1]);
+    cv::cartToPolar(flow_uv[0], flow_uv[1], mag, ang, true);
+    cv::normalize(mag, mag, 0, 1, cv::NORM_MINMAX);
+    hsv_split[0] = ang;
+    hsv_split[1] = mag;
+    hsv_split[2] = cv::Mat::ones(ang.size(), ang.type());
+    cv::merge(hsv_split, 3, hsv);
+    cv::cvtColor(hsv, rgb, cv::COLOR_HSV2BGR);
+    cv::imshow("flow", rgb);
+
     // SaveFlowFile(flow_mat, ("video" + std::to_string(count) + ".flo").c_str());
 
     count++;
     if(cv::waitKey(30) >= 0) break;
   }
 
-
-  // checkCudaErrors(
-  //     cudaMemcpy(flow_mat1.data, outflow1, 2 * iparams.height / scale_fact 
-  //       * iparams.width / scale_fact * sizeof(float), cudaMemcpyDeviceToHost) );
-  // checkCudaErrors(
-  //     cudaMemcpy(flow_mat2.data, outflow2, 2 * iparams.height / scale_fact 
-  //       * iparams.width / scale_fact * sizeof(float), cudaMemcpyDeviceToHost) );
-
-  // // Resize to original scale, if not run to finest level
-  // if (op.finest_scale != 0) {
-  //   flow_mat1 *= scale_fact;
-  //   cv::resize(flow_mat1, flow_mat1, cv::Size(), scale_fact, scale_fact , cv::INTER_LINEAR);
-  //   flow_mat2 *= scale_fact;
-  //   cv::resize(flow_mat2, flow_mat2, cv::Size(), scale_fact, scale_fact , cv::INTER_LINEAR);
-  // }
-
-  // flow_mat1 = flow_mat1(cv::Rect((int) floor((float) padw / 2.0f),(int) floor((float) padh / 2.0f),
-  //       width_org, height_org));
-  // flow_mat2 = flow_mat2(cv::Rect((int) floor((float) padw / 2.0f),(int) floor((float) padh / 2.0f),
-  //       width_org, height_org));
-
-  // SaveFlowFile(flow_mat1, "video1.flo");
-  // SaveFlowFile(flow_mat2, "video2.flo");
 }
 
 
