@@ -3,8 +3,10 @@
 #include <opencv2/imgproc/imgproc.hpp>
 
 #include <iostream>
+#include <string>
 #include <sys/time.h>
 #include <fstream>
+#include <sstream>
 
 // CUDA
 #include <cuda_runtime.h>
@@ -111,6 +113,191 @@ int AutoFirstScaleSelect(int imgwidth, int fratio, int patchsize) {
 
 }
 
+void opticalFlowStream(cv::VideoCapture cap) {
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////
+  // Get the first three frames
+  ////////////////////////////////////////////////////////////////////////////////////////////////
+
+  cv::Mat I0_mat, I1_mat, I2_mat;
+  cv::Mat I0_fmat, I1_fmat, I2_fmat;
+  cap >> I0_mat;
+  cap >> I1_mat;
+  cap >> I2_mat;
+
+  int width_org = I0_mat.size().width;    // unpadded original image size
+  int height_org = I0_mat.size().height;  // unpadded original image size
+  
+  I0_mat.convertTo(I0_fmat, CV_32F);
+  I1_mat.convertTo(I1_fmat, CV_32F);
+  I2_mat.convertTo(I2_fmat, CV_32F);
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////
+  // Set up parameters
+  ////////////////////////////////////////////////////////////////////////////////////////////////
+
+  opt_params op;
+
+  op.use_mean_normalization = true;
+  op.var_ref_alpha = 10.0; op.var_ref_gamma = 10.0; op.var_ref_delta = 5.0;
+  op.var_ref_iter = 3; op.var_ref_sor_weight = 1.6;
+  op.verbosity = 2; // Default: Plot detailed timings
+  int fratio = 5;
+  op.patch_size = 8; op.patch_stride = 0.4;
+  op.coarsest_scale = AutoFirstScaleSelect(width_org, fratio, op.patch_size);
+  op.finest_scale = std::max(op.coarsest_scale - 2,0); op.grad_descent_iter = 12;
+  op.use_var_ref = true;
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////
+  // CUDA memcpy
+  ////////////////////////////////////////////////////////////////////////////////////////////////
+  //
+  int channels = 3;
+  int elemSize = channels * sizeof(Npp32f);
+
+  Npp32f* I0, *I1, *I2;
+
+  auto start_cuda_malloc = now();
+  checkCudaErrors( cudaMalloc((void**) &I0, width_org * height_org * elemSize) );
+  checkCudaErrors( cudaMalloc((void**) &I1, width_org * height_org * elemSize) );
+  checkCudaErrors( cudaMalloc((void**) &I2, width_org * height_org * elemSize) );
+  calc_print_elapsed("I0, I1 cudaMalloc", start_cuda_malloc);
+
+  auto start_memcpy_hd = now();
+  checkCudaErrors(
+      cudaMemcpy(I0, (float*) I0_fmat.data, width_org * height_org * elemSize, cudaMemcpyHostToDevice) );
+  checkCudaErrors(
+      cudaMemcpy(I1, (float*) I1_fmat.data, width_org * height_org * elemSize, cudaMemcpyHostToDevice) );
+  checkCudaErrors(
+      cudaMemcpy(I2, (float*) I2_fmat.data, width_org * height_org * elemSize, cudaMemcpyHostToDevice) );
+  calc_print_elapsed("cudaMemcpy I0, I1 H->D", start_memcpy_hd);
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////
+  // Padding
+  ////////////////////////////////////////////////////////////////////////////////////////////////
+
+  // Pad image such that width and height are restless divisible on all scales (except last)
+  int padw = 0, padh = 0;
+  int max_scale = pow(2, op.coarsest_scale); // enforce restless division by this number on coarsest scale
+  int div = width_org % max_scale;
+  if (div > 0) padw = max_scale - div;
+  div = height_org % max_scale;
+  if (div > 0) padh = max_scale - div;
+
+  if (padh > 0 || padw > 0) {
+    Npp32f* I0Padded = cu::pad(
+        I0, width_org, height_org, floor((float) padh / 2.0f), ceil((float) padh / 2.0f),
+        floor((float) padw / 2.0f), ceil((float) padw / 2.0f), true);
+
+    Npp32f* I1Padded = cu::pad(
+        I1, width_org, height_org, floor((float) padh / 2.0f), ceil((float) padh / 2.0f),
+        floor((float) padw / 2.0f), ceil((float) padw / 2.0f), true);
+
+    Npp32f* I2Padded = cu::pad(
+        I2, width_org, height_org, floor((float) padh / 2.0f), ceil((float) padh / 2.0f),
+        floor((float) padw / 2.0f), ceil((float) padw / 2.0f), true);
+
+    cudaFree(I0);
+    cudaFree(I1);
+    cudaFree(I2);
+
+    I0 = I0Padded;
+    I1 = I1Padded;
+    I2 = I2Padded;
+  }
+
+  img_params iparams;
+
+  iparams.width = width_org + padw;
+  iparams.height = height_org + padh;
+  iparams.padding = op.patch_size;
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////
+  // Optical Flow initialization
+  ////////////////////////////////////////////////////////////////////////////////////////////////
+
+  OFClass ofc(op, iparams);
+  ofc.first(I0, iparams);
+
+  float scale_fact = pow(2, op.finest_scale);
+  float* flow, * oldFlow;
+  checkCudaErrors(
+      cudaMalloc((void**) &(flow), 2 * iparams.height / scale_fact
+        * iparams.width / scale_fact * sizeof(float)) );
+  checkCudaErrors(
+      cudaMalloc((void**) &(oldFlow), 2 * iparams.height / scale_fact
+        * iparams.width / scale_fact * sizeof(float)) );
+
+  ofc.next(I1, iparams, nullptr, oldFlow);
+  ofc.next(I2, iparams, oldFlow, flow);
+
+  cv::Mat flow_mat(iparams.height / scale_fact , iparams.width / scale_fact,
+      CV_32FC2);
+  // cv::Mat flow_mat1(iparams.height / scale_fact , iparams.width / scale_fact,
+  //     CV_32FC2);
+  // cv::Mat flow_mat2(iparams.height / scale_fact , iparams.width / scale_fact,
+  //     CV_32FC2);
+
+  int count = 0;
+  while (true) {
+
+    // Get a new frame
+    cap >> I0_mat;
+
+    cv::imshow("FlowOnTheGo", I0_mat);
+
+    I0_mat.convertTo(I0_fmat, CV_32F);
+    checkCudaErrors(
+        cudaMemcpy(I0, (float*) I0_fmat.data, width_org * height_org * elemSize, cudaMemcpyHostToDevice) );
+
+    std::swap(flow, oldFlow);
+
+    ofc.next(I0, iparams, oldFlow, flow);
+
+    checkCudaErrors(
+        cudaMemcpy(flow_mat.data, flow, 2 * iparams.height / scale_fact 
+          * iparams.width / scale_fact * sizeof(float), cudaMemcpyDeviceToHost) );
+
+    // Resize to original scale, if not run to finest level
+    if (op.finest_scale != 0) {
+      flow_mat *= scale_fact;
+      cv::resize(flow_mat, flow_mat, cv::Size(), scale_fact, scale_fact , cv::INTER_LINEAR);
+    }
+
+    flow_mat = flow_mat(cv::Rect((int) floor((float) padw / 2.0f),(int) floor((float) padh / 2.0f),
+          width_org, height_org));
+
+    // SaveFlowFile(flow_mat, ("video" + std::to_string(count) + ".flo").c_str());
+
+    count++;
+    if(cv::waitKey(30) >= 0) break;
+  }
+
+
+  // checkCudaErrors(
+  //     cudaMemcpy(flow_mat1.data, outflow1, 2 * iparams.height / scale_fact 
+  //       * iparams.width / scale_fact * sizeof(float), cudaMemcpyDeviceToHost) );
+  // checkCudaErrors(
+  //     cudaMemcpy(flow_mat2.data, outflow2, 2 * iparams.height / scale_fact 
+  //       * iparams.width / scale_fact * sizeof(float), cudaMemcpyDeviceToHost) );
+
+  // // Resize to original scale, if not run to finest level
+  // if (op.finest_scale != 0) {
+  //   flow_mat1 *= scale_fact;
+  //   cv::resize(flow_mat1, flow_mat1, cv::Size(), scale_fact, scale_fact , cv::INTER_LINEAR);
+  //   flow_mat2 *= scale_fact;
+  //   cv::resize(flow_mat2, flow_mat2, cv::Size(), scale_fact, scale_fact , cv::INTER_LINEAR);
+  // }
+
+  // flow_mat1 = flow_mat1(cv::Rect((int) floor((float) padw / 2.0f),(int) floor((float) padh / 2.0f),
+  //       width_org, height_org));
+  // flow_mat2 = flow_mat2(cv::Rect((int) floor((float) padw / 2.0f),(int) floor((float) padh / 2.0f),
+  //       width_org, height_org));
+
+  // SaveFlowFile(flow_mat1, "video1.flo");
+  // SaveFlowFile(flow_mat2, "video2.flo");
+}
+
 
 int main( int argc, char** argv ) {
 
@@ -119,10 +306,38 @@ int main( int argc, char** argv ) {
   // Warmup GPU
   cu::warmup();
 
+  if (argc == 3) {
+    std::string videoFlag = "--video";
+
+    if (videoFlag.compare(argv[1]) != 0) {
+      printf("Invalid argument list\n");
+      exit(1);
+    }
+
+    std::istringstream ss( argv[2] );
+    int deviceId;
+
+    if (!(ss >> deviceId)) {
+      printf("Invalid device id %s\n", argv[2]);
+    }
+
+    printf("Opening device %d for video streaming\n", deviceId);
+
+    cv::VideoCapture cap(1);
+
+    if (!cap.isOpened()) {
+      printf("Failed to open video capture");
+      exit(1);
+    }
+
+    opticalFlowStream(cap);
+
+    return 0;
+  }
+
   // Timing structures
   struct timeval start_time, end_time;
   gettimeofday(&start_time, NULL);
-
 
   // Parse input images
   char *I0_file = argv[1];
@@ -371,5 +586,4 @@ int main( int argc, char** argv ) {
   }
 
   return 0;
-
 }
