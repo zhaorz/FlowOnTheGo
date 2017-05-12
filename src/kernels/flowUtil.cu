@@ -493,6 +493,44 @@ __global__ void kernelWarpImage(
 }
 
 
+__global__ void kernelSepFlow(
+    float *flowx, float *flowy, float *flowout, int height, int width, int stride) {
+
+  int tidx = blockIdx.x * blockDim.x + threadIdx.x;
+
+  int ix = tidx % width;
+  int iy = tidx / width;
+
+  if (ix < width && iy < height) {
+    
+    int i = iy * width + ix;
+    int is = iy * stride + ix;
+
+    flowx[is] = flowout[2 * i];
+    flowy[is] = flowout[2 * i + 1];
+  }
+}
+
+
+__global__ void kernelMergeFlow(
+    float *flowx, float *flowy, float *flowout, int height, int width, int stride) {
+
+  int tidx = blockIdx.x * blockDim.x + threadIdx.x;
+
+  int ix = tidx % width;
+  int iy = tidx / width;
+
+  if (ix < width && iy < height) {
+    
+    int i = iy * width + ix;
+    int is = iy * stride + ix;
+
+    flowout[2 * i] = flowx[is];
+    flowout[2 * i + 1] = flowy[is];
+  }
+}
+
+
 namespace cu {
 
   void dataTerm(
@@ -951,6 +989,28 @@ namespace cu {
 
     // free memory
     color_image_delete(tmp_im2);
+  }
+
+  void sepFlow(std::vector<image_t*> flow_sep, float *flowout, int height, int width) {
+
+    int N = width * height;
+    int nThreadsPerBlock = 64;
+    int nBlocks = (N + nThreadsPerBlock - 1) / nThreadsPerBlock;
+
+    kernelSepFlow<<< nBlocks, nThreadsPerBlock >>>(
+        flow_sep[0]->c1, flow_sep[1]->c1, flowout, height, width, flow_sep[0]->stride);
+
+  }
+
+  void mergeFlow(std::vector<image_t*> flow_sep, float *flowout, int height, int width) {
+
+    int N = width * height;
+    int nThreadsPerBlock = 64;
+    int nBlocks = (N + nThreadsPerBlock - 1) / nThreadsPerBlock;
+
+    kernelMergeFlow<<< nBlocks, nThreadsPerBlock >>>(
+        flow_sep[0]->c1, flow_sep[1]->c1, flowout, height, width, flow_sep[0]->stride);
+
   }
 
 }

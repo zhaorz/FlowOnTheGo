@@ -34,6 +34,10 @@ namespace cu {
       color_image_t *Ixz, color_image_t *Iyz, 
       const float half_delta_over3, const float half_beta, const float half_gamma_over3);
 
+  void sepFlow(std::vector<image_t*> flow_sep, float *flowout, int height, int width);
+
+  void mergeFlow(std::vector<image_t*> flow_sep, float *flowout, int height, int width);
+
   void subLaplacian(
       image_t *dst, const image_t *src, const image_t *weight_horiz, const image_t *weight_vert, float *coeffs);
 

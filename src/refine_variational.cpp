@@ -47,6 +47,7 @@ namespace OFC {
       vr.tmp_half_delta_over3 = vr.delta * 0.5f / 3.0f;
       vr.tmp_half_beta = vr.beta * 0.5f;
 
+      auto start_kernels = now();
       float pHostColorDerivativeKernel[5] = { 1.0 / 12.0, 2.0 / 3.0, 0.0, -2.0 / 3.0, 1.0 / 12.0 };
       checkCudaErrors( cudaMalloc((void**) &pDeviceColorDerivativeKernel, 5 * sizeof(float)) );
       checkCudaErrors(
@@ -58,6 +59,7 @@ namespace OFC {
       checkCudaErrors(
           cudaMemcpy(pDeviceDerivativeKernel, pHostDerivativeKernel,
             3 * sizeof(float), cudaMemcpyHostToDevice) );
+      calc_print_elapsed("derivative kernels", start_kernels);
 
       // copy flow initialization into FV structs
       static int noparam = 2; // Optical flow
@@ -68,17 +70,20 @@ namespace OFC {
       for (int i = 0; i < noparam; ++i)
         flow_sep[i] = image_new(i_params->width, i_params->height);
 
-      for (int iy = 0; iy < i_params->height; ++iy) {
-        for (int ix = 0; ix < i_params->width; ++ix) {
+      cu::sepFlow(flow_sep, flowout, i_params->height, i_params->width);
+      calc_print_elapsed("refine: flow_sep", start_flow_sep);
 
-          int i  = iy * i_params->width + ix;
-          int is = iy * flow_sep[0]->stride + ix;
-          for (int j = 0; j < noparam; ++j) {
-            flow_sep[j]->c1[is] = flowout[i * noparam + j];
-          }
+      // for (int iy = 0; iy < i_params->height; ++iy) {
+      //   for (int ix = 0; ix < i_params->width; ++ix) {
 
-        }
-      }
+      //     int i  = iy * i_params->width + ix;
+      //     int is = iy * flow_sep[0]->stride + ix;
+      //     for (int j = 0; j < noparam; ++j) {
+      //       flow_sep[j]->c1[is] = flowout[i * noparam + j];
+      //     }
+
+      //   }
+      // }
 
       checkCudaErrors( cudaMalloc((void**) &pDeviceSubLaplacianCoeffs,
             flow_sep[0]->height * flow_sep[0]->stride * sizeof(float)) );
@@ -90,7 +95,6 @@ namespace OFC {
 
       copyimage(_I0, I0);
       copyimage(_I1, I1);
-      // calc_print_elapsed("refine: flow_sep", start_flow_sep);
 
       // Call solver
       auto start_solver = now();
@@ -99,17 +103,18 @@ namespace OFC {
 
       // Copy flow result back
       auto start_copy = now();
-      for (int iy = 0; iy < i_params->height; ++iy) {
-        for (int ix = 0; ix < i_params->width; ++ix) {
+      cu::mergeFlow(flow_sep, flowout, i_params->height, i_params->width);
+      // for (int iy = 0; iy < i_params->height; ++iy) {
+      //   for (int ix = 0; ix < i_params->width; ++ix) {
 
-          int i = iy * i_params->width + ix;
-          int is = iy * flow_sep[0]->stride + ix;
-          for (int j = 0; j < noparam; ++j)
-            flowout[i*noparam + j] = flow_sep[j]->c1[is];
+      //     int i = iy * i_params->width + ix;
+      //     int is = iy * flow_sep[0]->stride + ix;
+      //     for (int j = 0; j < noparam; ++j)
+      //       flowout[i*noparam + j] = flow_sep[j]->c1[is];
 
-        }
-      }
-      // calc_print_elapsed("refine: copy back", start_copy);
+      //   }
+      // }
+      calc_print_elapsed("refine: copy back", start_copy);
 
       // free FV structs
       for (int i = 0; i < noparam; ++i )
