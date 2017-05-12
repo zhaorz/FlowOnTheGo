@@ -123,7 +123,7 @@ __global__ void kernelExtractPatchesAndHessians(
 
 // TODO: merge this with above kernel?
 __global__ void kernelInitCoarserOF(
-    const float* flowPrev, dev_patch_state* states,
+    float* flowPrev, dev_patch_state* states,
     int width, int lb, int ub_w, int ub_h) {
 
   int patchId = blockIdx.x;
@@ -207,7 +207,7 @@ namespace cu {
   }
 
 
-  void initCoarserOF(const float* flowPrev, dev_patch_state* states,
+  void initCoarserOF(float* flowPrev, dev_patch_state* states,
       int n_patches, const img_params* i_params) {
 
     int nBlocks = n_patches;

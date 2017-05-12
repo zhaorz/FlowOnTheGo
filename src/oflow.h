@@ -25,7 +25,8 @@ namespace OFC {
       OFClass(opt_params _op, img_params _i_params);
       ~OFClass();
 
-      void calc(Npp32f* _I0, Npp32f* _I1, img_params _iparams, const float * initflow, float * outflow);
+      void first(Npp32f* _I1, img_params _iparams);
+      void next(Npp32f* _I1, img_params _iparams, float * initflow, float * outflow);
 
     private:
       void ConstructImgPyramids(img_params iparams);

@@ -286,7 +286,7 @@ namespace OFC {
   }
 
 
-  void PatGridClass::InitializeFromCoarserOF(const float * flow_prev) {
+  void PatGridClass::InitializeFromCoarserOF(float * flow_prev) {
 
     gettimeofday(&tv_start, nullptr);
 

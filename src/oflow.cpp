@@ -186,10 +186,10 @@ namespace OFC {
     gettimeofday(&start_time, NULL);
 
     // Construct image and gradient pyramides
-    cu::constructImgPyramids(I0, I0s, I0xs, I0ys,
+    /*cu::constructImgPyramids(I0, I0s, I0xs, I0ys,
         pDeviceIx, pDeviceIy, pDeviceTmp, pDeviceWew,
         iparams.width, iparams.height,
-        op.patch_size, op.coarsest_scale + 1);
+        op.patch_size, op.coarsest_scale + 1);*/
     cu::constructImgPyramids(I1, I1s, I1xs, I1ys,
         pDeviceIx, pDeviceIy, pDeviceTmp, pDeviceWew,
         iparams.width, iparams.height,
@@ -207,15 +207,25 @@ namespace OFC {
   }
 
 
+  void OFClass::first(Npp32f* _I1, img_params _iparams) {
+    I1 = _I1;
+    std::cout << "[Processing first frame] " << _iparams.height << "x" << _iparams.width << std::endl;
 
-  void OFClass::calc(Npp32f* _I0, Npp32f* _I1, img_params _iparams, const float * initflow, float * outflow) {
+    ConstructImgPyramids(_iparams);
+    std::cout << "[Done with first frame]" << std::endl;
+  }
 
-    I0 = _I0;
+
+  void OFClass::next(Npp32f* _I1, img_params _iparams, float * initflow, float * outflow) {
+
+    std::swap(I0, I1);
+    std::swap(I0s, I1s);
+    std::swap(I0xs, I1xs);
+    std::swap(I0ys, I1ys);
     I1 = _I1;
 
-    std::cout << "I0 " << _iparams.height << "x" << _iparams.width << std::endl;
+    std::cout << "[Processing next frame] " << _iparams.height << "x" << _iparams.width << std::endl;
 
-    printf("Constructing pyramids\n");
     ConstructImgPyramids(_iparams);
 
     if (op.verbosity > 1) cout << ", cflow " << endl;
@@ -364,6 +374,8 @@ namespace OFC {
         g->printTimings();
       }
     }
+
+    std::cout << "[Done with frame]" << std::endl;
 
   }
 

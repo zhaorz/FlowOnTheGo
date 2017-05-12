@@ -19,7 +19,7 @@ namespace OFC {
 
       void InitializeGrid(const float * _I0, const float * _I0x, const float * _I0y);
       void SetTargetImage(const float * _I1);
-      void InitializeFromCoarserOF(const float * flow_prev);
+      void InitializeFromCoarserOF(float * flow_prev);
 
       void AggregateFlowDense(float *flowout);
 

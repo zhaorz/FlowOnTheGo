@@ -127,15 +127,19 @@ int main( int argc, char** argv ) {
   // Parse input images
   char *I0_file = argv[1];
   char *I1_file = argv[2];
-  char *flow_file = argv[3];
+  char *I2_file = argv[3];
+  char *I3_file = argv[4];
+  std::string flow_file = argv[5];
 
   // CV mats original and float
-  cv::Mat I0_mat, I1_mat;
-  cv::Mat I0_fmat, I1_fmat;
+  cv::Mat I0_mat, I1_mat, I2_mat, I3_mat;
+  cv::Mat I0_fmat, I1_fmat, I2_fmat, I3_fmat;
 
   // Load images
   I0_mat = cv::imread(I0_file, CV_LOAD_IMAGE_COLOR);   // Read the file
   I1_mat = cv::imread(I1_file, CV_LOAD_IMAGE_COLOR);   // Read the file
+  I2_mat = cv::imread(I2_file, CV_LOAD_IMAGE_COLOR);   // Read the file
+  I3_mat = cv::imread(I3_file, CV_LOAD_IMAGE_COLOR);   // Read the file
 
   int width_org = I0_mat.size().width;   // unpadded original image size
   int height_org = I0_mat.size().height;  // unpadded original image size
@@ -143,15 +147,19 @@ int main( int argc, char** argv ) {
   // convert to float
   I0_mat.convertTo(I0_fmat, CV_32F);
   I1_mat.convertTo(I1_fmat, CV_32F);
+  I2_mat.convertTo(I2_fmat, CV_32F);
+  I3_mat.convertTo(I3_fmat, CV_32F);
 
   int channels = 3;
   int elemSize = channels * sizeof(Npp32f);
 
   /* memcpy to cuda */
-  Npp32f* I0, *I1;
+  Npp32f* I0, *I1, *I2, *I3;
   auto start_cuda_malloc = now();
   checkCudaErrors( cudaMalloc((void**) &I0, width_org * height_org * elemSize) );
   checkCudaErrors( cudaMalloc((void**) &I1, width_org * height_org * elemSize) );
+  checkCudaErrors( cudaMalloc((void**) &I2, width_org * height_org * elemSize) );
+  checkCudaErrors( cudaMalloc((void**) &I3, width_org * height_org * elemSize) );
   calc_print_elapsed("I0, I1 cudaMalloc", start_cuda_malloc);
 
   auto start_memcpy_hd = now();
@@ -159,13 +167,17 @@ int main( int argc, char** argv ) {
       cudaMemcpy(I0, (float*) I0_fmat.data, width_org * height_org * elemSize, cudaMemcpyHostToDevice) );
   checkCudaErrors(
       cudaMemcpy(I1, (float*) I1_fmat.data, width_org * height_org * elemSize, cudaMemcpyHostToDevice) );
+  checkCudaErrors(
+      cudaMemcpy(I2, (float*) I2_fmat.data, width_org * height_org * elemSize, cudaMemcpyHostToDevice) );
+  checkCudaErrors(
+      cudaMemcpy(I3, (float*) I3_fmat.data, width_org * height_org * elemSize, cudaMemcpyHostToDevice) );
   calc_print_elapsed("cudaMemcpy I0, I1 H->D", start_memcpy_hd);
 
 
   // Parse rest of parameters
   opt_params op;
 
-  if (argc <= 5) {
+  if (true) {
 
     op.use_mean_normalization = true;
     op.var_ref_alpha = 10.0; op.var_ref_gamma = 10.0; op.var_ref_delta = 5.0;
@@ -175,8 +187,8 @@ int main( int argc, char** argv ) {
     int fratio = 5; // For automatic selection of coarsest scale: 1/fratio * width = maximum expected motion magnitude in image. Set lower to restrict search space.
 
     int op_point = 2; // Default operating point
-    if (argc == 5)    // Use provided operating point
-      op_point = atoi(argv[4]);
+    /*if (argc == 5)    // Use provided operating point
+      op_point = atoi(argv[4]);*/
 
     switch (op_point) {
 
@@ -209,7 +221,7 @@ int main( int argc, char** argv ) {
     }
   } else {
 
-    int acnt = 4; // Argument counter
+    int acnt = 6; // Argument counter
     op.coarsest_scale = atoi(argv[acnt++]);
     op.finest_scale = atoi(argv[acnt++]);
     op.grad_descent_iter = atoi(argv[acnt++]);
@@ -245,11 +257,24 @@ int main( int argc, char** argv ) {
         I1, width_org, height_org, floor((float) padh / 2.0f), ceil((float) padh / 2.0f),
         floor((float) padw / 2.0f), ceil((float) padw / 2.0f), true);
 
+    Npp32f* I2Padded = cu::pad(
+        I2, width_org, height_org, floor((float) padh / 2.0f), ceil((float) padh / 2.0f),
+        floor((float) padw / 2.0f), ceil((float) padw / 2.0f), true);
+
+
+    Npp32f* I3Padded = cu::pad(
+        I3, width_org, height_org, floor((float) padh / 2.0f), ceil((float) padh / 2.0f),
+        floor((float) padw / 2.0f), ceil((float) padw / 2.0f), true);
+
     cudaFree(I0);
     cudaFree(I1);
+    cudaFree(I2);
+    cudaFree(I3);
 
     I0 = I0Padded;
     I1 = I1Padded;
+    I2 = I2Padded;
+    I3 = I3Padded;
   }
 
 
@@ -275,35 +300,57 @@ int main( int argc, char** argv ) {
 
   // Create Optical Flow object
   OFClass ofc(op, iparams);
+  ofc.first(I0, iparams);
 
   // Run main optical flow / depth algorithm
   float scale_fact = pow(2, op.finest_scale);
-  float* outflow;
+  float* outflow1, * outflow2, * outflow3;
   checkCudaErrors(
-      cudaHostAlloc((void**) &(outflow), 2 * iparams.height / scale_fact
+      cudaHostAlloc((void**) &(outflow1), 2 * iparams.height / scale_fact
+        * iparams.width / scale_fact * sizeof(float), cudaHostAllocMapped) );
+  checkCudaErrors(
+      cudaHostAlloc((void**) &(outflow2), 2 * iparams.height / scale_fact
+        * iparams.width / scale_fact * sizeof(float), cudaHostAllocMapped) );
+  checkCudaErrors(
+      cudaHostAlloc((void**) &(outflow3), 2 * iparams.height / scale_fact
         * iparams.width / scale_fact * sizeof(float), cudaHostAllocMapped) );
 
-  ofc.calc(I0, I1, iparams, nullptr, outflow);
+  ofc.next(I1, iparams, nullptr, outflow1);
+  ofc.next(I2, iparams, outflow1, outflow2);
+  ofc.next(I3, iparams, outflow2, outflow3);
 
-  cv::Mat flow_mat(iparams.height / scale_fact , iparams.width / scale_fact,
-      CV_32FC2, outflow);
+  cv::Mat flow_mat1(iparams.height / scale_fact , iparams.width / scale_fact,
+      CV_32FC2, outflow1);
+  cv::Mat flow_mat2(iparams.height / scale_fact , iparams.width / scale_fact,
+      CV_32FC2, outflow2);
+  cv::Mat flow_mat3(iparams.height / scale_fact , iparams.width / scale_fact,
+      CV_32FC2, outflow3);
 
   if (op.verbosity > 1) gettimeofday(&start_time, NULL);
 
   // Resize to original scale, if not run to finest level
   if (op.finest_scale != 0) {
 
-    flow_mat *= scale_fact;
-    cv::resize(flow_mat, flow_mat, cv::Size(), scale_fact, scale_fact , cv::INTER_LINEAR);
+    flow_mat1 *= scale_fact;
+    cv::resize(flow_mat1, flow_mat1, cv::Size(), scale_fact, scale_fact , cv::INTER_LINEAR);
+    flow_mat2 *= scale_fact;
+    cv::resize(flow_mat2, flow_mat2, cv::Size(), scale_fact, scale_fact , cv::INTER_LINEAR);
+    flow_mat3 *= scale_fact;
+    cv::resize(flow_mat3, flow_mat3, cv::Size(), scale_fact, scale_fact , cv::INTER_LINEAR);
 
   }
-
   // If image was padded, remove padding before saving to file
-  flow_mat = flow_mat(cv::Rect((int) floor((float) padw / 2.0f),(int) floor((float) padh / 2.0f),
+  flow_mat1 = flow_mat1(cv::Rect((int) floor((float) padw / 2.0f),(int) floor((float) padh / 2.0f),
+        width_org, height_org));
+  flow_mat2 = flow_mat2(cv::Rect((int) floor((float) padw / 2.0f),(int) floor((float) padh / 2.0f),
+        width_org, height_org));
+  flow_mat3 = flow_mat3(cv::Rect((int) floor((float) padw / 2.0f),(int) floor((float) padh / 2.0f),
         width_org, height_org));
 
   // Save Result Image
-  SaveFlowFile(flow_mat, flow_file);
+  SaveFlowFile(flow_mat1, (flow_file + "-1.flo").c_str());
+  SaveFlowFile(flow_mat2, (flow_file + "-2.flo").c_str());
+  SaveFlowFile(flow_mat3, (flow_file + "-3.flo").c_str());
 
   if (op.verbosity > 1) {
 
