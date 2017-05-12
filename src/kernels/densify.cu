@@ -90,13 +90,14 @@ __global__ void kernelDensifyPatches(
 
 
 __global__ void kernelNormalizeFlow(
-    float* pDeviceFlowOut, float* pDeviceWeights, int N, int numBlocks) {
+    float* pDeviceFlowOut, float* flow,
+    float* pDeviceWeights, int N, int numBlocks) {
 
   int i = blockIdx.x * blockDim.x + threadIdx.x;
 
   for (; i < N; i+= blockDim.x * numBlocks) {
     if (pDeviceWeights[i / 2] > 0) 
-      pDeviceFlowOut[i]  /= pDeviceWeights[i / 2];
+      flow[i] = pDeviceFlowOut[i] / pDeviceWeights[i / 2];
   }
 
 }
@@ -121,13 +122,14 @@ namespace cu {
         patchSize, minErrVal);
   }
 
-  void normalizeFlow(
+  void normalizeFlow(float* pHostFlowOut,
       float* pDeviceFlowOut, float* pDeviceWeights, int N) {
 
     int nThreadsPerBlock = 64;
     int nBlocks = 10;
 
-    kernelNormalizeFlow<<<nBlocks, nThreadsPerBlock>>>(pDeviceFlowOut, pDeviceWeights, N, nBlocks);
+    kernelNormalizeFlow<<<nBlocks, nThreadsPerBlock>>>(pDeviceFlowOut,
+        pHostFlowOut, pDeviceWeights, N, nBlocks);
   }
 
   void densifyPatches(

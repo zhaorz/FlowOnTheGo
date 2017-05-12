@@ -620,7 +620,7 @@ namespace cu {
     // kernelSubLaplacianHoriz<<<nBlocks, nThreadsPerBlock>>>(
     //     pDeviceSrc, pDeviceDst, pDeviceWeights, pDeviceCoeffs, height, width, stride);
     cudaDeviceSynchronize();
-    calc_print_elapsed("laplacian horiz", start_horiz);
+    // calc_print_elapsed("laplacian horiz", start_horiz);
 
     cudaFree(pDeviceCoeffs);
   }
@@ -641,7 +641,7 @@ namespace cu {
     auto start_vert = now();
     kernelSubLaplacianVert<<<nBlocks, nThreadsPerBlock>>>(
         d_src, d_src + stride, d_dst, d_dst + stride, d_weights, height, stride);
-    calc_print_elapsed("laplacian vert", start_vert);
+    // calc_print_elapsed("laplacian vert", start_vert);
 
   }
 
