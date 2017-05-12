@@ -5,7 +5,7 @@
 #define PATGRID_HEADER
 
 #include "patch.h"
-#include "oflow.h" // For camera intrinsic and opt. parameter struct
+#include "params.h" // For camera intrinsic and opt. parameter struct
 
 
 namespace OFC {
@@ -21,20 +21,18 @@ namespace OFC {
       void SetTargetImage(const float * _I1);
       void InitializeFromCoarserOF(const float * flow_prev);
 
-      void AggregateFlowDense(float *flowout) const;
+      void AggregateFlowDense(float *flowout);
 
       // Optimizes grid to convergence of each patch
       void Optimize();
-      //Optimize each patch in grid for one iteration, visualize displacement vector, repeat
-      //void OptimizeAndVisualize(const float sc_fct_tmp);  // needed for verbosity >= 3, DISVISUAL
 
       inline const int GetNumPatches() const { return n_patches; }
       inline const int GetNumPatchesW() const { return n_patches_width; }
       inline const int GetNumPatchesH() const { return n_patches_height; }
 
       inline const Eigen::Vector2f GetRefPatchPos(int i) const { return midpoints_ref[i]; } // Get reference  patch position
-      inline const Eigen::Vector2f GetQuePatchPos(int i) const { return patches[i]->GetTargMidpoint(); } // Get target/query patch position
-      inline const Eigen::Vector2f GetQuePatchDis(int i) const { return midpoints_ref[i]-patches[i]->GetTargMidpoint(); } // Get query patch displacement from reference patch
+
+      void printTimings();
 
     private:
 
@@ -42,6 +40,28 @@ namespace OFC {
       const float * I1;
 
       float* pDeviceWeights, *pDeviceFlowOut;
+
+      // Patches
+      dev_patch_state* pDevicePatchStates;
+      dev_patch_state* pHostDevicePatchStates;
+
+      float** pDevicePatches, ** pDevicePatchXs, ** pDevicePatchYs;
+      float** pHostDevicePatches, **pHostDevicePatchXs, **pHostDevicePatchYs;
+
+      // Raw Diff and Costs
+      float** pDeviceRaws, **pDeviceCosts;
+      float** pHostDeviceRaws, **pHostDeviceCosts;
+
+      // Previous flow
+      float* pDevFlowPrev;
+
+      // Hessian
+      // TODO: Can we shared memory?
+      float** pDeviceTempXX, ** pDeviceTempXY, ** pDeviceTempYY;
+      float** pHostDeviceTempXX, **pHostDeviceTempXY, **pHostDeviceTempYY;
+      float* pDeviceH00, * pDeviceH01, * pDeviceH11;
+      float* H00, * H01, * H11;
+
 
       const img_params* i_params;
       const opt_params* op;
@@ -51,9 +71,18 @@ namespace OFC {
       int n_patches_height;
       int n_patches;
 
-      std::vector<OFC::PatClass*> patches; // Patch Objects
+      struct timeval tv_start, tv_end;
+      double aggregateTime;
+      double meanTime;
+      double extractTime;
+      double coarseTime;
+      double optiTime;
+
+      // float* midpointX_host;
+      // float* midpointY_host;
+      // std::vector<OFC::PatClass*> patches; // Patch Objects
       std::vector<Eigen::Vector2f> midpoints_ref; // Midpoints for reference patches
-      std::vector<Eigen::Vector2f> p_init; // starting parameters for query patches
+      // std::vector<Eigen::Vector2f> p_init; // starting parameters for query patches
   };
 
 }

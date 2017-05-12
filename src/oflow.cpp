@@ -18,15 +18,12 @@
 #include <stdio.h>
 
 #include "oflow.h"
-#include "patchgrid.h"
-#include "refine_variational.h"
 
 #include "kernels/resize.h"
 #include "kernels/pad.h"
 #include "kernels/resizeGrad.h"
 #include "kernels/sobel.h"
 #include "kernels/pyramid.h"
-#include "common/RgbMat.h"
 #include "common/timer.h"
 
 
@@ -38,7 +35,10 @@ using namespace timer;
 
 namespace OFC {
 
-  OFClass::OFClass(opt_params _op) {
+  OFClass::OFClass(opt_params _op, img_params _iparams) {
+
+    struct timeval tv_start_all, tv_end_all, tv_start_all_global, tv_end_all_global;
+    if (op.verbosity > 1) gettimeofday(&tv_start_all_global, nullptr);
 
     // Parse optimization parameters
     op = _op;
@@ -46,13 +46,20 @@ namespace OFC {
     op.steps = std::max(1, (int) floor(op.patch_size * (1 - op.patch_stride)));
     op.n_vals = 3 * pow(op.patch_size, 2);
     op.n_scales = op.coarsest_scale - op.finest_scale + 1;
-    float norm_outlier2 = pow(op.norm_outlier, 2);
-    op.norm_outlier_tmpbsq = (v4sf) {norm_outlier2, norm_outlier2, norm_outlier2, norm_outlier2};
-    op.norm_outlier_tmp2bsq = __builtin_ia32_mulps(op.norm_outlier_tmpbsq, op.twos);
-    op.norm_outlier_tmp4bsq = __builtin_ia32_mulps(op.norm_outlier_tmpbsq, op.fours);
+    // float norm_outlier2 = pow(op.norm_outlier, 2);
+    // op.norm_outlier_tmpbsq = (v4sf) {norm_outlier2, norm_outlier2, norm_outlier2, norm_outlier2};
+    // op.norm_outlier_tmp2bsq = __builtin_ia32_mulps(op.norm_outlier_tmpbsq, op.twos);
+    // op.norm_outlier_tmp4bsq = __builtin_ia32_mulps(op.norm_outlier_tmpbsq, op.fours);
     op.dp_thresh = 0.05 * 0.05;
     op.dr_thresh = 0.95;
     op.res_thresh = 0.0;
+
+    // Initialize cuBLAS
+    cublasStatus_t stat = cublasCreate(&op.cublasHandle);
+    if (stat != CUBLAS_STATUS_SUCCESS) {
+      printf ("CUBLAS initialization failed\n");
+      exit(-1);
+    }
 
     // Allocate scale pyramides
     I0s = new float*[op.coarsest_scale+1];
@@ -62,8 +69,111 @@ namespace OFC {
     I1xs = new float*[op.coarsest_scale+1];
     I1ys = new float*[op.coarsest_scale+1];
 
+    // Create grids on each scale
+    if (op.verbosity>1) gettimeofday(&tv_start_all, nullptr);
+
+
+    int elemSize = 3 * sizeof(float);
+    grid.resize(op.n_scales);
+    flow.resize(op.n_scales);
+    iparams.resize(op.n_scales);
+    for (int sl = op.coarsest_scale; sl >= 0; --sl) {
+
+      int i = sl - op.finest_scale;
+
+      float scale_fact = pow(2, -sl); // scaling factor at current scale
+      if (i >= 0) {
+        iparams[i].scale_fact = scale_fact;
+        iparams[i].height = _iparams.height * scale_fact;
+        iparams[i].width = _iparams.width * scale_fact;
+        iparams[i].padding = _iparams.padding;
+        iparams[i].l_bound = -(float) op.patch_size / 2;
+        iparams[i].u_bound_width = (float) (iparams[i].width + op.patch_size / 2 - 2);
+        iparams[i].u_bound_height = (float) (iparams[i].height + op.patch_size / 2 - 2);
+        iparams[i].width_pad = iparams[i].width + 2 * _iparams.padding;
+        iparams[i].height_pad = iparams[i].height + 2 * _iparams.padding;
+        iparams[i].curr_lvl = sl;
+
+        flow[i]   = new float[2 * iparams[i].width * iparams[i].height];
+        grid[i]   = new OFC::PatGridClass(&(iparams[i]), &op);
+      }
+
+      int padWidth = _iparams.width * scale_fact + 2 * _iparams.padding;
+      int padHeight = _iparams.height * scale_fact + 2 * _iparams.padding;
+
+      checkCudaErrors( cudaMalloc((void**) &I0s[sl],  padWidth * padHeight * elemSize) );
+      checkCudaErrors( cudaMalloc((void**) &I0xs[sl], padWidth * padHeight * elemSize) );
+      checkCudaErrors( cudaMalloc((void**) &I0ys[sl], padWidth * padHeight * elemSize) );
+
+      checkCudaErrors( cudaMalloc((void**) &I1s[sl],  padWidth * padHeight * elemSize) );
+      checkCudaErrors( cudaMalloc((void**) &I1xs[sl], padWidth * padHeight * elemSize) );
+      checkCudaErrors( cudaMalloc((void**) &I1ys[sl], padWidth * padHeight * elemSize) );
+    }
+
+    // Timing, Grid memory allocation
+    if (op.verbosity>1) {
+
+      gettimeofday(&tv_end_all, nullptr);
+      double tt_gridconst = (tv_end_all.tv_sec-tv_start_all.tv_sec)*1000.0f + (tv_end_all.tv_usec-tv_start_all.tv_usec)/1000.0f;
+      printf("TIME (Grid Memo. Alloc. ) (ms): %3g\n", tt_gridconst);
+
+    }
+
+    const Npp32f pSrcKernel[3] = { 1, 0, -1 };
+    Npp32s nMaskSize = 3;
+
+    checkCudaErrors( cudaMalloc((void**) &pDeviceIx, _iparams.width * _iparams.height * elemSize) );
+    checkCudaErrors( cudaMalloc((void**) &pDeviceIy, _iparams.width * _iparams.height * elemSize) );
+
+    checkCudaErrors( cudaMalloc((void**) &pDeviceTmp, _iparams.width * _iparams.height * elemSize)  );
+    checkCudaErrors( cudaMalloc((void**) &pDeviceWew, nMaskSize * sizeof(Npp32f)) );
+
+    checkCudaErrors(
+        cudaMemcpy(pDeviceWew, pSrcKernel, nMaskSize * sizeof(Npp32f), cudaMemcpyHostToDevice) );
+
+    // Timing, Setup
+    if (op.verbosity>1) {
+
+      gettimeofday(&tv_end_all_global, nullptr);
+      double tt = (tv_end_all_global.tv_sec-tv_start_all_global.tv_sec)*1000.0f + (tv_end_all_global.tv_usec-tv_start_all_global.tv_usec)/1000.0f;
+      printf("TIME (Setup) (ms): %3g\n", tt);
+    }
+
   }
 
+  OFClass::~OFClass() {
+
+    cublasDestroy(op.cublasHandle);
+
+    for (int sl = op.coarsest_scale; sl >= op.finest_scale; --sl) {
+
+      delete[] flow[sl - op.finest_scale];
+      delete grid[sl - op.finest_scale];
+
+    }
+
+    for (int i = 0; i <= op.coarsest_scale; i++) {
+      cudaFree(I0s[i]);
+      cudaFree(I0xs[i]);
+      cudaFree(I0ys[i]);
+
+      cudaFree(I1s[i]);
+      cudaFree(I1xs[i]);
+      cudaFree(I1ys[i]);
+    }
+
+    delete I0s;
+    delete I1s;
+    delete I0xs;
+    delete I0ys;
+    delete I1xs;
+    delete I1ys;
+
+    cudaFree(pDeviceIx);
+    cudaFree(pDeviceIy);
+    cudaFree(pDeviceTmp);
+    cudaFree(pDeviceWew);
+  }
 
 
   void OFClass::ConstructImgPyramids(img_params iparams) {
@@ -73,9 +183,13 @@ namespace OFC {
     gettimeofday(&start_time, NULL);
 
     // Construct image and gradient pyramides
-    cu::constructImgPyramids(I0, I0s, I0xs, I0ys, iparams.width, iparams.height,
+    cu::constructImgPyramids(I0, I0s, I0xs, I0ys,
+        pDeviceIx, pDeviceIy, pDeviceTmp, pDeviceWew,
+        iparams.width, iparams.height,
         op.patch_size, op.coarsest_scale + 1);
-    cu::constructImgPyramids(I1, I1s, I1xs, I1ys, iparams.width, iparams.height,
+    cu::constructImgPyramids(I1, I1s, I1xs, I1ys,
+        pDeviceIx, pDeviceIy, pDeviceTmp, pDeviceWew,
+        iparams.width, iparams.height,
         op.patch_size, op.coarsest_scale + 1);
 
     // Timing, image gradients and pyramid
@@ -118,43 +232,6 @@ namespace OFC {
       tt_compflow[sl - op.finest_scale] = 0;
       tt_tvopt[sl - op.finest_scale] = 0;
       tt_all[sl - op.finest_scale] = 0;
-
-    }
-
-    if (op.verbosity>1) gettimeofday(&tv_start_all, nullptr);
-
-
-    // Create grids on each scale
-    vector<OFC::PatGridClass*> grid(op.n_scales);
-    vector<float*> flow(op.n_scales);
-    iparams.resize(op.n_scales);
-    for (int sl = op.coarsest_scale; sl >= op.finest_scale; --sl) {
-
-      int i = sl - op.finest_scale;
-
-      float scale_fact = pow(2, -sl); // scaling factor at current scale
-      iparams[i].scale_fact = scale_fact;
-      iparams[i].height = _iparams.height * scale_fact;
-      iparams[i].width = _iparams.width * scale_fact;
-      iparams[i].padding = _iparams.padding;
-      iparams[i].l_bound = -(float) op.patch_size / 2;
-      iparams[i].u_bound_width = (float) (iparams[i].width + op.patch_size / 2 - 2);
-      iparams[i].u_bound_height = (float) (iparams[i].height + op.patch_size / 2 - 2);
-      iparams[i].width_pad = iparams[i].width + 2 * _iparams.padding;
-      iparams[i].height_pad = iparams[i].height + 2 * _iparams.padding;
-      iparams[i].curr_lvl = sl;
-
-      flow[i]   = new float[2 * iparams[i].width * iparams[i].height];
-      grid[i]   = new OFC::PatGridClass(&(iparams[i]), &op);
-
-    }
-
-    // Timing, Grid memory allocation
-    if (op.verbosity>1) {
-
-      gettimeofday(&tv_end_all, nullptr);
-      double tt_gridconst = (tv_end_all.tv_sec-tv_start_all.tv_sec)*1000.0f + (tv_end_all.tv_usec-tv_start_all.tv_usec)/1000.0f;
-      printf("TIME (Grid Memo. Alloc. ) (ms): %3g\n", tt_gridconst);
 
     }
 
@@ -202,6 +279,7 @@ namespace OFC {
 
 
       // Dense Inverse Search. (Step 3 in Algorithm 1 of paper)
+      // Parallel over all patches
       grid[ii]->Optimize();
 
       // Timing, DIS
@@ -236,8 +314,22 @@ namespace OFC {
 
       // Variational refinement, (Step 5 in Algorithm 1 of paper)
       if (op.use_var_ref) {
+      // if (false) {
+        float* I0H, * I1H;
+        int elemSize = 3 * sizeof(float);
+        int size = iparams[ii].width_pad * iparams[ii].height_pad * elemSize;
+        I0H = (float*) malloc(size);
+        I1H = (float*) malloc(size);
 
-        OFC::VarRefClass var_ref(I0s[sl], I1s[sl], &(iparams[ii]), &op, out_ptr);
+        checkCudaErrors(
+            cudaMemcpy(I0H, I0s[sl], size, cudaMemcpyDeviceToHost) );
+        checkCudaErrors(
+            cudaMemcpy(I1H, I1s[sl], size, cudaMemcpyDeviceToHost) );
+
+        OFC::VarRefClass var_ref(I0H, I1H, &(iparams[ii]), &op, out_ptr);
+
+        delete I0H;
+        delete I1H;
 
       }
 
@@ -254,15 +346,6 @@ namespace OFC {
 
     }
 
-    // Clean up
-    for (int sl = op.coarsest_scale; sl >= op.finest_scale; --sl) {
-
-      delete[] flow[sl - op.finest_scale];
-      delete grid[sl - op.finest_scale];
-
-    }
-
-
     // Timing, total algorithm run-time
     if (op.verbosity > 0) {
 
@@ -270,6 +353,13 @@ namespace OFC {
       double tt = (tv_end_all_global.tv_sec-tv_start_all_global.tv_sec)*1000.0f + (tv_end_all_global.tv_usec-tv_start_all_global.tv_usec)/1000.0f;
       printf("TIME (O.Flow Run-Time   ) (ms): %3g\n", tt);
 
+    }
+
+    // Detailed timing reports
+    if (op.verbosity > 1) {
+      for (auto &g : grid) {
+        g->printTimings();
+      }
     }
 
   }

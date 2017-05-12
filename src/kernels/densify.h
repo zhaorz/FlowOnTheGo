@@ -19,15 +19,25 @@
 #include "../common/Exceptions.h"
 #include "../common/timer.h"
 #include "../sandbox/process.h"
+#include "../patch.h"
+
+using namespace OFC;
 
 namespace cu {
 
   void densifyPatch(
       float* pDeviceCostDiff, float* pDeviceFlowOut, float* pDeviceWeights,
-      float flowX, float flowY,
+      dev_patch_state* states, int ip, 
       int midpointX, int midpointY,
       int width, int height,
       int patchSize, float minErrVal);
+
+
+  void densifyPatches(
+      float** costs, float* flow, float* weights,
+      dev_patch_state* states, int n_patches,
+      const opt_params* op, const img_params* i_params);
+
 
   void normalizeFlow(
       float* pDeviceFlowOut, float* pDeviceWeights, int N);
