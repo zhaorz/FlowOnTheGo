@@ -170,9 +170,11 @@ namespace OFC {
     calc_print_elapsed("RefLevelOF image_erase", start_image_erase);
 
     // initialize uu and vv
-    // TODO: use cudaMemcpy
-    memcpy(uu->c1,wx->c1,wx->stride*wx->height*sizeof(float));
-    memcpy(vv->c1,wy->c1,wy->stride*wy->height*sizeof(float));
+    // memcpy(uu->c1,wx->c1,wx->stride*wx->height*sizeof(float));
+    // memcpy(vv->c1,wy->c1,wy->stride*wy->height*sizeof(float));
+    checkCudaErrors( cudaMemcpy(uu->c1,wx->c1,wx->stride*wx->height*sizeof(float), cudaMemcpyDeviceToDevice) );
+    checkCudaErrors( cudaMemcpy(vv->c1,wy->c1,wy->stride*wy->height*sizeof(float), cudaMemcpyDeviceToDevice) );
+
     // inner fixed point iterations
     for(i_inner_iteration = 0 ; i_inner_iteration < vr.inner_iter ; i_inner_iteration++) {
       auto start_iteration = now();
@@ -218,10 +220,12 @@ namespace OFC {
 
     }
     // add flow increment to current flow
-    // TODO: use cudaMemcpy
     auto start_increment_flow = now();
-    memcpy(wx->c1,uu->c1,uu->stride*uu->height*sizeof(float));
-    memcpy(wy->c1,vv->c1,vv->stride*vv->height*sizeof(float));
+    // memcpy(wx->c1,uu->c1,uu->stride*uu->height*sizeof(float));
+    // memcpy(wy->c1,vv->c1,vv->stride*vv->height*sizeof(float));
+    checkCudaErrors( cudaMemcpy(wx->c1,uu->c1,uu->stride*uu->height*sizeof(float), cudaMemcpyDeviceToDevice) );
+    checkCudaErrors( cudaMemcpy(wy->c1,vv->c1,vv->stride*vv->height*sizeof(float), cudaMemcpyDeviceToDevice) );
+
     cudaDeviceSynchronize();
     calc_print_elapsed("RefLevelOF increment flow", start_increment_flow);
 

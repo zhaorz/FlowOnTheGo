@@ -576,11 +576,11 @@ namespace cu {
       const float half_delta_over3, const float half_beta, const float half_gamma_over3) {
 
     // TODO: cudaMemset
-    memset(a11->c1, 0, sizeof(float)*uu->height*uu->stride);
-    memset(a12->c1, 0, sizeof(float)*uu->height*uu->stride);
-    memset(a22->c1, 0, sizeof(float)*uu->height*uu->stride);
-    memset(b1->c1 , 0, sizeof(float)*uu->height*uu->stride);
-    memset(b2->c1 , 0, sizeof(float)*uu->height*uu->stride);
+    checkCudaErrors( cudaMemset(a11->c1, 0, sizeof(float)*uu->height*uu->stride) );
+    checkCudaErrors( cudaMemset(a12->c1, 0, sizeof(float)*uu->height*uu->stride) );
+    checkCudaErrors( cudaMemset(a22->c1, 0, sizeof(float)*uu->height*uu->stride) );
+    checkCudaErrors( cudaMemset(b1->c1 , 0, sizeof(float)*uu->height*uu->stride) );
+    checkCudaErrors( cudaMemset(b2->c1 , 0, sizeof(float)*uu->height*uu->stride) );
 
     // Set up device pointers
     float *a11c1,
@@ -1087,10 +1087,12 @@ namespace cu {
     // Cleanup extra columns
     auto start_cleanup = now();
     for(int j = 0; j < height; j++){
-      memset(&dst_horiz->c1[j*stride+width-1], 0, sizeof(float)*(stride-width+1));
+      // memset(&dst_horiz->c1[j*stride+width-1], 0, sizeof(float)*(stride-width+1));
+      checkCudaErrors( cudaMemset(&dst_horiz->c1[j*stride+width-1], 0, sizeof(float)*(stride-width+1)) );
     }
     // Cleanup last row
-    memset( &dst_vert->c1[(height-1)*stride], 0, sizeof(float)*stride);
+    // memset( &dst_vert->c1[(height-1)*stride], 0, sizeof(float)*stride);
+    checkCudaErrors( cudaMemset( &dst_vert->c1[(height-1)*stride], 0, sizeof(float)*stride) );
 
     image_delete(ux); image_delete(uy); image_delete(vx); image_delete(vy); 
     image_delete(smoothness);
