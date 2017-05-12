@@ -306,25 +306,35 @@ int main( int argc, char** argv ) {
   float scale_fact = pow(2, op.finest_scale);
   float* outflow1, * outflow2, * outflow3;
   checkCudaErrors(
-      cudaHostAlloc((void**) &(outflow1), 2 * iparams.height / scale_fact
-        * iparams.width / scale_fact * sizeof(float), cudaHostAllocMapped) );
+      cudaMalloc((void**) &(outflow1), 2 * iparams.height / scale_fact
+        * iparams.width / scale_fact * sizeof(float)) );
   checkCudaErrors(
-      cudaHostAlloc((void**) &(outflow2), 2 * iparams.height / scale_fact
-        * iparams.width / scale_fact * sizeof(float), cudaHostAllocMapped) );
+      cudaMalloc((void**) &(outflow2), 2 * iparams.height / scale_fact
+        * iparams.width / scale_fact * sizeof(float)) );
   checkCudaErrors(
-      cudaHostAlloc((void**) &(outflow3), 2 * iparams.height / scale_fact
-        * iparams.width / scale_fact * sizeof(float), cudaHostAllocMapped) );
+      cudaMalloc((void**) &(outflow3), 2 * iparams.height / scale_fact
+        * iparams.width / scale_fact * sizeof(float)) );
 
   ofc.next(I1, iparams, nullptr, outflow1);
   ofc.next(I2, iparams, outflow1, outflow2);
   ofc.next(I3, iparams, outflow2, outflow3);
 
   cv::Mat flow_mat1(iparams.height / scale_fact , iparams.width / scale_fact,
-      CV_32FC2, outflow1);
+      CV_32FC2);
   cv::Mat flow_mat2(iparams.height / scale_fact , iparams.width / scale_fact,
-      CV_32FC2, outflow2);
+      CV_32FC2);
   cv::Mat flow_mat3(iparams.height / scale_fact , iparams.width / scale_fact,
-      CV_32FC2, outflow3);
+      CV_32FC2);
+
+  checkCudaErrors(
+      cudaMemcpy(flow_mat1.data, outflow1, 2 * iparams.height / scale_fact 
+        * iparams.width / scale_fact * sizeof(float), cudaMemcpyDeviceToHost) );
+  checkCudaErrors(
+      cudaMemcpy(flow_mat2.data, outflow2, 2 * iparams.height / scale_fact 
+        * iparams.width / scale_fact * sizeof(float), cudaMemcpyDeviceToHost) );
+  checkCudaErrors(
+      cudaMemcpy(flow_mat3.data, outflow3, 2 * iparams.height / scale_fact 
+        * iparams.width / scale_fact * sizeof(float), cudaMemcpyDeviceToHost) );
 
   if (op.verbosity > 1) gettimeofday(&start_time, NULL);
 

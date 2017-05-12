@@ -96,8 +96,8 @@ namespace OFC {
 
         // flow[i]   = new float[2 * iparams[i].width * iparams[i].height];
         checkCudaErrors(
-            cudaHostAlloc((void**) &(flow[i]),
-              2 * iparams[i].width * iparams[i].height * sizeof(float), cudaHostAllocMapped) );
+            cudaMalloc((void**) &(flow[i]),
+              2 * iparams[i].width * iparams[i].height * sizeof(float)) );
         grid[i]   = new OFC::PatGridClass(&(iparams[i]), &op);
       }
 
