@@ -333,7 +333,11 @@ namespace OFC {
 
         // OFC::VarRefClass var_ref(I0H, I1H, &(iparams[ii]), &op, out_ptr);
 
+        cudaDeviceSynchronize();
+
         OFC::VarRefClass var_ref(I0s[sl], I1s[sl], &(iparams[ii]), &op, out_ptr);
+
+        cudaDeviceSynchronize();
 
         // delete I0H;
         // delete I1H;

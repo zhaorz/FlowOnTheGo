@@ -153,17 +153,20 @@ namespace OFC {
     // warp second image
     auto start_image_warp = now();
     cu::warpImage(w_im2, mask, im2, wx, wy);
+    cudaDeviceSynchronize();
     calc_print_elapsed("RefLevelOF image_warp", start_image_warp);
 
     // compute derivatives
     auto start_get_derivs = now();
     cu::getDerivatives(im1, w_im2, pDeviceColorDerivativeKernel, Ix, Iy, Iz, Ixx, Ixy, Iyy, Ixz, Iyz);
+    cudaDeviceSynchronize();
     calc_print_elapsed("RefLevelOF get_derivatives", start_get_derivs);
 
     // erase du and dv
     auto start_image_erase = now();
     image_erase(du);
     image_erase(dv);
+    cudaDeviceSynchronize();
     calc_print_elapsed("RefLevelOF image_erase", start_image_erase);
 
     // initialize uu and vv
@@ -177,6 +180,7 @@ namespace OFC {
       //  compute robust function and system
       auto start_smooth = now();
       cu::computeSmoothness(smooth_horiz, smooth_vert, uu, vv, pDeviceDerivativeKernel, vr.tmp_quarter_alpha );
+      cudaDeviceSynchronize();
       calc_print_elapsed(("RefLevelOF " + iterStr + " smoothness").c_str(), start_smooth);
 
       auto start_data = now();
@@ -184,11 +188,13 @@ namespace OFC {
           mask, wx, wy, du, dv, uu, vv, 
           Ix, Iy, Iz, Ixx, Ixy, Iyy, Ixz, Iyz, 
           vr.tmp_half_delta_over3, vr.tmp_half_beta, vr.tmp_half_gamma_over3);
+      cudaDeviceSynchronize();
       calc_print_elapsed(("RefLevelOF " + iterStr + " data").c_str(), start_data);
 
       auto start_lapalcian = now();
       cu::subLaplacian(b1, wx, smooth_horiz, smooth_vert, pDeviceSubLaplacianCoeffs);
       cu::subLaplacian(b2, wy, smooth_horiz, smooth_vert, pDeviceSubLaplacianCoeffs);
+      cudaDeviceSynchronize();
       calc_print_elapsed(("RefLevelOF " + iterStr + " laplacian").c_str(), start_lapalcian);
 
       // solve system
@@ -196,6 +202,7 @@ namespace OFC {
       cu::sor(du->c1, dv->c1, a11->c1, a12->c1, a22->c1,
           b1->c1, b2->c1, smooth_horiz->c1, smooth_vert->c1,
           vr.solve_iter, vr.sor_omega, du->height, du->width, du->stride);
+      cudaDeviceSynchronize();
       calc_print_elapsed(("RefLevelOF " + iterStr + " sor").c_str(), start_sor);
 
       // update flow plus flow increment
@@ -203,6 +210,7 @@ namespace OFC {
       cu::flowUpdate(
           uu->c1, vv->c1, wx->c1, wy->c1, du->c1, dv->c1,
           height, width, stride);
+      cudaDeviceSynchronize();
       calc_print_elapsed(("RefLevelOF " + iterStr + " flow update").c_str(), start_flow_update);
 
       calc_print_elapsed(("RefLevelOF " + iterStr + " [total]").c_str(), start_iteration);
@@ -212,6 +220,7 @@ namespace OFC {
     auto start_increment_flow = now();
     memcpy(wx->c1,uu->c1,uu->stride*uu->height*sizeof(float));
     memcpy(wy->c1,vv->c1,vv->stride*vv->height*sizeof(float));
+    cudaDeviceSynchronize();
     calc_print_elapsed("RefLevelOF increment flow", start_increment_flow);
 
     // free memory
@@ -226,6 +235,7 @@ namespace OFC {
     color_image_delete(w_im2);
     color_image_delete(Ix); color_image_delete(Iy); color_image_delete(Iz);
     color_image_delete(Ixx); color_image_delete(Ixy); color_image_delete(Iyy); color_image_delete(Ixz); color_image_delete(Iyz);
+    cudaDeviceSynchronize();
     calc_print_elapsed("RefLevelOF cleanup", start_cleanup);
   }
 

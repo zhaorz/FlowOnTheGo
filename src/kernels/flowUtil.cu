@@ -753,6 +753,7 @@ namespace cu {
     for(int iter = 0 ; iter<iterations ; iter++)
     {
 
+      auto start_sor_odd = now();
       kernelSorStep<<<nBlocks, nThreadsPerBlock>>>(
           d_du, d_dv,
           d_a11, d_a12, d_a22,
@@ -762,7 +763,9 @@ namespace cu {
           height, width, stride, true);
 
       cudaDeviceSynchronize();
+      calc_print_elapsed("sor step odd", start_sor_odd);
 
+      auto start_sor_even = now();
       kernelSorStep<<<nBlocks, nThreadsPerBlock>>>(
           d_du, d_dv,
           d_a11, d_a12, d_a22,
@@ -770,6 +773,8 @@ namespace cu {
           d_horiz, d_vert,
           iterations, omega,
           height, width, stride, false);
+      cudaDeviceSynchronize();
+      calc_print_elapsed("sor step even", start_sor_even);
     }  
   }
 
@@ -888,7 +893,7 @@ namespace cu {
 
     int N = height * width;
     int nThreadsPerBlock = 64;
-    int nBlocks = 10;
+    int nBlocks = 56;
 
     auto start_mag = now();
     kernelFlowMag<<<nBlocks, nThreadsPerBlock>>> (
