@@ -46,7 +46,7 @@ namespace OFC {
     op.steps = std::max(1, (int) floor(op.patch_size * (1 - op.patch_stride)));
     op.n_vals = 3 * pow(op.patch_size, 2);
     op.n_scales = op.coarsest_scale - op.finest_scale + 1;
-    float norm_outlier2 = pow(op.norm_outlier, 2);
+    // float norm_outlier2 = pow(op.norm_outlier, 2);
     // op.norm_outlier_tmpbsq = (v4sf) {norm_outlier2, norm_outlier2, norm_outlier2, norm_outlier2};
     // op.norm_outlier_tmp2bsq = __builtin_ia32_mulps(op.norm_outlier_tmpbsq, op.twos);
     // op.norm_outlier_tmp4bsq = __builtin_ia32_mulps(op.norm_outlier_tmpbsq, op.fours);
@@ -279,6 +279,7 @@ namespace OFC {
 
 
       // Dense Inverse Search. (Step 3 in Algorithm 1 of paper)
+      // Parallel over all patches
       grid[ii]->Optimize();
 
       // Timing, DIS
@@ -313,6 +314,7 @@ namespace OFC {
 
       // Variational refinement, (Step 5 in Algorithm 1 of paper)
       if (op.use_var_ref) {
+      // if (false) {
         float* I0H, * I1H;
         int elemSize = 3 * sizeof(float);
         int size = iparams[ii].width_pad * iparams[ii].height_pad * elemSize;

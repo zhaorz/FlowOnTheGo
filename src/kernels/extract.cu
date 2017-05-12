@@ -33,12 +33,18 @@ __global__  void kernelExtractPatch(
 }
 
 
+// __global__ void kernelExtractPatchesAndHessians(
+//     float** patches, float** patchxs, float** patchys,
+//     const float * I0, const float * I0x, const float * I0y,
+//     float* H00, float* H01, float* H11,
+//     float** tempXX, float** tempXY, float** tempYY,
+//     float* midpointX, float* midpointY, int padding,
+//     int patch_size, int width_pad) {
 __global__ void kernelExtractPatchesAndHessians(
     float** patches, float** patchxs, float** patchys,
     const float * I0, const float * I0x, const float * I0y,
-    float* H00, float* H01, float* H11,
     float** tempXX, float** tempXY, float** tempYY,
-    float* midpointX, float* midpointY, int padding,
+    dev_patch_state* states, int padding,
     int patch_size, int width_pad) {
 
 
@@ -51,8 +57,8 @@ __global__ void kernelExtractPatchesAndHessians(
   float* XY = tempXY[patchId];
   float* YY = tempYY[patchId];
 
-  int x = round(midpointX[patchId]) + padding;
-  int y = round(midpointY[patchId]) + padding;
+  int x = round(states[patchId].midpoint_orgx) + padding;
+  int y = round(states[patchId].midpoint_orgy) + padding;
 
   int lb = -patch_size / 2;
   int offset = 3 * ((x + lb) + (y + lb) * width_pad) + tid;
@@ -106,13 +112,55 @@ __global__ void kernelExtractPatchesAndHessians(
       h11 += 1e-10;
     }
 
-    H00[patchId] = h00;
-    H01[patchId] = h01;
-    H11[patchId] = h11;
+    states[patchId].H00 = h00;
+    states[patchId].H01 = h01;
+    states[patchId].H11 = h11;
 
   }
 
 
+}
+
+// TODO: merge this with above kernel?
+__global__ void kernelInitCoarserOF(
+    float* flowPrev, dev_patch_state* states, int width,
+    int lb, int ub_w, int ub_h) {
+
+  int patchId = blockIdx.x;
+  int x = floor(states[patchId].midpoint_orgx / 2);
+  int y = floor(states[patchId].midpoint_orgy / 2);
+  int i = y * width + x;
+
+  states[patchId].p_orgx = flowPrev[2 * i] * 2;
+  states[patchId].p_orgy = flowPrev[2 * i + 1] * 2;
+  states[patchId].p_curx = flowPrev[2 * i] * 2;
+  states[patchId].p_cury = flowPrev[2 * i + 1] * 2;
+
+  states[patchId].midpoint_curx += states[patchId].p_curx;
+  states[patchId].midpoint_cury += states[patchId].p_cury;
+
+  //Check if initial position is already invalid
+  if (states[patchId].midpoint_curx < lb
+      || states[patchId].midpoint_cury < lb
+      || states[patchId].midpoint_curx > ub_w
+      || states[patchId].midpoint_cury > ub_h) {
+
+    states[patchId].has_converged = 1;
+    states[patchId].has_opt_started = 1;
+
+  } else {
+
+    states[patchId].count = 0; // reset iteration counter
+    states[patchId].delta_p_sq_norm = 1e-10;
+    states[patchId].delta_p_sq_norm_init = 1e-10;  // set to arbitrary low value, s.t. that loop condition is definitely true on first iteration
+    states[patchId].mares = 1e5;          // mean absolute residual
+    states[patchId].mares_old = 1e20; // for rate of change, keep mares from last iteration in here. Set high so that loop condition is definitely true on first iteration
+    states[patchId].has_converged = 0;
+
+    states[patchId].has_opt_started = 1;
+    states[patchId].invalid = false;
+
+  }
 }
 
 
@@ -134,12 +182,18 @@ namespace cu {
   }
 
 
+  // void extractPatchesAndHessians(
+  //     float** patches, float** patchxs, float** patchys,
+  //     const float * I0, const float * I0x, const float * I0y,
+  //     float* H00, float* H01, float* H11,
+  //     float** tempXX, float** tempXY, float** tempYY,
+  //     float* midpointX, float* midpointY, int n_patches,
+  //     const opt_params* op, const img_params* i_params) {
   void extractPatchesAndHessians(
       float** patches, float** patchxs, float** patchys,
       const float * I0, const float * I0x, const float * I0y,
-      float* H00, float* H01, float* H11,
       float** tempXX, float** tempXY, float** tempYY,
-      float* midpointX, float* midpointY, int n_patches,
+      dev_patch_state* states, int n_patches,
       const opt_params* op, const img_params* i_params) {
 
     int nBlocks = n_patches;
@@ -147,10 +201,23 @@ namespace cu {
 
     kernelExtractPatchesAndHessians<<<nBlocks, nThreadsPerBlock>>>(
         patches, patchxs, patchys,
-        I0, I0x, I0y, H00, H01, H11,
-        tempXX, tempXY, tempYY, midpointX, midpointY,
-        i_params->padding, op->patch_size, i_params->width_pad);
+        I0, I0x, I0y, tempXX, tempXY, tempYY, 
+        states, i_params->padding, op->patch_size, i_params->width_pad);
 
   }
+
+
+  void initCoarserOF(float* flowPrev, dev_patch_state* states,
+      int n_patches, const img_params* i_params) {
+
+    int nBlocks = n_patches;
+    int nThreadsPerBlock = 1;
+
+    kernelInitCoarserOF<<<nBlocks, nThreadsPerBlock>>>(
+        flowPrev, states, i_params->width / 2, i_params->l_bound,
+        i_params->u_bound_width, i_params->u_bound_height);
+
+  }
+
 
 }
