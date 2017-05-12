@@ -174,7 +174,8 @@ namespace OFC {
 
     // warp second image
     auto start_image_warp = now();
-    image_warp(w_im2, mask, im2, wx, wy);
+    // image_warp(w_im2, mask, im2, wx, wy);
+    cu::warpImage(w_im2, mask, im2, wx, wy);
     calc_print_elapsed("RefLevelOF image_warp", start_image_warp);
 
     // compute derivatives
@@ -202,7 +203,8 @@ namespace OFC {
       calc_print_elapsed(("RefLevelOF " + iterStr + " smoothness").c_str(), start_smooth);
 
       auto start_data = now();
-      compute_data(a11, a12, a22, b1, b2, mask, wx, wy, du, dv, uu, vv, Ix, Iy, Iz, Ixx, Ixy, Iyy, Ixz, Iyz, vr.tmp_half_delta_over3, vr.tmp_half_beta, vr.tmp_half_gamma_over3);
+      // compute_data(a11, a12, a22, b1, b2, mask, wx, wy, du, dv, uu, vv, Ix, Iy, Iz, Ixx, Ixy, Iyy, Ixz, Iyz, vr.tmp_half_delta_over3, vr.tmp_half_beta, vr.tmp_half_gamma_over3);
+      cu::dataTerm(a11, a12, a22, b1, b2, mask, wx, wy, du, dv, uu, vv, Ix, Iy, Iz, Ixx, Ixy, Iyy, Ixz, Iyz, vr.tmp_half_delta_over3, vr.tmp_half_beta, vr.tmp_half_gamma_over3);
       calc_print_elapsed(("RefLevelOF " + iterStr + " data").c_str(), start_data);
 
       auto start_lapalcian = now();
@@ -221,19 +223,9 @@ namespace OFC {
 
       // update flow plus flow increment
       auto start_flow_update = now();
-
       cu::flowUpdate(
           uu->c1, vv->c1, wx->c1, wy->c1, du->c1, dv->c1,
           height, width, stride);
-
-      // int i;
-      // float *uup = (float*) uu->c1, *vvp = (float*) vv->c1, *wxp = (float*) wx->c1, *wyp = (float*) wy->c1, *dup = (float*) du->c1, *dvp = (float*) dv->c1;
-      // for( i=0 ; i<height*stride; i++) {
-      //   (*uup) = (*wxp) + (*dup);
-      //   (*vvp) = (*wyp) + (*dvp);
-      //   uup+=1; vvp+=1; wxp+=1; wyp+=1;dup+=1;dvp+=1;
-      // }
-
       calc_print_elapsed(("RefLevelOF " + iterStr + " flow update").c_str(), start_flow_update);
 
       calc_print_elapsed(("RefLevelOF " + iterStr + " [total]").c_str(), start_iteration);

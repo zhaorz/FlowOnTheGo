@@ -180,7 +180,7 @@ __global__ void kernelSubLaplacianHoriz(
   int tidx = blockIdx.x * blockDim.x + threadIdx.x;
   int col  = tidx % width;
 
-  const int BLOCK_HEIGHT = 4;
+  const int BLOCK_HEIGHT = 1;
 
   if (tidx < width) {
     float *pSrc         = src + tidx,
@@ -227,7 +227,8 @@ __global__ void kernelSubLaplacianHorizFillCoeffs(
     float *src, float *weights, float *coeffs, int height, int width, int stride) {
 
   int tidx = blockIdx.x * blockDim.x + threadIdx.x;
-  int col  = tidx % width;
+  int row  = tidx / stride;
+  int col  = tidx % stride;
 
   // Do not calculate the last column
   if (tidx < width && col != width - 1) {
@@ -241,13 +242,23 @@ __global__ void kernelSubLaplacianHorizFillCoeffs(
       pSrc += stride; pWeight += stride; pCoeff += stride;
     }
   }
+
+  // // Do not calculate the last column
+  // if (col < width - 1) {
+  //   float *pSrc    = src + tidx,
+  //         *pWeight = weights + tidx,
+  //         *pCoeff  = coeffs + tidx;
+
+  //   *pCoeff = (*pWeight) * ( *(pSrc + 1) - *pSrc );
+  // }
 }
 
 __global__ void kernelSubLaplacianHorizApplyCoeffs(
     float *dst, float *coeffs, int height, int width, int stride) {
 
   int tidx = blockIdx.x * blockDim.x + threadIdx.x;
-  int col  = tidx % width;
+  int row  = tidx / stride;
+  int col  = tidx % stride;
 
   if (tidx < width) {
 
@@ -267,6 +278,21 @@ __global__ void kernelSubLaplacianHorizApplyCoeffs(
       pDst += stride; pCoeff += stride;
     }
   }
+
+  // if (col < width) {
+
+  //   float *pDst   = dst + tidx,
+  //         *pCoeff = coeffs + tidx;
+
+  //   float update = 0.0;
+
+  //   if (col != 0)
+  //     update -= *(pCoeff - 1);
+  //   if (col != width - 1)
+  //     update += *pCoeff;
+
+  //   *pDst += update;
+  // }
 }
 
 __global__ void kernelSorStep(
@@ -579,11 +605,22 @@ namespace cu {
     checkCudaErrors( cudaHostGetDevicePointer(&pDeviceWeights, weights, 0) );
 
     int N = width;
+    // int N = height * stride;
     int nThreadsPerBlock = 64;
     int nBlocks = (N + nThreadsPerBlock - 1) / nThreadsPerBlock;
 
-    kernelSubLaplacianHoriz<<<nBlocks, nThreadsPerBlock>>>(
-        pDeviceSrc, pDeviceDst, pDeviceWeights, pDeviceCoeffs, height, width, stride);
+    auto start_horiz = now();
+
+    kernelSubLaplacianHorizFillCoeffs<<<nBlocks, nThreadsPerBlock>>>(
+        pDeviceSrc, pDeviceWeights, pDeviceCoeffs, height, width, stride);
+
+    kernelSubLaplacianHorizApplyCoeffs<<<nBlocks, nThreadsPerBlock>>>(
+        pDeviceDst, pDeviceCoeffs, height, width, stride);
+
+    // kernelSubLaplacianHoriz<<<nBlocks, nThreadsPerBlock>>>(
+    //     pDeviceSrc, pDeviceDst, pDeviceWeights, pDeviceCoeffs, height, width, stride);
+    cudaDeviceSynchronize();
+    calc_print_elapsed("laplacian horiz", start_horiz);
 
     cudaFree(pDeviceCoeffs);
   }
@@ -601,8 +638,10 @@ namespace cu {
     int nThreadsPerBlock = 64;
     int nBlocks = (N + nThreadsPerBlock - 1) / nThreadsPerBlock;
 
+    auto start_vert = now();
     kernelSubLaplacianVert<<<nBlocks, nThreadsPerBlock>>>(
         d_src, d_src + stride, d_dst, d_dst + stride, d_weights, height, stride);
+    calc_print_elapsed("laplacian vert", start_vert);
 
   }
 
