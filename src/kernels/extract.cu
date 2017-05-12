@@ -18,6 +18,8 @@
 
 #include "extract.h"
 
+using namespace timer;
+
 __global__  void kernelExtractPatch(
     float* pDevicePatch, float* pDevicePatchX, float* pDevicePatchY,
     const float* I0, const float* I0x, const float* I0y, int patch_offset,
@@ -62,6 +64,7 @@ __global__ void kernelExtractPatchesAndHessians(
 
   int lb = -patch_size / 2;
   int offset = 3 * ((x + lb) + (y + lb) * width_pad) + tid;
+  auto start = clock();
 
   for (int i = tid, j = offset; i < patch_size * patch_size * 3;
       i += 3 * patch_size, j += 3 * width_pad) {
@@ -74,10 +77,13 @@ __global__ void kernelExtractPatchesAndHessians(
   }
 
   __syncthreads();
+  if (tid == 0 && patchId == 31)
+    printf("Extraction %d\n", clock() - start);
 
   // Mean normalize
   __shared__ float mean;
 
+  start = clock();
   if (tid == 0) {
 
     mean = 0.0;
@@ -89,12 +95,21 @@ __global__ void kernelExtractPatchesAndHessians(
   }
 
   __syncthreads();
+  if (tid == 0 && patchId == 31)
+    printf("compute mean %d\n", clock() - start);
+
+  start = clock();
+  
 
   for (int i = tid; i < patch_size * patch_size * 3;
       i+= 3 * patch_size) {
     patch[i] -= mean;
   }
 
+  if (tid == 0 && patchId == 31)
+    printf("normalize %d\n", clock() - start);
+
+  start = clock();
   // TODO: can this be done in parallel?
   if (tid == 0) {
 
@@ -116,6 +131,8 @@ __global__ void kernelExtractPatchesAndHessians(
     states[patchId].H01 = h01;
     states[patchId].H11 = h11;
 
+    if (patchId == 31)
+      printf("hessian %d\n", clock() - start);
   }
 
 
@@ -179,6 +196,8 @@ namespace cu {
         I0, I0x, I0y, patch_offset,
         patchSize, width_pad);
 
+    cudaDeviceSynchronize();
+
   }
 
 
@@ -204,6 +223,8 @@ namespace cu {
         I0, I0x, I0y, tempXX, tempXY, tempYY, 
         states, i_params->padding, op->patch_size, i_params->width_pad);
 
+    cudaDeviceSynchronize();
+
   }
 
 
@@ -216,6 +237,8 @@ namespace cu {
     kernelInitCoarserOF<<<nBlocks, nThreadsPerBlock>>>(
         flowPrev, states, i_params->width / 2, i_params->l_bound,
         i_params->u_bound_width, i_params->u_bound_height);
+
+    cudaDeviceSynchronize();
 
   }
 

@@ -193,7 +193,7 @@ namespace OFC {
     cu::constructImgPyramids(I1, I1s, I1xs, I1ys,
         pDeviceIx, pDeviceIy, pDeviceTmp, pDeviceWew,
         iparams.width, iparams.height,
-        op.patch_size, op.coarsest_scale + 1);
+        op.patch_size, op.finest_scale, op.coarsest_scale);
 
     // Timing, image gradients and pyramid
     if (op.verbosity > 1) {
@@ -228,7 +228,7 @@ namespace OFC {
 
     ConstructImgPyramids(_iparams);
 
-    if (op.verbosity > 1) cout << ", cflow " << endl;
+    std::cout << "coarsest: " <<  op.coarsest_scale << " finest: " << op.finest_scale << std::endl;
 
     // Variables for algorithm timings
     struct timeval tv_start_all, tv_end_all, tv_start_all_global, tv_end_all_global;
@@ -328,21 +328,29 @@ namespace OFC {
       // Variational refinement, (Step 5 in Algorithm 1 of paper)
       if (op.use_var_ref) {
       // if (false) {
-        float* I0H, * I1H;
-        int elemSize = 3 * sizeof(float);
-        int size = iparams[ii].width_pad * iparams[ii].height_pad * elemSize;
-        I0H = (float*) malloc(size);
-        I1H = (float*) malloc(size);
+        // float* I0H, * I1H;
+        // int elemSize = 3 * sizeof(float);
+        // int size = iparams[ii].width_pad * iparams[ii].height_pad * elemSize;
+        // I0H = (float*) malloc(size);
+        // I1H = (float*) malloc(size);
 
-        checkCudaErrors(
-            cudaMemcpy(I0H, I0s[sl], size, cudaMemcpyDeviceToHost) );
-        checkCudaErrors(
-            cudaMemcpy(I1H, I1s[sl], size, cudaMemcpyDeviceToHost) );
+        // auto start = now();
+        // checkCudaErrors(
+        //     cudaMemcpy(I0H, I0s[sl], size, cudaMemcpyDeviceToHost) );
+        // checkCudaErrors(
+        //     cudaMemcpy(I1H, I1s[sl], size, cudaMemcpyDeviceToHost) );
+        // calc_print_elapsed("pre var-ref memcpy", start);
 
-        OFC::VarRefClass var_ref(I0H, I1H, &(iparams[ii]), &op, out_ptr);
+        // OFC::VarRefClass var_ref(I0H, I1H, &(iparams[ii]), &op, out_ptr);
 
-        delete I0H;
-        delete I1H;
+        cudaDeviceSynchronize();
+
+        OFC::VarRefClass var_ref(I0s[sl], I1s[sl], &(iparams[ii]), &op, out_ptr);
+
+        cudaDeviceSynchronize();
+
+        // delete I0H;
+        // delete I1H;
 
       }
 

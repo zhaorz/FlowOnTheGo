@@ -227,7 +227,6 @@ __global__ void kernelSubLaplacianHorizFillCoeffs(
     float *src, float *weights, float *coeffs, int height, int width, int stride) {
 
   int tidx = blockIdx.x * blockDim.x + threadIdx.x;
-  int row  = tidx / stride;
   int col  = tidx % stride;
 
   // Do not calculate the last column
@@ -390,21 +389,29 @@ __global__ void kernelGetMeanImageAndDiff(
 
 __global__ void kernelFlowMag(
     float *dst,  float *ux,  float *uy,  float *vx,  float *vy,
-    float qa, float epsmooth, int height, int width, int stride) {
+    float qa, float epsmooth, int height, int width, int stride, int N) {
 
-  int tidx = blockIdx.x * blockDim.x + threadIdx.x;
+  int i = blockIdx.x * blockDim.x + threadIdx.x;
 
-  if (tidx < height * stride) {
-    float *uxp = ux + tidx,
-          *uyp = uy + tidx,
-          *vxp = vx + tidx,
-          *vyp = vy + tidx,
-          *sp  = dst + tidx;
-
-    *sp = qa / sqrtf(
-        (*uxp)*(*uxp) + (*uyp)*(*uyp) + (*vxp)*(*vxp) + (*vyp)*(*vyp) + epsmooth );
-
+  for (; i < N; i+= blockDim.x * gridDim.x) {
+    dst[i] = qa / sqrt(
+        (ux[i])*(ux[i]) + (uy[i])*(uy[i]) + (vx[i])*(vx[i]) + (vy[i])*(vy[i]) + epsmooth );
   }
+
+  // if (tidx < stride) {
+  //   float *uxp = ux + tidx,
+  //         *uyp = uy + tidx,
+  //         *vxp = vx + tidx,
+  //         *vyp = vy + tidx,
+  //         *sp  = dst + tidx;
+
+  //   for (int j = 0; j < height; j++) {
+  //     *sp = qa / sqrtf(
+  //         (*uxp)*(*uxp) + (*uyp)*(*uyp) + (*vxp)*(*vxp) + (*vyp)*(*vyp) + epsmooth );
+
+  //     uxp += stride; uyp += stride; vxp += stride; vyp += stride; sp += stride; 
+  //   }
+  // }
 }
 
 __global__ void kernelSmoothnessHorizVert(
@@ -494,6 +501,66 @@ __global__ void kernelWarpImage(
 }
 
 
+__global__ void kernelSepFlow(
+    float *flowx, float *flowy, float *flowout, int height, int width, int stride) {
+
+  int tidx = blockIdx.x * blockDim.x + threadIdx.x;
+
+  int ix = tidx % width;
+  int iy = tidx / width;
+
+  if (ix < width && iy < height) {
+    
+    int i = iy * width + ix;
+    int is = iy * stride + ix;
+
+    flowx[is] = flowout[2 * i];
+    flowy[is] = flowout[2 * i + 1];
+  }
+}
+
+
+__global__ void kernelMergeFlow(
+    float *flowx, float *flowy, float *flowout, int height, int width, int stride) {
+
+  int tidx = blockIdx.x * blockDim.x + threadIdx.x;
+
+  int ix = tidx % width;
+  int iy = tidx / width;
+
+  if (ix < width && iy < height) {
+    
+    int i = iy * width + ix;
+    int is = iy * stride + ix;
+
+    flowout[2 * i] = flowx[is];
+    flowout[2 * i + 1] = flowy[is];
+  }
+}
+
+__global__ void kernelCopyImage(
+    float *dst1, float *dst2, float *dst3, const float *src,
+    int width_pad, int padding, int height, int width, int stride) {
+
+  int tidx = blockIdx.x * blockDim.x + threadIdx.x;
+
+  const float *pSrcStart = src + 3 * (width_pad + 1) * padding;
+
+  int ix = tidx % width;
+  int iy = tidx / width;
+
+  if (ix < width && iy < height) {
+
+    const float *pSrc = pSrcStart + (iy * 3 * width_pad) + 3 * ix;
+    int i = iy * stride + ix;
+
+    dst1[i] = *pSrc; pSrc++;
+    dst2[i] = *pSrc; pSrc++;
+    dst3[i] = *pSrc; pSrc++;
+  }
+}
+
+
 namespace cu {
 
   void dataTerm(
@@ -508,11 +575,12 @@ namespace cu {
       color_image_t *Ixz, color_image_t *Iyz, 
       const float half_delta_over3, const float half_beta, const float half_gamma_over3) {
 
-    memset(a11->c1, 0, sizeof(float)*uu->height*uu->stride);
-    memset(a12->c1, 0, sizeof(float)*uu->height*uu->stride);
-    memset(a22->c1, 0, sizeof(float)*uu->height*uu->stride);
-    memset(b1->c1 , 0, sizeof(float)*uu->height*uu->stride);
-    memset(b2->c1 , 0, sizeof(float)*uu->height*uu->stride);
+    // TODO: cudaMemset
+    checkCudaErrors( cudaMemset(a11->c1, 0, sizeof(float)*uu->height*uu->stride) );
+    checkCudaErrors( cudaMemset(a12->c1, 0, sizeof(float)*uu->height*uu->stride) );
+    checkCudaErrors( cudaMemset(a22->c1, 0, sizeof(float)*uu->height*uu->stride) );
+    checkCudaErrors( cudaMemset(b1->c1 , 0, sizeof(float)*uu->height*uu->stride) );
+    checkCudaErrors( cudaMemset(b2->c1 , 0, sizeof(float)*uu->height*uu->stride) );
 
     // Set up device pointers
     float *a11c1,
@@ -531,42 +599,79 @@ namespace cu {
           *Ixzc1,    *Ixzc2,    *Ixzc3,
           *Iyzc1,    *Iyzc2,    *Iyzc3;
 
-    checkCudaErrors( cudaHostGetDevicePointer(&a11c1,    a11->c1, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&a12c1,    a12->c1, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&a22c1,    a22->c1, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&b1c1,     b1->c1, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&b2c1,     b2->c1, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&maskc1,   mask->c1, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&wxc1,     wx->c1, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&wyc1,     wy->c1, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&duc1,     du->c1, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&dvc1,     dv->c1, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&uuc1,     uu->c1, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&vvc1,     vv->c1, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&Ixc1,     Ix->c1, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&Ixc2,     Ix->c2, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&Ixc3,     Ix->c3, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&Iyc1,     Iy->c1, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&Iyc2,     Iy->c2, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&Iyc3,     Iy->c3, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&Izc1,     Iz->c1, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&Izc2,     Iz->c2, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&Izc3,     Iz->c3, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&Ixxc1,    Ixx->c1, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&Ixxc2,    Ixx->c2, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&Ixxc3,    Ixx->c3, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&Ixyc1,    Ixy->c1, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&Ixyc2,    Ixy->c2, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&Ixyc3,    Ixy->c3, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&Iyyc1,    Iyy->c1, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&Iyyc2,    Iyy->c2, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&Iyyc3,    Iyy->c3, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&Ixzc1,    Ixz->c1, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&Ixzc2,    Ixz->c2, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&Ixzc3,    Ixz->c3, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&Iyzc1,    Iyz->c1, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&Iyzc2,    Iyz->c2, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&Iyzc3,    Iyz->c3, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&a11c1,    a11->c1, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&a12c1,    a12->c1, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&a22c1,    a22->c1, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&b1c1,     b1->c1, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&b2c1,     b2->c1, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&maskc1,   mask->c1, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&wxc1,     wx->c1, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&wyc1,     wy->c1, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&duc1,     du->c1, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&dvc1,     dv->c1, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&uuc1,     uu->c1, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&vvc1,     vv->c1, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&Ixc1,     Ix->c1, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&Ixc2,     Ix->c2, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&Ixc3,     Ix->c3, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&Iyc1,     Iy->c1, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&Iyc2,     Iy->c2, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&Iyc3,     Iy->c3, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&Izc1,     Iz->c1, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&Izc2,     Iz->c2, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&Izc3,     Iz->c3, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&Ixxc1,    Ixx->c1, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&Ixxc2,    Ixx->c2, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&Ixxc3,    Ixx->c3, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&Ixyc1,    Ixy->c1, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&Ixyc2,    Ixy->c2, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&Ixyc3,    Ixy->c3, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&Iyyc1,    Iyy->c1, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&Iyyc2,    Iyy->c2, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&Iyyc3,    Iyy->c3, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&Ixzc1,    Ixz->c1, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&Ixzc2,    Ixz->c2, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&Ixzc3,    Ixz->c3, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&Iyzc1,    Iyz->c1, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&Iyzc2,    Iyz->c2, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&Iyzc3,    Iyz->c3, 0) );
+
+    a11c1  =  a11->c1;
+    a12c1  =  a12->c1;
+    a22c1  =  a22->c1;
+    b1c1   =  b1->c1;
+    b2c1   =  b2->c1;
+    maskc1 =  mask->c1;
+    wxc1   =  wx->c1;
+    wyc1   =  wy->c1;
+    duc1   =  du->c1;
+    dvc1   =  dv->c1;
+    uuc1   =  uu->c1;
+    vvc1   =  vv->c1;
+    Ixc1   =  Ix->c1;
+    Ixc2   =  Ix->c2;
+    Ixc3   =  Ix->c3;
+    Iyc1   =  Iy->c1;
+    Iyc2   =  Iy->c2;
+    Iyc3   =  Iy->c3;
+    Izc1   =  Iz->c1;
+    Izc2   =  Iz->c2;
+    Izc3   =  Iz->c3;
+    Ixxc1  =  Ixx->c1;
+    Ixxc2  =  Ixx->c2;
+    Ixxc3  =  Ixx->c3;
+    Ixyc1  =  Ixy->c1;
+    Ixyc2  =  Ixy->c2;
+    Ixyc3  =  Ixy->c3;
+    Iyyc1  =  Iyy->c1;
+    Iyyc2  =  Iyy->c2;
+    Iyyc3  =  Iyy->c3;
+    Ixzc1  =  Ixz->c1;
+    Ixzc2  =  Ixz->c2;
+    Ixzc3  =  Ixz->c3;
+    Iyzc1  =  Iyz->c1;
+    Iyzc2  =  Iyz->c2;
+    Iyzc3  =  Iyz->c3;
 
     int N = uu->height*uu->stride;
     int nThreadsPerBlock = 64;
@@ -591,18 +696,28 @@ namespace cu {
 
   };
 
+  void subLaplacian(
+      image_t *dst, const image_t *src, const image_t *weight_horiz, const image_t *weight_vert, float *coeffs) {
+
+    cu::subLaplacianHoriz(src->c1, dst->c1, weight_horiz->c1, coeffs, src->height, src->width, src->stride);
+    cu::subLaplacianVert(src->c1, dst->c1, weight_vert->c1, src->height, src->stride);
+
+  }
 
   void subLaplacianHoriz(
-      float *src, float *dst, float *weights, int height, int width, int stride) {
+      float *src, float *dst, float *weights, float *coeffs, int height, int width, int stride) {
 
-    float *pDeviceCoeffs;
-    checkCudaErrors( cudaMalloc((void**) &pDeviceCoeffs, height * stride * sizeof(float)) );
+    float *pDeviceCoeffs = coeffs;
 
     // Setup device pointers
-    float *pDeviceSrc, *pDeviceDst, *pDeviceWeights;
-    checkCudaErrors( cudaHostGetDevicePointer(&pDeviceSrc, src, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&pDeviceDst, dst, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&pDeviceWeights, weights, 0) );
+    // float *pDeviceSrc, *pDeviceDst, *pDeviceWeights;
+    // checkCudaErrors( cudaHostGetDevicePointer(&pDeviceSrc, src, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&pDeviceDst, dst, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&pDeviceWeights, weights, 0) );
+
+    float *pDeviceSrc = src,
+          *pDeviceDst = dst,
+          *pDeviceWeights = weights;
 
     int N = width;
     // int N = height * stride;
@@ -620,28 +735,28 @@ namespace cu {
     // kernelSubLaplacianHoriz<<<nBlocks, nThreadsPerBlock>>>(
     //     pDeviceSrc, pDeviceDst, pDeviceWeights, pDeviceCoeffs, height, width, stride);
     cudaDeviceSynchronize();
-    // calc_print_elapsed("laplacian horiz", start_horiz);
-
-    cudaFree(pDeviceCoeffs);
+    calc_print_elapsed("laplacian horiz", start_horiz);
   }
 
   void subLaplacianVert(
       float *src, float *dst, float *weights, int height, int stride) {
 
-    float *d_src, *d_dst, *d_weights;
+    // float *d_src, *d_dst, *d_weights;
 
-    checkCudaErrors( cudaHostGetDevicePointer(&d_src, src, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&d_dst, dst, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&d_weights, weights, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&d_src, src, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&d_dst, dst, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&d_weights, weights, 0) );
 
     int N = stride;
     int nThreadsPerBlock = 64;
     int nBlocks = (N + nThreadsPerBlock - 1) / nThreadsPerBlock;
 
     auto start_vert = now();
+    // kernelSubLaplacianVert<<<nBlocks, nThreadsPerBlock>>>(
+    //     d_src, d_src + stride, d_dst, d_dst + stride, d_weights, height, stride);
     kernelSubLaplacianVert<<<nBlocks, nThreadsPerBlock>>>(
-        d_src, d_src + stride, d_dst, d_dst + stride, d_weights, height, stride);
-    // calc_print_elapsed("laplacian vert", start_vert);
+        src, src + stride, dst, dst + stride, weights, height, stride);
+    calc_print_elapsed("laplacian vert", start_vert);
 
   }
 
@@ -665,15 +780,25 @@ namespace cu {
     *d_horiz,
     *d_vert;
 
-    checkCudaErrors( cudaHostGetDevicePointer(&d_du,    du, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&d_dv,    dv, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&d_a11,   a11, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&d_a12,   a12, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&d_a22,   a22, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&d_b1,    b1, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&d_b2,    b2, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&d_horiz, horiz, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&d_vert,  vert, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&d_du,    du, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&d_dv,    dv, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&d_a11,   a11, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&d_a12,   a12, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&d_a22,   a22, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&d_b1,    b1, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&d_b2,    b2, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&d_horiz, horiz, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&d_vert,  vert, 0) );
+
+    d_du    = du;
+    d_dv    = dv;
+    d_a11   = a11;
+    d_a12   = a12;
+    d_a22   = a22;
+    d_b1    = b1;
+    d_b2    = b2;
+    d_horiz = horiz;
+    d_vert  = vert;
 
     int N = width * height;
     int nThreadsPerBlock = 64;
@@ -682,6 +807,7 @@ namespace cu {
     for(int iter = 0 ; iter<iterations ; iter++)
     {
 
+      auto start_sor_odd = now();
       kernelSorStep<<<nBlocks, nThreadsPerBlock>>>(
           d_du, d_dv,
           d_a11, d_a12, d_a22,
@@ -691,7 +817,9 @@ namespace cu {
           height, width, stride, true);
 
       cudaDeviceSynchronize();
+      calc_print_elapsed("sor step odd", start_sor_odd);
 
+      auto start_sor_even = now();
       kernelSorStep<<<nBlocks, nThreadsPerBlock>>>(
           d_du, d_dv,
           d_a11, d_a12, d_a22,
@@ -699,6 +827,8 @@ namespace cu {
           d_horiz, d_vert,
           iterations, omega,
           height, width, stride, false);
+      cudaDeviceSynchronize();
+      calc_print_elapsed("sor step even", start_sor_even);
     }  
   }
 
@@ -706,23 +836,27 @@ namespace cu {
       float *img1, float *img2, float *avgImg, float *diff,
       int height, int stride) {
 
-    float
-      *d_img1,
-    *d_img2,
-    *d_avgImg,
-    *d_diff;
+    // float
+    //   *d_img1,
+    // *d_img2,
+    // *d_avgImg,
+    // *d_diff;
 
-    checkCudaErrors( cudaHostGetDevicePointer(&d_img1,   img1,   0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&d_img2,   img2,   0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&d_avgImg, avgImg, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&d_diff,   diff,   0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&d_img1,   img1,   0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&d_img2,   img2,   0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&d_avgImg, avgImg, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&d_diff,   diff,   0) );
 
     int N = 3 * stride;
     int nThreadsPerBlock = 64;
     int nBlocks = (N + nThreadsPerBlock - 1) / nThreadsPerBlock;
 
+    // kernelGetMeanImageAndDiff<<<nBlocks, nThreadsPerBlock>>>(
+    //     d_img1, d_img2, d_avgImg, d_diff,
+    //     height, stride);
+
     kernelGetMeanImageAndDiff<<<nBlocks, nThreadsPerBlock>>>(
-        d_img1, d_img2, d_avgImg, d_diff,
+        img1, img2, avgImg, diff,
         height, stride);
 
   }
@@ -731,13 +865,13 @@ namespace cu {
       float *dst, float *src, float *pDeviceColorDerivativeKernel, 
       int height, int width, int stride, bool horiz) {
 
-    float *d_dst, *d_src;
+    // float *d_dst, *d_src;
 
-    checkCudaErrors( cudaHostGetDevicePointer(&d_dst, dst, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&d_src, src, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&d_dst, dst, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&d_src, src, 0) );
 
-    Npp32f *pDeviceSrc = d_src;
-    Npp32f *pDeviceDst = d_dst;
+    Npp32f *pDeviceSrc = src;
+    Npp32f *pDeviceDst = dst;
 
     size_t elemSize = sizeof(float);
     unsigned int nSrcStep = stride * elemSize;
@@ -767,13 +901,13 @@ namespace cu {
       float *dst, float *src, float *pDeviceDerivativeKernel, 
       int height, int width, int stride, bool horiz) {
 
-    float *d_dst, *d_src;
+    // float *d_dst, *d_src;
 
-    checkCudaErrors( cudaHostGetDevicePointer(&d_dst, dst, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&d_src, src, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&d_dst, dst, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&d_src, src, 0) );
 
-    Npp32f *pDeviceSrc = d_src;
-    Npp32f *pDeviceDst = d_dst;
+    Npp32f *pDeviceSrc = src;
+    Npp32f *pDeviceDst = dst;
 
     size_t elemSize = sizeof(float);
     unsigned int nSrcStep = stride * elemSize;
@@ -803,28 +937,51 @@ namespace cu {
       float qa, float epsmooth,
       int height, int width, int stride) {
 
-    float *d_dst_horiz, *d_dst_vert, *d_smoothness, *d_ux, *d_uy, *d_vx, *d_vy;
+    // float *d_dst_horiz, *d_dst_vert, *d_smoothness, *d_ux, *d_uy, *d_vx, *d_vy;
 
-    checkCudaErrors( cudaHostGetDevicePointer(&d_dst_horiz,     dst_horiz,  0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&d_dst_vert,      dst_vert,   0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&d_smoothness,    smoothness, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&d_ux,            ux,         0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&d_uy,            uy,         0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&d_vx,            vx,         0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&d_vy,            vy,         0) );
+    // auto start_getdeviceptr = now();
+    // checkCudaErrors( cudaHostGetDevicePointer(&d_dst_horiz,     dst_horiz,  0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&d_dst_vert,      dst_vert,   0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&d_smoothness,    smoothness, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&d_ux,            ux,         0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&d_uy,            uy,         0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&d_vx,            vx,         0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&d_vy,            vy,         0) );
+    // calc_print_elapsed("smoothnessTerm get device ptrs", start_getdeviceptr);
 
-    int N = height * stride;
-    int nThreadsPerBlock = 128;
-    int nBlocks = (N + nThreadsPerBlock - 1) / nThreadsPerBlock;
+    int N = height * width;
+    int nThreadsPerBlock = 64;
+    int nBlocks = 56;
 
+    // auto start_mag = now();
+    // kernelFlowMag<<<nBlocks, nThreadsPerBlock>>> (
+    //     d_smoothness, d_ux, d_uy, d_vx, d_vy,
+    //     qa, epsmooth, height, width, stride, N);
+    // cudaDeviceSynchronize();
+    // calc_print_elapsed("smoothnessTerm magnitude", start_mag);
+
+    // N = height * stride;
+    // nBlocks = (N + nThreadsPerBlock - 1) / nThreadsPerBlock;
+
+    // auto start_horizvert = now();
+    // kernelSmoothnessHorizVert<<< nBlocks, nThreadsPerBlock >>> (
+    //     d_dst_horiz, d_dst_vert, d_smoothness, height, width, stride);
+    // calc_print_elapsed("smoothnessTerm horiz vert", start_horizvert);
+
+    auto start_mag = now();
     kernelFlowMag<<<nBlocks, nThreadsPerBlock>>> (
-        d_smoothness, d_ux, d_uy, d_vx, d_vy,
-        qa, epsmooth, height, width, stride);
-
+        smoothness, ux, uy, vx, vy,
+        qa, epsmooth, height, width, stride, N);
     cudaDeviceSynchronize();
+    calc_print_elapsed("smoothnessTerm magnitude", start_mag);
 
+    N = height * stride;
+    nBlocks = (N + nThreadsPerBlock - 1) / nThreadsPerBlock;
+
+    auto start_horizvert = now();
     kernelSmoothnessHorizVert<<< nBlocks, nThreadsPerBlock >>> (
-        d_dst_horiz, d_dst_vert, d_smoothness, height, width, stride);
+        dst_horiz, dst_vert, smoothness, height, width, stride);
+    calc_print_elapsed("smoothnessTerm horiz vert", start_horizvert);
 
     cudaDeviceSynchronize();
   }
@@ -834,26 +991,30 @@ namespace cu {
       float *uu, float *vv, float *wx, float *wy, float *du, float *dv,
       int height, int width, int stride) {
 
-    float *d_uu,
-          *d_vv,
-          *d_wx,
-          *d_wy,
-          *d_du,
-          *d_dv;
+    // float *d_uu,
+    //       *d_vv,
+    //       *d_wx,
+    //       *d_wy,
+    //       *d_du,
+    //       *d_dv;
 
-    checkCudaErrors( cudaHostGetDevicePointer(&d_uu, uu, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&d_vv, vv, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&d_wx, wx, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&d_wy, wy, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&d_du, du, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&d_dv, dv, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&d_uu, uu, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&d_vv, vv, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&d_wx, wx, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&d_wy, wy, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&d_du, du, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&d_dv, dv, 0) );
 
     int N = height * stride;
     int nThreadsPerBlock = 128;
     int nBlocks = (N + nThreadsPerBlock - 1) / nThreadsPerBlock;
 
+    // kernelFlowUpdate<<< nBlocks, nThreadsPerBlock >>> (
+    //     d_uu, d_vv, d_wx, d_wy, d_du, d_dv,
+    //     height, width, stride);
+
     kernelFlowUpdate<<< nBlocks, nThreadsPerBlock >>> (
-        d_uu, d_vv, d_wx, d_wy, d_du, d_dv,
+        uu, vv, wx, wy, du, dv,
         height, width, stride);
 
   }
@@ -865,28 +1026,136 @@ namespace cu {
   void warpImage(
       color_image_t *dst, image_t *mask, const color_image_t *src, const image_t *wx, const image_t *wy) {
 
-    float *d_dst1, *d_dst2, *d_dst3;
-    float *d_src1, *d_src2, *d_src3;
-    float *d_mask, *d_wx,   *d_wy;
+    // float *d_dst1, *d_dst2, *d_dst3;
+    // float *d_src1, *d_src2, *d_src3;
+    // float *d_mask, *d_wx,   *d_wy;
 
-    checkCudaErrors( cudaHostGetDevicePointer(&d_dst1, dst->c1,  0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&d_dst2, dst->c2,  0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&d_dst3, dst->c3,  0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&d_src1, src->c1,  0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&d_src2, src->c2,  0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&d_src3, src->c3,  0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&d_mask, mask->c1, 0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&d_wx,   wx->c1,   0) );
-    checkCudaErrors( cudaHostGetDevicePointer(&d_wy,   wy->c1,   0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&d_dst1, dst->c1,  0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&d_dst2, dst->c2,  0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&d_dst3, dst->c3,  0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&d_src1, src->c1,  0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&d_src2, src->c2,  0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&d_src3, src->c3,  0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&d_mask, mask->c1, 0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&d_wx,   wx->c1,   0) );
+    // checkCudaErrors( cudaHostGetDevicePointer(&d_wy,   wy->c1,   0) );
 
     int N = src->height * src->stride;
     int nThreadsPerBlock = 64;
     int nBlocks = (N + nThreadsPerBlock - 1) / nThreadsPerBlock;
 
+    // kernelWarpImage<<< nBlocks, nThreadsPerBlock >>> (
+    //     d_dst1, d_dst2, d_dst3, d_mask,
+    //     d_src1, d_src2, d_src3,
+    //     d_wx,   d_wy, src->height, src->width, src->stride);
+
     kernelWarpImage<<< nBlocks, nThreadsPerBlock >>> (
-        d_dst1, d_dst2, d_dst3, d_mask,
-        d_src1, d_src2, d_src3,
-        d_wx,   d_wy, src->height, src->width, src->stride);
+        dst->c1, dst->c2, dst->c3, mask->c1,
+        src->c1, src->c2, src->c3,
+        wx->c1,  wy->c1,  src->height, src->width, src->stride);
+  }
+
+  
+  void computeSmoothness(
+      image_t *dst_horiz, image_t *dst_vert, const image_t *uu, const image_t *vv, float *deriv_flow, const float quarter_alpha) {
+
+    auto start_setup = now();
+    const int width = uu->width, height = vv->height, stride = uu->stride;
+    image_t *ux = image_new(width,height),
+            *vx = image_new(width,height),
+            *uy = image_new(width,height),
+            *vy = image_new(width,height),
+            *smoothness = image_new(width,height);
+    calc_print_elapsed("smoothness setup", start_setup);
+
+    // compute derivatives [-0.5 0 0.5]
+    auto start_derivs = now();
+    cu::imageDerivative(ux->c1, uu->c1, deriv_flow, height, width, stride, true);
+    cu::imageDerivative(vx->c1, vv->c1, deriv_flow, height, width, stride, true);
+    cu::imageDerivative(uy->c1, uu->c1, deriv_flow, height, width, stride, false);
+    cu::imageDerivative(vy->c1, vv->c1, deriv_flow, height, width, stride, false);
+    calc_print_elapsed("smoothness derivatives", start_derivs);
+
+    auto start_calc = now();
+    cu::smoothnessTerm(
+        dst_horiz->c1, dst_vert->c1, smoothness->c1,
+        ux->c1, uy->c1, vx->c1, vy->c1,
+        quarter_alpha, epsilon_smooth,
+        height, width, stride);
+    calc_print_elapsed("smoothness term", start_calc);
+
+    // Cleanup extra columns
+    auto start_cleanup = now();
+    for(int j = 0; j < height; j++){
+      // memset(&dst_horiz->c1[j*stride+width-1], 0, sizeof(float)*(stride-width+1));
+      checkCudaErrors( cudaMemset(&dst_horiz->c1[j*stride+width-1], 0, sizeof(float)*(stride-width+1)) );
+    }
+    // Cleanup last row
+    // memset( &dst_vert->c1[(height-1)*stride], 0, sizeof(float)*stride);
+    checkCudaErrors( cudaMemset( &dst_vert->c1[(height-1)*stride], 0, sizeof(float)*stride) );
+
+    image_delete(ux); image_delete(uy); image_delete(vx); image_delete(vy); 
+    image_delete(smoothness);
+    calc_print_elapsed("smoothness cleanup", start_cleanup);
+  }
+
+  void getDerivatives(
+      const color_image_t *im1, const color_image_t *im2, float *pDeviceKernel,
+      color_image_t *dx, color_image_t *dy, color_image_t *dt, 
+      color_image_t *dxx, color_image_t *dxy, color_image_t *dyy, color_image_t *dxt, color_image_t *dyt)
+  {
+    // derivatives are computed on the mean of the first image and the warped second image
+    color_image_t *tmp_im2 = color_image_new(im2->width,im2->height);    
+
+    int height = im2->height;
+    int width = im2->width;
+    int stride = im2->stride;
+
+    cu::getMeanImageAndDiff(im1->c1, im2->c1, tmp_im2->c1, dt->c1, im1->height, im1->stride);
+
+    // compute all other derivatives
+    cu::colorImageDerivative(dx->c1,  tmp_im2->c1, pDeviceKernel, height, width, stride, true); // horizontal
+    cu::colorImageDerivative(dy->c1,  tmp_im2->c1, pDeviceKernel, height, width, stride, false);
+    cu::colorImageDerivative(dxx->c1, dx->c1,      pDeviceKernel, height, width, stride, true);
+    cu::colorImageDerivative(dxy->c1, dx->c1,      pDeviceKernel, height, width, stride, false);
+    cu::colorImageDerivative(dyy->c1, dy->c1,      pDeviceKernel, height, width, stride, false);
+    cu::colorImageDerivative(dxt->c1, dt->c1,      pDeviceKernel, height, width, stride, true);
+    cu::colorImageDerivative(dyt->c1, dt->c1,      pDeviceKernel, height, width, stride, false);
+
+    // free memory
+    color_image_delete(tmp_im2);
+  }
+
+  void sepFlow(std::vector<image_t*> flow_sep, float *flowout, int height, int width) {
+
+    int N = width * height;
+    int nThreadsPerBlock = 64;
+    int nBlocks = (N + nThreadsPerBlock - 1) / nThreadsPerBlock;
+
+    kernelSepFlow<<< nBlocks, nThreadsPerBlock >>>(
+        flow_sep[0]->c1, flow_sep[1]->c1, flowout, height, width, flow_sep[0]->stride);
+
+  }
+
+  void mergeFlow(std::vector<image_t*> flow_sep, float *flowout, int height, int width) {
+
+    int N = width * height;
+    int nThreadsPerBlock = 64;
+    int nBlocks = (N + nThreadsPerBlock - 1) / nThreadsPerBlock;
+
+    kernelMergeFlow<<< nBlocks, nThreadsPerBlock >>>(
+        flow_sep[0]->c1, flow_sep[1]->c1, flowout, height, width, flow_sep[0]->stride);
+  }
+
+  void copyImage(color_image_t *dst, const float *src, int width_pad, int padding, int height, int width) {
+
+    int N = width * height;
+    int nThreadsPerBlock = 64;
+    int nBlocks = (N + nThreadsPerBlock - 1) / nThreadsPerBlock;
+
+    kernelCopyImage<<< nBlocks, nThreadsPerBlock >>> (
+        dst->c1, dst->c2, dst->c3, src,
+        width_pad, padding, height, width, dst->stride);
   }
 
 }

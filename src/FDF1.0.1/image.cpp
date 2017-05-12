@@ -34,7 +34,8 @@ image_t *image_new(const int width, const int height){
     image->height = height;  
     image->stride = ( (width+3) / 4 ) * 4;
 #if (UNIFIED_MEM)
-    checkCudaErrors( cudaHostAlloc((void**) &image->c1, image->stride*height*sizeof(float), cudaHostAllocMapped) );
+    // checkCudaErrors( cudaHostAlloc((void**) &image->c1, image->stride*height*sizeof(float), cudaHostAllocMapped) );
+    checkCudaErrors( cudaMalloc((void**) &image->c1, image->stride*height*sizeof(float)) );
 #else
     image->c1 = (float*) memalign(16, image->stride*height*sizeof(float));
 #endif
@@ -54,7 +55,8 @@ image_t *image_cpy(const image_t *src){
 
 /* set all pixels values to zeros */
 void image_erase(image_t *image){
-    memset(image->c1, 0, image->stride*image->height*sizeof(float));
+    // memset(image->c1, 0, image->stride*image->height*sizeof(float));
+    checkCudaErrors( cudaMemset(image->c1, 0, image->stride*image->height*sizeof(float)) );
 }
 
 
@@ -99,7 +101,8 @@ color_image_t *color_image_new(const int width, const int height){
     image->height = height;  
     image->stride = ( (width+VECTOR_WIDTH-1) / VECTOR_WIDTH ) * VECTOR_WIDTH;
 #if (UNIFIED_MEM)
-    checkCudaErrors( cudaHostAlloc((void**) &image->c1, 3*image->stride*height*sizeof(float), cudaHostAllocMapped) );
+    // checkCudaErrors( cudaHostAlloc((void**) &image->c1, 3*image->stride*height*sizeof(float), cudaHostAllocMapped) );
+    checkCudaErrors( cudaMalloc((void**) &image->c1, 3*image->stride*height*sizeof(float)) );
 #else
     image->c1 = (float*) memalign(16, 3*image->stride*height*sizeof(float));
 #endif
@@ -121,7 +124,8 @@ color_image_t *color_image_cpy(const color_image_t *src){
 
 /* set all pixels values to zeros */
 void color_image_erase(color_image_t *image){
-    memset(image->c1, 0, 3*image->stride*image->height*sizeof(float));
+    // memset(image->c1, 0, 3*image->stride*image->height*sizeof(float));
+    checkCudaErrors( cudaMemset(image->c1, 0, 3*image->stride*image->height*sizeof(float)) );
 }
 
 /* free memory of a color image */

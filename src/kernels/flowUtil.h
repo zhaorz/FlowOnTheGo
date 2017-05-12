@@ -34,8 +34,17 @@ namespace cu {
       color_image_t *Ixz, color_image_t *Iyz, 
       const float half_delta_over3, const float half_beta, const float half_gamma_over3);
 
+  void sepFlow(std::vector<image_t*> flow_sep, float *flowout, int height, int width);
+
+  void mergeFlow(std::vector<image_t*> flow_sep, float *flowout, int height, int width);
+
+  void copyImage(color_image_t *dst, const float *src, int width_pad, int padding, int height, int width);
+
+  void subLaplacian(
+      image_t *dst, const image_t *src, const image_t *weight_horiz, const image_t *weight_vert, float *coeffs);
+
   void subLaplacianHoriz(
-      float *src, float *dst, float *weights, int height, int width, int stride);
+      float *src, float *dst, float *weights, float *coeffs, int height, int width, int stride);
 
   void subLaplacianVert(
       float *src, float *dst, float *weights, int height, int stride);
@@ -70,6 +79,14 @@ namespace cu {
 
   void warpImage(
       color_image_t *dst, image_t *mask, const color_image_t *src, const image_t *wx, const image_t *wy);
+
+  void computeSmoothness(
+      image_t *dst_horiz, image_t *dst_vert, const image_t *uu, const image_t *vv, float *deriv_flow, const float quarter_alpha);
+
+  void getDerivatives(
+      const color_image_t *im1, const color_image_t *im2, float *pDeviceKernel,
+      color_image_t *dx, color_image_t *dy, color_image_t *dt, 
+      color_image_t *dxx, color_image_t *dxy, color_image_t *dyy, color_image_t *dxt, color_image_t *dyt);
 
 }
 

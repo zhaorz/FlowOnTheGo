@@ -263,6 +263,7 @@ namespace cu {
         op->dr_thresh, op->outlier_thresh, i_params->l_bound, i_params->u_bound_width,
         i_params->u_bound_height, notFirst);
 
+    cudaDeviceSynchronize();
 
   }
 

@@ -104,7 +104,9 @@ namespace cu {
 
     delete[] pHostDst;
 
+    cudaDeviceSynchronize();
     std::cout << "[done] warmup: primary compute time: " << compute_time << " (ms)" << std::endl;
+
   }
 
 }
