@@ -6,6 +6,10 @@
 
 #include "image.h"
 
+#include <cuda.h>
+#include <cuda_runtime.h>
+#include "../common/cuda_helper.h"
+
 // #include <xmmintrin.h>
 // typedef __v4sf v4sf;
 
@@ -29,7 +33,11 @@ image_t *image_new(const int width, const int height){
     image->width = width;
     image->height = height;  
     image->stride = ( (width+3) / 4 ) * 4;
+#if (UNIFIED_MEM)
+    checkCudaErrors( cudaHostAlloc((void**) &image->c1, image->stride*height*sizeof(float), cudaHostAllocMapped) );
+#else
     image->c1 = (float*) memalign(16, image->stride*height*sizeof(float));
+#endif
     if(image->c1== NULL){
         fprintf(stderr, "Error: image_new() - not enough memory !\n");
         exit(1);
@@ -70,7 +78,11 @@ void image_delete(image_t *image){
     if(image == NULL){
         //fprintf(stderr, "Warning: Delete image --> Ignore action (image not allocated)\n");
     }else{
+#if (UNIFIED_MEM)
+    cudaFree(image->c1);
+#else
     free(image->c1);
+#endif
     free(image);
     }
 }
@@ -86,7 +98,11 @@ color_image_t *color_image_new(const int width, const int height){
     image->width = width;
     image->height = height;  
     image->stride = ( (width+VECTOR_WIDTH-1) / VECTOR_WIDTH ) * VECTOR_WIDTH;
+#if (UNIFIED_MEM)
+    checkCudaErrors( cudaHostAlloc((void**) &image->c1, 3*image->stride*height*sizeof(float), cudaHostAllocMapped) );
+#else
     image->c1 = (float*) memalign(16, 3*image->stride*height*sizeof(float));
+#endif
     if(image->c1 == NULL){
         fprintf(stderr, "Error: color_image_new() - not enough memory !\n");
         exit(1);
@@ -111,7 +127,11 @@ void color_image_erase(color_image_t *image){
 /* free memory of a color image */
 void color_image_delete(color_image_t *image){
     if(image){
+#if (UNIFIED_MEM)
+      cudaFree(image->c1);
+#else
         free(image->c1); // c2 and c3 was allocated at the same moment
+#endif
         free(image);
     }
 }
@@ -665,7 +685,7 @@ void color_image_convolve_hv(color_image_t *dst, const color_image_t *src, const
             dst_red = {width,height,stride,dst->c1}, dst_green = {width,height,stride,dst->c2}, dst_blue = {width,height,stride,dst->c3};
     // horizontal and vertical
     if(horiz_conv != NULL && vert_conv != NULL){
-        float *tmp_data = malloc(sizeof(float)*stride*height);
+        float *tmp_data = (float*) malloc(sizeof(float)*stride*height);
         if(tmp_data == NULL){
 	        fprintf(stderr,"error color_image_convolve_hv(): not enough memory\n");
 	        exit(1);
@@ -699,7 +719,7 @@ void image_convolve_hv(image_t *dst, const image_t *src, const convolution_t *ho
             dst_red = {width,height,stride,dst->c1};
     // horizontal and vertical
     if(horiz_conv != NULL && vert_conv != NULL){
-        float *tmp_data = malloc(sizeof(float)*stride*height);
+        float *tmp_data = (float*) malloc(sizeof(float)*stride*height);
         if(tmp_data == NULL){
           fprintf(stderr,"error image_convolve_hv(): not enough memory\n");
           exit(1);
