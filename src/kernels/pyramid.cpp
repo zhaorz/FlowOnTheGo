@@ -67,8 +67,8 @@ namespace cu {
     int padHeight = 2 * padding + height;
     const Npp32f PAD_VAL[3] = { 0.0, 0.0, 0.0 };
 
-    std::cout << "[start] constructImgPyramids: processing "
-      << width << "x" << height << " image" << std::endl;
+    /*std::cout << "[start] constructImgPyramids: processing "
+      << width << "x" << height << " image" << std::endl;*/
 
     Npp32f* pDeviceI = src;
 
@@ -145,9 +145,9 @@ namespace cu {
       NPP_CHECK_NPP(
           nppiGetResizeRect (srcRect, &dstRect, scaleX, scaleY, shiftX, shiftY, eInterpolation) );
 
-      std::cout << "constructImgPyramids level " << k << ": "
+      /*std::cout << "constructImgPyramids level " << k << ": "
         << dstRect.width << "x" << dstRect.height 
-        << " scaleX: " << scaleX << " scaleY: " << scaleY << std::endl;
+        << " scaleX: " << scaleX << " scaleY: " << scaleY << std::endl;*/
 
       int nDstStep = dstRect.width * elemSize;
 
@@ -183,9 +183,9 @@ namespace cu {
       NPP_CHECK_NPP(
           nppiGetResizeRect (srcRect, &dstRect, scaleX, scaleY, shiftX, shiftY, eInterpolation) );
 
-      std::cout << "constructImgPyramids level " << i << ": "
+      /*std::cout << "constructImgPyramids level " << i << ": "
         << dstRect.width << "x" << dstRect.height 
-        << " scaleX: " << scaleX << " scaleY: " << scaleY << std::endl;
+        << " scaleX: " << scaleX << " scaleY: " << scaleY << std::endl;*/
 
       int nDstStep = dstRect.width * elemSize;
 
@@ -268,7 +268,7 @@ namespace cu {
     }
 
     calc_print_elapsed("total time", start_total);
-    std::cout << "[done] constructImgPyramids: primmary compute time: " << compute_time  << std::endl;
+    // std::cout << "[done] constructImgPyramids: primmary compute time: " << compute_time  << std::endl;
   }
 
 }

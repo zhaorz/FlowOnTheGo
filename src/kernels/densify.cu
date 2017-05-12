@@ -152,7 +152,7 @@ namespace cu {
         i_params->width, i_params->height,
         op->patch_size, op->min_errval);
 
-    cudaDeviceSynchronize();
+    // cudaDeviceSynchronize();
 
   }
 

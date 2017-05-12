@@ -259,7 +259,7 @@ namespace OFC {
         pDevicePatchStates, n_patches, op, i_params);
 
     gettimeofday(&tv_end, nullptr);
-    extractTime += (tv_end.tv_sec - tv_start.tv_sec) * 1000.0f +
+    extractTime = (tv_end.tv_sec - tv_start.tv_sec) * 1000.0f +
       (tv_end.tv_usec - tv_start.tv_usec) / 1000.0f;
 
   }
@@ -281,7 +281,7 @@ namespace OFC {
         I1, n_patches, op, i_params, true);
 
     gettimeofday(&tv_end, nullptr);
-    optiTime += (tv_end.tv_sec - tv_start.tv_sec) * 1000.0f +
+    optiTime = (tv_end.tv_sec - tv_start.tv_sec) * 1000.0f +
       (tv_end.tv_usec - tv_start.tv_usec) / 1000.0f;
   }
 
@@ -294,7 +294,7 @@ namespace OFC {
         n_patches, i_params);
 
     gettimeofday(&tv_end, nullptr);
-    coarseTime += (tv_end.tv_sec - tv_start.tv_sec) * 1000.0f +
+    coarseTime = (tv_end.tv_sec - tv_start.tv_sec) * 1000.0f +
       (tv_end.tv_usec - tv_start.tv_usec) / 1000.0f;
 
   }
@@ -315,7 +315,7 @@ namespace OFC {
         pDevicePatchStates, n_patches, op, i_params);
 
     gettimeofday(&tv_end, nullptr);
-    aggregateTime += (tv_end.tv_sec - tv_start.tv_sec) * 1000.0f +
+    aggregateTime = (tv_end.tv_sec - tv_start.tv_sec) * 1000.0f +
       (tv_end.tv_usec - tv_start.tv_usec) / 1000.0f;
 
     gettimeofday(&tv_start, nullptr);
@@ -324,7 +324,7 @@ namespace OFC {
     cu::normalizeFlow(flowout, pDeviceFlowOut, pDeviceWeights, 2 * i_params->width * i_params->height);
 
     gettimeofday(&tv_end, nullptr);
-    meanTime += (tv_end.tv_sec - tv_start.tv_sec) * 1000.0f +
+    meanTime = (tv_end.tv_sec - tv_start.tv_sec) * 1000.0f +
       (tv_end.tv_usec - tv_start.tv_usec) / 1000.0f;
 
 

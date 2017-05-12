@@ -38,7 +38,7 @@ namespace OFC {
   OFClass::OFClass(opt_params _op, img_params _iparams) {
 
     struct timeval tv_start_all, tv_end_all, tv_start_all_global, tv_end_all_global;
-    if (op.verbosity > 1) gettimeofday(&tv_start_all_global, nullptr);
+    if (op.verbosity > 2) gettimeofday(&tv_start_all_global, nullptr);
 
     // Parse optimization parameters
     op = _op;
@@ -70,7 +70,7 @@ namespace OFC {
     I1ys = new float*[op.coarsest_scale+1];
 
     // Create grids on each scale
-    if (op.verbosity>1) gettimeofday(&tv_start_all, nullptr);
+    if (op.verbosity>2) gettimeofday(&tv_start_all, nullptr);
 
 
     int elemSize = 3 * sizeof(float);
@@ -114,7 +114,7 @@ namespace OFC {
     }
 
     // Timing, Grid memory allocation
-    if (op.verbosity>1) {
+    if (op.verbosity>2) {
 
       gettimeofday(&tv_end_all, nullptr);
       double tt_gridconst = (tv_end_all.tv_sec-tv_start_all.tv_sec)*1000.0f + (tv_end_all.tv_usec-tv_start_all.tv_usec)/1000.0f;
@@ -135,7 +135,7 @@ namespace OFC {
         cudaMemcpy(pDeviceWew, pSrcKernel, nMaskSize * sizeof(Npp32f), cudaMemcpyHostToDevice) );
 
     // Timing, Setup
-    if (op.verbosity>1) {
+    if (op.verbosity>2) {
 
       gettimeofday(&tv_end_all_global, nullptr);
       double tt = (tv_end_all_global.tv_sec-tv_start_all_global.tv_sec)*1000.0f + (tv_end_all_global.tv_usec-tv_start_all_global.tv_usec)/1000.0f;
@@ -196,7 +196,7 @@ namespace OFC {
         op.patch_size, op.finest_scale, op.coarsest_scale);
 
     // Timing, image gradients and pyramid
-    if (op.verbosity > 1) {
+    if (op.verbosity > 2) {
 
       gettimeofday(&end_time, NULL);
       double tt = (end_time.tv_sec-start_time.tv_sec)*1000.0f + (end_time.tv_usec-start_time.tv_usec)/1000.0f;
@@ -209,7 +209,7 @@ namespace OFC {
 
   void OFClass::first(Npp32f* _I1, img_params _iparams) {
     I1 = _I1;
-    std::cout << "[Processing first frame] " << _iparams.height << "x" << _iparams.width << std::endl;
+    std::cout << std::endl << "[Processing first frame] " << _iparams.height << "x" << _iparams.width << std::endl;
 
     ConstructImgPyramids(_iparams);
     std::cout << "[Done with first frame]" << std::endl;
@@ -224,15 +224,13 @@ namespace OFC {
     std::swap(I0ys, I1ys);
     I1 = _I1;
 
-    std::cout << "[Processing next frame] " << _iparams.height << "x" << _iparams.width << std::endl;
-
     ConstructImgPyramids(_iparams);
+    // cudaDeviceSynchronize();
 
-    std::cout << "coarsest: " <<  op.coarsest_scale << " finest: " << op.finest_scale << std::endl;
 
     // Variables for algorithm timings
     struct timeval tv_start_all, tv_end_all, tv_start_all_global, tv_end_all_global;
-    if (op.verbosity > 0) gettimeofday(&tv_start_all_global, nullptr);
+    if (op.verbosity > 2) gettimeofday(&tv_start_all_global, nullptr);
 
     // ... per each scale
     double tt_patconstr[op.n_scales], tt_patinit[op.n_scales], tt_patoptim[op.n_scales],
@@ -253,15 +251,16 @@ namespace OFC {
     for (int sl = op.coarsest_scale; sl >= op.finest_scale; --sl) {
 
       int ii = sl - op.finest_scale;
-      if (op.verbosity > 1) gettimeofday(&tv_start_all, nullptr);
+      if (op.verbosity > 2) gettimeofday(&tv_start_all, nullptr);
 
 
       // Initialize grid (Step 1 in Algorithm 1 of paper)
       grid[ii]->InitializeGrid(I0s[sl], I0xs[sl], I0ys[sl]);
       grid[ii]->SetTargetImage(I1s[sl]);
 
+      // cudaDeviceSynchronize();
       // Timing, Grid construction
-      if (op.verbosity > 1) {
+      if (op.verbosity > 2) {
 
         gettimeofday(&tv_end_all, nullptr);
         tt_patconstr[ii] = (tv_end_all.tv_sec-tv_start_all.tv_sec)*1000.0f + (tv_end_all.tv_usec-tv_start_all.tv_usec)/1000.0f;
@@ -279,9 +278,10 @@ namespace OFC {
         // initialization given input flow
         grid[ii]->InitializeFromCoarserOF(initflow);
       }
+      // cudaDeviceSynchronize();
 
       // Timing, Grid initialization
-      if (op.verbosity > 1) {
+      if (op.verbosity > 2) {
 
         gettimeofday(&tv_end_all, nullptr);
         tt_patinit[ii] = (tv_end_all.tv_sec-tv_start_all.tv_sec)*1000.0f + (tv_end_all.tv_usec-tv_start_all.tv_usec)/1000.0f;
@@ -295,8 +295,10 @@ namespace OFC {
       // Parallel over all patches
       grid[ii]->Optimize();
 
+      // cudaDeviceSynchronize();
+
       // Timing, DIS
-      if (op.verbosity>1) {
+      if (op.verbosity>2) {
 
         gettimeofday(&tv_end_all, nullptr);
         tt_patoptim[ii] = (tv_end_all.tv_sec-tv_start_all.tv_sec)*1000.0f + (tv_end_all.tv_usec-tv_start_all.tv_usec)/1000.0f;
@@ -313,9 +315,10 @@ namespace OFC {
 
       grid[ii]->AggregateFlowDense(out_ptr);
 
+      // cudaDeviceSynchronize();
 
       // Timing, Densification
-      if (op.verbosity > 1) {
+      if (op.verbosity > 2) {
 
         gettimeofday(&tv_end_all, nullptr);
         tt_compflow[ii] = (tv_end_all.tv_sec-tv_start_all.tv_sec)*1000.0f + (tv_end_all.tv_usec-tv_start_all.tv_usec)/1000.0f;
@@ -343,11 +346,11 @@ namespace OFC {
 
         // OFC::VarRefClass var_ref(I0H, I1H, &(iparams[ii]), &op, out_ptr);
 
-        cudaDeviceSynchronize();
+        // cudaDeviceSynchronize();
 
         OFC::VarRefClass var_ref(I0s[sl], I1s[sl], &(iparams[ii]), &op, out_ptr);
 
-        cudaDeviceSynchronize();
+        // cudaDeviceSynchronize();
 
         // delete I0H;
         // delete I1H;
@@ -355,7 +358,7 @@ namespace OFC {
       }
 
       // Timing, Variational Refinement
-      if (op.verbosity > 1)
+      if (op.verbosity > 2)
       {
 
         gettimeofday(&tv_end_all, nullptr);
@@ -368,7 +371,7 @@ namespace OFC {
     }
 
     // Timing, total algorithm run-time
-    if (op.verbosity > 0) {
+    if (op.verbosity > 2) {
 
       gettimeofday(&tv_end_all_global, nullptr);
       double tt = (tv_end_all_global.tv_sec-tv_start_all_global.tv_sec)*1000.0f + (tv_end_all_global.tv_usec-tv_start_all_global.tv_usec)/1000.0f;
@@ -377,13 +380,12 @@ namespace OFC {
     }
 
     // Detailed timing reports
-    if (op.verbosity > 1) {
+    /*if (op.verbosity > 1) {
       for (auto &g : grid) {
         g->printTimings();
       }
-    }
+    }*/
 
-    std::cout << "[Done with frame]" << std::endl;
 
   }
 

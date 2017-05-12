@@ -35,15 +35,41 @@ __device__ void calcProjection(dev_patch_state* states,
 
   __syncthreads();
 
+  __shared__ float dpx_0, dpx_1;
+  __shared__ float dpy_0, dpy_1;
+
+  if (tid == 0) {
+
+    dpx_0 = 0.0;
+    dpy_0 = 0.0;
+    for (int i = 0; i < patch_size * patch_size * 3 / 2; i++) {
+      dpx_0 += tempX[i];
+      dpy_0 += tempY[i];
+    }
+
+  } else if (tid == 1) {
+
+    dpx_1 = 0.0;
+    dpy_1 = 0.0;
+    for (int i = patch_size * patch_size * 3 / 2; i < patch_size * patch_size * 3; i++) {
+      dpx_1 += tempX[i];
+      dpy_1 += tempY[i];
+    }
+
+  }
+  __syncthreads();
+
+
+
   if (tid == 0) {
     states[patchId].count++;
 
-    float dpx = 0.0;
-    float dpy = 0.0;
-    for (int i = 0; i < 3 * patch_size * patch_size; i++) {
-      dpx += tempX[i];
-      dpy += tempY[i];
-    }
+    float dpx = dpx_0 + dpx_1;
+    float dpy = dpy_0 + dpy_1;
+    // for (int i = 0; i < 3 * patch_size * patch_size; i++) {
+    //   dpx += tempX[i];
+    //   dpy += tempY[i];
+    // }
 
     float det = states[patchId].H00 * states[patchId].H11
       - states[patchId].H01 * states[patchId].H01;
@@ -119,7 +145,6 @@ __global__ void kernelInterpolateAndComputeErr(
       calcProjection(states, patchX, patchY, tempX, tempY, raw, patch_size,
           out_thresh, lb, ubw, ubh);
     }
-    __syncthreads();
 
 
     // Interpolate the patch
@@ -154,7 +179,7 @@ __global__ void kernelInterpolateAndComputeErr(
 
 
     for (int i = tid, j = starty; i < patch_size * patch_size * 3;
-         i += 3 * patch_size, j++) {
+        i += 3 * patch_size, j++) {
 
 
       const float* img_e = I1 + x;
@@ -163,29 +188,35 @@ __global__ void kernelInterpolateAndComputeErr(
       const float* img_b = img_a - 3;
       const float* img_d = img_c - 3;
       raw[i] = w0 * (*img_a) + w1 * (*img_b) + w2 * (*img_c) + w3 * (*img_d);
-      // if (tid == 0) {
-      //   printf("img_d %.2f\n", *img_d);
-      // }
 
     }
 
     __syncthreads();
 
     // Compute mean
+    __shared__ float mean_0, mean_1;
     __shared__ float mean;
 
     if (tid == 0) {
 
-      mean = 0.0;
-      for (int i = 0; i < patch_size * patch_size * 3; i++) {
-        mean += raw[i];
+      mean_0 = 0.0;
+      for (int i = 0; i < patch_size * patch_size * 3 / 2; i++) {
+        mean_0 += raw[i];
       }
-      // printf("sum %.2f\n", mean);
-      mean /= (patch_size * patch_size * 3);
 
-      // printf("mean %.2f\n", mean);
-      // printf("pos0, pos1, (%d, %d)\n", pos0, pos1);
+    } else if (tid == 1) {
 
+      mean_1 = 0.0;
+      for (int i = patch_size * patch_size * 3 / 2; i < patch_size * patch_size * 3; i++) {
+        mean_1 += raw[i];
+      }
+
+    }
+
+    __syncthreads();
+
+    if (tid == 0) {
+      mean = (mean_0 + mean_1) / (3 * patch_size * patch_size);
     }
 
     __syncthreads();
@@ -200,11 +231,29 @@ __global__ void kernelInterpolateAndComputeErr(
 
     __syncthreads();
 
+    __shared__ float c_0, c_1;
     if (tid == 0) {
-      float c = 0.0;
-      for (int i = 0; i < patch_size * patch_size * 3; i++) {
-        c += cost[i];
+
+      c_0 = 0.0;
+      for (int i = 0; i < patch_size * patch_size * 3 / 2; i++) {
+        c_0 += cost[i];
       }
+
+    } else if (tid == 1) {
+
+      c_1 = 0.0;
+      for (int i = patch_size * patch_size * 3 / 2; i < patch_size * patch_size * 3; i++) {
+        c_1 += cost[i];
+      }
+
+    }
+    __syncthreads();
+
+    if (tid == 0) {
+      float c = c_0 + c_1;
+      // for (int i = 0; i < patch_size * patch_size * 3; i++) {
+      //   c += cost[i];
+      // }
       states[patchId].cost = c;
       // printf("cost %.2f\n", c);
 
@@ -263,7 +312,7 @@ namespace cu {
         op->dr_thresh, op->outlier_thresh, i_params->l_bound, i_params->u_bound_width,
         i_params->u_bound_height, notFirst);
 
-    cudaDeviceSynchronize();
+    //cudaDeviceSynchronize();
 
   }
 

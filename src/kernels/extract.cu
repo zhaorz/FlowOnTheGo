@@ -64,7 +64,6 @@ __global__ void kernelExtractPatchesAndHessians(
 
   int lb = -patch_size / 2;
   int offset = 3 * ((x + lb) + (y + lb) * width_pad) + tid;
-  auto start = clock();
 
   for (int i = tid, j = offset; i < patch_size * patch_size * 3;
       i += 3 * patch_size, j += 3 * width_pad) {
@@ -77,13 +76,10 @@ __global__ void kernelExtractPatchesAndHessians(
   }
 
   __syncthreads();
-  if (tid == 0 && patchId == 31)
-    printf("Extraction %d\n", clock() - start);
 
   // Mean normalize
   __shared__ float mean;
 
-  start = clock();
   if (tid == 0) {
 
     mean = 0.0;
@@ -95,31 +91,43 @@ __global__ void kernelExtractPatchesAndHessians(
   }
 
   __syncthreads();
-  if (tid == 0 && patchId == 31)
-    printf("compute mean %d\n", clock() - start);
 
-  start = clock();
   
-
   for (int i = tid; i < patch_size * patch_size * 3;
       i+= 3 * patch_size) {
     patch[i] -= mean;
   }
 
-  if (tid == 0 && patchId == 31)
-    printf("normalize %d\n", clock() - start);
 
-  start = clock();
-  // TODO: can this be done in parallel?
+  __shared__ float h00_0, h01_0, h11_0;
+  __shared__ float h00_1, h01_1, h11_1;
   if (tid == 0) {
 
-    float h00 = 0.0, h01 = 0.0, h11 = 0.0;
+    h00_0 = 0.0, h01_0 = 0.0, h11_0 = 0.0;
 
-    for (int i = 0; i < patch_size * patch_size * 3; i++) {
-      h00 += XX[i];
-      h01 += XY[i];
-      h11 += YY[i];
+    for (int i = 0; i < patch_size * patch_size * 3 / 2; i++) {
+      h00_0 += XX[i];
+      h01_0 += XY[i];
+      h11_0 += YY[i];
     }
+
+  } else if (tid == 1) {
+
+    h00_1 = 0.0, h01_1 = 0.0, h11_1 = 0.0;
+
+    for (int i = patch_size * patch_size * 3 / 2; i < patch_size * patch_size * 3; i++) {
+      h00_1 += XX[i];
+      h01_1 += XY[i];
+      h11_1 += YY[i];
+    }
+
+  }
+
+  __syncthreads();
+  if (tid == 0) {
+    float h00 = h00_0 + h00_1;
+    float h01 = h01_0 + h01_1;
+    float h11 = h11_0 + h11_1;
 
     // If not invertible adjust values
     if (h00 * h11 - h01 * h01 == 0) {
@@ -131,8 +139,6 @@ __global__ void kernelExtractPatchesAndHessians(
     states[patchId].H01 = h01;
     states[patchId].H11 = h11;
 
-    if (patchId == 31)
-      printf("hessian %d\n", clock() - start);
   }
 
 
@@ -223,7 +229,7 @@ namespace cu {
         I0, I0x, I0y, tempXX, tempXY, tempYY, 
         states, i_params->padding, op->patch_size, i_params->width_pad);
 
-    cudaDeviceSynchronize();
+    // cudaDeviceSynchronize();
 
   }
 
@@ -238,7 +244,7 @@ namespace cu {
         flowPrev, states, i_params->width / 2, i_params->l_bound,
         i_params->u_bound_width, i_params->u_bound_height);
 
-    cudaDeviceSynchronize();
+    // cudaDeviceSynchronize();
 
   }
 
