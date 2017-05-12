@@ -2,8 +2,6 @@
 #define VARREF_HEADER
 
 #include "FDF1.0.1/image.h"
-#include "FDF1.0.1/opticalflow_aux.h"
-#include "FDF1.0.1/solver.h"
 
 #include "oflow.h"
 
@@ -54,6 +52,7 @@ namespace OFC {
 
       float *pDeviceColorDerivativeKernel;
       float *pDeviceDerivativeKernel;
+      float *pDeviceSubLaplacianCoeffs;
 
   };
 

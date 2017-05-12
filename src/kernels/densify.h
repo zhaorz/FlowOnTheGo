@@ -40,7 +40,7 @@ namespace cu {
 
 
   void normalizeFlow(
-      float* pDeviceFlowOut, float* pDeviceWeights, int N);
+      float* pDeviceFlowOut, float* pHostFlowOut, float* pDeviceWeights, int N);
 
 }
 

@@ -96,13 +96,9 @@ set(COMMON
 set(CODEFILES
   run_dense.cpp
   oflow.cpp
-  # patch.cpp
   patchgrid.cpp
   refine_variational.cpp
-  # FDF1.0.1/image.c
   FDF1.0.1/image.cpp
-  FDF1.0.1/opticalflow_aux.cpp
-  FDF1.0.1/solver.cpp
   )
 
 # GrayScale, Optical Flow

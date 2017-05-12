@@ -227,7 +227,6 @@ __global__ void kernelSubLaplacianHorizFillCoeffs(
     float *src, float *weights, float *coeffs, int height, int width, int stride) {
 
   int tidx = blockIdx.x * blockDim.x + threadIdx.x;
-  int row  = tidx / stride;
   int col  = tidx % stride;
 
   // Do not calculate the last column
@@ -591,12 +590,18 @@ namespace cu {
 
   };
 
+  void subLaplacian(
+      image_t *dst, const image_t *src, const image_t *weight_horiz, const image_t *weight_vert, float *coeffs) {
+
+    cu::subLaplacianHoriz(src->c1, dst->c1, weight_horiz->c1, coeffs, src->height, src->width, src->stride);
+    cu::subLaplacianVert(src->c1, dst->c1, weight_vert->c1, src->height, src->stride);
+
+  }
 
   void subLaplacianHoriz(
-      float *src, float *dst, float *weights, int height, int width, int stride) {
+      float *src, float *dst, float *weights, float *coeffs, int height, int width, int stride) {
 
-    float *pDeviceCoeffs;
-    checkCudaErrors( cudaMalloc((void**) &pDeviceCoeffs, height * stride * sizeof(float)) );
+    float *pDeviceCoeffs = coeffs;
 
     // Setup device pointers
     float *pDeviceSrc, *pDeviceDst, *pDeviceWeights;
@@ -621,8 +626,6 @@ namespace cu {
     //     pDeviceSrc, pDeviceDst, pDeviceWeights, pDeviceCoeffs, height, width, stride);
     cudaDeviceSynchronize();
     calc_print_elapsed("laplacian horiz", start_horiz);
-
-    cudaFree(pDeviceCoeffs);
   }
 
   void subLaplacianVert(
@@ -641,7 +644,7 @@ namespace cu {
     auto start_vert = now();
     kernelSubLaplacianVert<<<nBlocks, nThreadsPerBlock>>>(
         d_src, d_src + stride, d_dst, d_dst + stride, d_weights, height, stride);
-    calc_print_elapsed("laplacian vert", start_vert);
+    // calc_print_elapsed("laplacian vert", start_vert);
 
   }
 
@@ -887,6 +890,67 @@ namespace cu {
         d_dst1, d_dst2, d_dst3, d_mask,
         d_src1, d_src2, d_src3,
         d_wx,   d_wy, src->height, src->width, src->stride);
+  }
+
+  
+  void computeSmoothness(
+      image_t *dst_horiz, image_t *dst_vert, const image_t *uu, const image_t *vv, float *deriv_flow, const float quarter_alpha) {
+
+    const int width = uu->width, height = vv->height, stride = uu->stride;
+    image_t *ux = image_new(width,height),
+            *vx = image_new(width,height),
+            *uy = image_new(width,height),
+            *vy = image_new(width,height),
+            *smoothness = image_new(width,height);
+
+    // compute derivatives [-0.5 0 0.5]
+    cu::imageDerivative(ux->c1, uu->c1, deriv_flow, height, width, stride, true);
+    cu::imageDerivative(vx->c1, vv->c1, deriv_flow, height, width, stride, true);
+    cu::imageDerivative(uy->c1, uu->c1, deriv_flow, height, width, stride, false);
+    cu::imageDerivative(vy->c1, vv->c1, deriv_flow, height, width, stride, false);
+
+    cu::smoothnessTerm(
+        dst_horiz->c1, dst_vert->c1, smoothness->c1,
+        ux->c1, uy->c1, vx->c1, vy->c1,
+        quarter_alpha, epsilon_smooth,
+        height, width, stride);
+
+    // Cleanup extra columns
+    for(int j = 0; j < height; j++){
+      memset(&dst_horiz->c1[j*stride+width-1], 0, sizeof(float)*(stride-width+1));
+    }
+    // Cleanup last row
+    memset( &dst_vert->c1[(height-1)*stride], 0, sizeof(float)*stride);
+
+    image_delete(ux); image_delete(uy); image_delete(vx); image_delete(vy); 
+    image_delete(smoothness);
+  }
+
+  void getDerivatives(
+      const color_image_t *im1, const color_image_t *im2, float *pDeviceKernel,
+      color_image_t *dx, color_image_t *dy, color_image_t *dt, 
+      color_image_t *dxx, color_image_t *dxy, color_image_t *dyy, color_image_t *dxt, color_image_t *dyt)
+  {
+    // derivatives are computed on the mean of the first image and the warped second image
+    color_image_t *tmp_im2 = color_image_new(im2->width,im2->height);    
+
+    int height = im2->height;
+    int width = im2->width;
+    int stride = im2->stride;
+
+    cu::getMeanImageAndDiff(im1->c1, im2->c1, tmp_im2->c1, dt->c1, im1->height, im1->stride);
+
+    // compute all other derivatives
+    cu::colorImageDerivative(dx->c1,  tmp_im2->c1, pDeviceKernel, height, width, stride, true); // horizontal
+    cu::colorImageDerivative(dy->c1,  tmp_im2->c1, pDeviceKernel, height, width, stride, false);
+    cu::colorImageDerivative(dxx->c1, dx->c1,      pDeviceKernel, height, width, stride, true);
+    cu::colorImageDerivative(dxy->c1, dx->c1,      pDeviceKernel, height, width, stride, false);
+    cu::colorImageDerivative(dyy->c1, dy->c1,      pDeviceKernel, height, width, stride, false);
+    cu::colorImageDerivative(dxt->c1, dt->c1,      pDeviceKernel, height, width, stride, true);
+    cu::colorImageDerivative(dyt->c1, dt->c1,      pDeviceKernel, height, width, stride, false);
+
+    // free memory
+    color_image_delete(tmp_im2);
   }
 
 }

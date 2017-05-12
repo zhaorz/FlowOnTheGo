@@ -278,10 +278,15 @@ int main( int argc, char** argv ) {
 
   // Run main optical flow / depth algorithm
   float scale_fact = pow(2, op.finest_scale);
-  cv::Mat flow_mat(iparams.height / scale_fact , iparams.width / scale_fact, CV_32FC2); // Optical Flow
+  float* outflow;
+  checkCudaErrors(
+      cudaHostAlloc((void**) &(outflow), 2 * iparams.height / scale_fact
+        * iparams.width / scale_fact * sizeof(float), cudaHostAllocMapped) );
 
-  ofc.calc(I0, I1, iparams, nullptr, (float*) flow_mat.data);
+  ofc.calc(I0, I1, iparams, nullptr, outflow);
 
+  cv::Mat flow_mat(iparams.height / scale_fact , iparams.width / scale_fact,
+      CV_32FC2, outflow);
 
   if (op.verbosity > 1) gettimeofday(&start_time, NULL);
 
