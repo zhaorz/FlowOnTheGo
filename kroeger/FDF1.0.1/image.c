@@ -6,8 +6,9 @@
 
 #include "image.h"
 
-#include <xmmintrin.h>
-typedef __v4sf v4sf;
+// #include <xmmintrin.h>
+#include <arm_neon.h>
+typedef float32x4_t v4sf;
 
 /********** Create/Delete **********/
 

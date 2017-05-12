@@ -9,8 +9,8 @@
 #include "image.h"
 #include "solver.h"
 
-#include <xmmintrin.h>
-typedef __v4sf v4sf;
+#include <arm_neon.h>
+typedef float32x4_t v4sf;
 
 //THIS IS A SLOW VERSION BUT READABLE
 //Perform n iterations of the sor_coupled algorithm

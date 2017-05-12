@@ -7,10 +7,12 @@
 
 #include "oflow.h"
 
+#include <arm_neon.h>
+
 namespace OFC
 {
 
-typedef __v4sf v4sf;
+typedef float32x4_t v4sf;
 
 typedef struct
 {
@@ -47,11 +49,11 @@ private:
   #if (SELECTCHANNEL==1 | SELECTCHANNEL==2)    // Intensity image, or gradient image
   void copyimage(const float* img, image_t * img_t);
   void RefLevelOF(image_t *wx, image_t *wy, const image_t *im1, const image_t *im2);
-  void RefLevelDE(image_t *wx, const image_t *im1, const image_t *im2);
+  // void RefLevelDE(image_t *wx, const image_t *im1, const image_t *im2);
   #else // 3-Color RGB image
   void copyimage(const float* img, color_image_t * img_t);
   void RefLevelOF(image_t *wx, image_t *wy, const color_image_t *im1, const color_image_t *im2);
-  void RefLevelDE(image_t *wx, const color_image_t *im1, const color_image_t *im2);    
+  // void RefLevelDE(image_t *wx, const color_image_t *im1, const color_image_t *im2);    
   #endif
   
   TVparams tvparams;

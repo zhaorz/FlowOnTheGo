@@ -4,13 +4,15 @@
 #ifndef OFC_HEADER
 #define OFC_HEADER
 
+#include <arm_neon.h>
+
 using std::cout;
 using std::endl;
 
 namespace OFC
 {
 
-typedef __v4sf v4sf;
+typedef float32x4_t v4sf;
   
 
 typedef struct 

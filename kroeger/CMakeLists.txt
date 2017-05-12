@@ -1,12 +1,15 @@
 cmake_minimum_required (VERSION 2.8)
 project (FastPatchOF)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -Wno-unknown-pragmas -Wall -std=c++11 -msse4")  #-Wall
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -Wno-unknown-pragmas -Wall -msse4")  #-Wall
+# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -Wno-unknown-pragmas -Wall -std=c++11 -msse4")  #-Wall
+# set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -Wno-unknown-pragmas -Wall -msse4")  #-Wall
+
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O3 -Wno-unknown-pragmas -Wall -std=c++11 -fopenmp")  #-Wall
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O3 -Wno-unknown-pragmas -Wall -fopenmp")  #-Wall
 
 # For ghc machines
-set(OpenCV_DIR "/afs/cs/academic/class/15418-s17/public/sw/opencv/build")
-set(Eigen3_DIR "/afs/cs.cmu.edu/academic/class/15418-s17/public/sw/eigen/build")
+# set(OpenCV_DIR "/afs/cs/academic/class/15418-s17/public/sw/opencv/build")
+# set(Eigen3_DIR "/afs/cs.cmu.edu/academic/class/15418-s17/public/sw/eigen/build")
 
 FIND_PACKAGE(OpenCV REQUIRED)
 FIND_PACKAGE(Eigen3 REQUIRED)
@@ -17,7 +20,7 @@ message(STATUS "    libraries: ${OpenCV_LIBRARIES}")
 message(STATUS "    include path: ${OpenCV_INCLUDE_DIRS}")
 
 # On ghc, include DIR from FIND_PACKAGE is set wrong
-set(EIGEN3_INCLUDE_DIR "/afs/cs.cmu.edu/academic/class/15418-s17/public/sw/eigen/include/eigen3")
+# set(EIGEN3_INCLUDE_DIR "/afs/cs.cmu.edu/academic/class/15418-s17/public/sw/eigen/include/eigen3")
 
 message(STATUS "Eigen3 library status:")
 message(STATUS "    version: ${EIGEN3_VERSION_STRING}")
@@ -38,11 +41,11 @@ include_directories(${EIGEN3_INCLUDE_DIR})
 
 set(CODEFILES run_dense.cpp oflow.cpp patch.cpp patchgrid.cpp refine_variational.cpp FDF1.0.1/image.c FDF1.0.1/opticalflow_aux.c FDF1.0.1/solver.c)
 
-# GrayScale, Optical Flow
-add_executable (run_OF_INT ${CODEFILES})
-set_target_properties (run_OF_INT PROPERTIES COMPILE_DEFINITIONS "SELECTMODE=1")
-set_property(TARGET run_OF_INT APPEND PROPERTY COMPILE_DEFINITIONS "SELECTCHANNEL=1") # use grey-valued image
-TARGET_LINK_LIBRARIES(run_OF_INT ${OpenCV_LIBS})
+# # GrayScale, Optical Flow
+# add_executable (run_OF_INT ${CODEFILES})
+# set_target_properties (run_OF_INT PROPERTIES COMPILE_DEFINITIONS "SELECTMODE=1")
+# set_property(TARGET run_OF_INT APPEND PROPERTY COMPILE_DEFINITIONS "SELECTCHANNEL=1") # use grey-valued image
+# TARGET_LINK_LIBRARIES(run_OF_INT ${OpenCV_LIBS})
 
 # RGB, Optical Flow
 add_executable (run_OF_RGB ${CODEFILES})
@@ -50,15 +53,15 @@ set_target_properties (run_OF_RGB PROPERTIES COMPILE_DEFINITIONS "SELECTMODE=1")
 set_property(TARGET run_OF_RGB APPEND PROPERTY COMPILE_DEFINITIONS "SELECTCHANNEL=3") # use RGB image
 TARGET_LINK_LIBRARIES(run_OF_RGB ${OpenCV_LIBS})
 
-# GrayScale, Depth from Stereo
-add_executable (run_DE_INT ${CODEFILES})
-set_target_properties (run_DE_INT PROPERTIES COMPILE_DEFINITIONS "SELECTMODE=2")
-set_property(TARGET run_DE_INT APPEND PROPERTY COMPILE_DEFINITIONS "SELECTCHANNEL=1")
-TARGET_LINK_LIBRARIES(run_DE_INT ${OpenCV_LIBS})
+# # GrayScale, Depth from Stereo
+# add_executable (run_DE_INT ${CODEFILES})
+# set_target_properties (run_DE_INT PROPERTIES COMPILE_DEFINITIONS "SELECTMODE=2")
+# set_property(TARGET run_DE_INT APPEND PROPERTY COMPILE_DEFINITIONS "SELECTCHANNEL=1")
+# TARGET_LINK_LIBRARIES(run_DE_INT ${OpenCV_LIBS})
 
-# RGB, Depth from Stereo
-add_executable (run_DE_RGB ${CODEFILES})
-set_target_properties (run_DE_RGB PROPERTIES COMPILE_DEFINITIONS "SELECTMODE=2")
-set_property(TARGET run_DE_RGB APPEND PROPERTY COMPILE_DEFINITIONS "SELECTCHANNEL=3")
-TARGET_LINK_LIBRARIES(run_DE_RGB ${OpenCV_LIBS})
+# # RGB, Depth from Stereo
+# add_executable (run_DE_RGB ${CODEFILES})
+# set_target_properties (run_DE_RGB PROPERTIES COMPILE_DEFINITIONS "SELECTMODE=2")
+# set_property(TARGET run_DE_RGB APPEND PROPERTY COMPILE_DEFINITIONS "SELECTCHANNEL=3")
+# TARGET_LINK_LIBRARIES(run_DE_RGB ${OpenCV_LIBS})
 

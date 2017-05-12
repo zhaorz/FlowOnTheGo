@@ -82,11 +82,8 @@ namespace OFC
   copyimage(im_bo_in, im_bo);  
   
   // Call solver
-  #if (SELECTMODE==1)
   RefLevelOF(flow_sep[0], flow_sep[1], im_ao, im_bo);
-  #else
-  RefLevelDE(flow_sep[0], im_ao, im_bo);
-  #endif  
+  // RefLevelDE(flow_sep[0], im_ao, im_bo);
   
   // Copy flow result back
   for (int iy = 0; iy < cpt->height; ++iy)
@@ -241,99 +238,99 @@ void VarRefClass::RefLevelOF(image_t *wx, image_t *wy, const color_image_t *im1,
 }
 
 
-#if (SELECTCHANNEL==1 | SELECTCHANNEL==2)
-void VarRefClass::RefLevelDE(image_t *wx, const image_t *im1, const image_t *im2)
-#else
-void VarRefClass::RefLevelDE(image_t *wx, const color_image_t *im1, const color_image_t *im2)
-#endif
-{
-    int i_inner_iteration;
-    int width  = wx->width;
-    int height = wx->height;
-    int stride = wx->stride;
-
-      image_t *du = image_new(width,height), *wy_dummy = image_new(width,height), // the flow increment
-        *mask = image_new(width,height), // mask containing 0 if a point goes outside image boundary, 1 otherwise
-        *smooth_horiz = image_new(width,height), *smooth_vert = image_new(width,height), // horiz: (i,j) contains the diffusivity coeff. from (i,j) to (i+1,j) 
-        *uu = image_new(width,height), // flow plus flow increment
-        *a11 = image_new(width,height), // system matrix A of Ax=b for each pixel
-        *b1 = image_new(width,height); // system matrix b of Ax=b for each pixel  
-        
-      image_erase(wy_dummy);
-	
-      #if (SELECTCHANNEL==1 | SELECTCHANNEL==2)  // use single band image
-      image_t *w_im2 = image_new(width,height), // warped second image
-          *Ix = image_new(width,height), *Iy = image_new(width,height), *Iz = image_new(width,height), // first order derivatives
-          *Ixx = image_new(width,height), *Ixy = image_new(width,height), *Iyy = image_new(width,height), *Ixz = image_new(width,height), *Iyz = image_new(width,height); // second order derivatives
-      #else                                     // use RGB image
-      color_image_t *w_im2 = color_image_new(width,height), // warped second image
-          *Ix = color_image_new(width,height), *Iy = color_image_new(width,height), *Iz = color_image_new(width,height), // first order derivatives
-          *Ixx = color_image_new(width,height), *Ixy = color_image_new(width,height), *Iyy = color_image_new(width,height), *Ixz = color_image_new(width,height), *Iyz = color_image_new(width,height); // second order derivatives
-      #endif
-          
-      // warp second image
-      image_warp(w_im2, mask, im2, wx, wy_dummy);
-      // compute derivatives
-      get_derivatives(im1, w_im2, deriv, Ix, Iy, Iz, Ixx, Ixy, Iyy, Ixz, Iyz);
-      // erase du and dv
-      image_erase(du);
-
-      // initialize uu and vv
-      memcpy(uu->c1,wx->c1,wx->stride*wx->height*sizeof(float));
-      
-      // inner fixed point iterations
-      for(i_inner_iteration = 0 ; i_inner_iteration < tvparams.n_inner_iteration ; i_inner_iteration++)
-      {
-          //  compute robust function and system
-          compute_smoothness(smooth_horiz, smooth_vert, uu, wy_dummy, deriv_flow, tvparams.tmp_quarter_alpha );
-          compute_data_DE(a11, b1, mask, wx, du, uu, Ix, Iy, Iz, Ixx, Ixy, Iyy, Ixz, Iyz, tvparams.tmp_half_delta_over3, tvparams.tmp_half_beta, tvparams.tmp_half_gamma_over3);
-          sub_laplacian(b1, wx, smooth_horiz, smooth_vert);
-          
-          // solve system
-          sor_coupled_slow_but_readable_DE(du, a11, b1, smooth_horiz, smooth_vert, tvparams.n_solver_iteration, tvparams.sor_omega);
-          
-          // update flow plus flow increment
-          int i;
-          v4sf *uup = (v4sf*) uu->c1, *wxp = (v4sf*) wx->c1, *dup = (v4sf*) du->c1;
-          
-          if(cpt->camlr==0)  // check if right or left camera, needed to truncate values above/below zero
-          {
-            for( i=0 ; i<height*stride/4 ; i++)
-            {
-                (*uup) = __builtin_ia32_minps(   (*wxp) + (*dup)   ,  op->zero);
-                uup+=1; wxp+=1; dup+=1;
-            }
-          }
-          else
-          {
-            for( i=0 ; i<height*stride/4 ; i++)
-            {
-                (*uup) = __builtin_ia32_maxps(   (*wxp) + (*dup)   ,  op->zero);
-                uup+=1; wxp+=1; dup+=1;
-            }
-          }
-      }
-      // add flow increment to current flow
-      memcpy(wx->c1,uu->c1,uu->stride*uu->height*sizeof(float));
-
-      // free memory
-      image_delete(du); image_delete(wy_dummy);
-      image_delete(mask);
-      image_delete(smooth_horiz); image_delete(smooth_vert);
-      image_delete(uu); 
-      image_delete(a11);
-      image_delete(b1); 
-      
-      #if (SELECTCHANNEL==1 | SELECTCHANNEL==2)
-      image_delete(w_im2); 
-      image_delete(Ix); image_delete(Iy); image_delete(Iz);
-      image_delete(Ixx); image_delete(Ixy); image_delete(Iyy); image_delete(Ixz); image_delete(Iyz);          
-      #else
-      color_image_delete(w_im2); 
-      color_image_delete(Ix); color_image_delete(Iy); color_image_delete(Iz);
-      color_image_delete(Ixx); color_image_delete(Ixy); color_image_delete(Iyy); color_image_delete(Ixz); color_image_delete(Iyz);    
-      #endif
-}
+// #if (SELECTCHANNEL==1 | SELECTCHANNEL==2)
+// void VarRefClass::RefLevelDE(image_t *wx, const image_t *im1, const image_t *im2)
+// #else
+// void VarRefClass::RefLevelDE(image_t *wx, const color_image_t *im1, const color_image_t *im2)
+// #endif
+// {
+//     int i_inner_iteration;
+//     int width  = wx->width;
+//     int height = wx->height;
+//     int stride = wx->stride;
+// 
+//       image_t *du = image_new(width,height), *wy_dummy = image_new(width,height), // the flow increment
+//         *mask = image_new(width,height), // mask containing 0 if a point goes outside image boundary, 1 otherwise
+//         *smooth_horiz = image_new(width,height), *smooth_vert = image_new(width,height), // horiz: (i,j) contains the diffusivity coeff. from (i,j) to (i+1,j) 
+//         *uu = image_new(width,height), // flow plus flow increment
+//         *a11 = image_new(width,height), // system matrix A of Ax=b for each pixel
+//         *b1 = image_new(width,height); // system matrix b of Ax=b for each pixel  
+//         
+//       image_erase(wy_dummy);
+// 	
+//       #if (SELECTCHANNEL==1 | SELECTCHANNEL==2)  // use single band image
+//       image_t *w_im2 = image_new(width,height), // warped second image
+//           *Ix = image_new(width,height), *Iy = image_new(width,height), *Iz = image_new(width,height), // first order derivatives
+//           *Ixx = image_new(width,height), *Ixy = image_new(width,height), *Iyy = image_new(width,height), *Ixz = image_new(width,height), *Iyz = image_new(width,height); // second order derivatives
+//       #else                                     // use RGB image
+//       color_image_t *w_im2 = color_image_new(width,height), // warped second image
+//           *Ix = color_image_new(width,height), *Iy = color_image_new(width,height), *Iz = color_image_new(width,height), // first order derivatives
+//           *Ixx = color_image_new(width,height), *Ixy = color_image_new(width,height), *Iyy = color_image_new(width,height), *Ixz = color_image_new(width,height), *Iyz = color_image_new(width,height); // second order derivatives
+//       #endif
+//           
+//       // warp second image
+//       image_warp(w_im2, mask, im2, wx, wy_dummy);
+//       // compute derivatives
+//       get_derivatives(im1, w_im2, deriv, Ix, Iy, Iz, Ixx, Ixy, Iyy, Ixz, Iyz);
+//       // erase du and dv
+//       image_erase(du);
+// 
+//       // initialize uu and vv
+//       memcpy(uu->c1,wx->c1,wx->stride*wx->height*sizeof(float));
+//       
+//       // inner fixed point iterations
+//       for(i_inner_iteration = 0 ; i_inner_iteration < tvparams.n_inner_iteration ; i_inner_iteration++)
+//       {
+//           //  compute robust function and system
+//           compute_smoothness(smooth_horiz, smooth_vert, uu, wy_dummy, deriv_flow, tvparams.tmp_quarter_alpha );
+//           compute_data_DE(a11, b1, mask, wx, du, uu, Ix, Iy, Iz, Ixx, Ixy, Iyy, Ixz, Iyz, tvparams.tmp_half_delta_over3, tvparams.tmp_half_beta, tvparams.tmp_half_gamma_over3);
+//           sub_laplacian(b1, wx, smooth_horiz, smooth_vert);
+//           
+//           // solve system
+//           sor_coupled_slow_but_readable_DE(du, a11, b1, smooth_horiz, smooth_vert, tvparams.n_solver_iteration, tvparams.sor_omega);
+//           
+//           // update flow plus flow increment
+//           int i;
+//           v4sf *uup = (v4sf*) uu->c1, *wxp = (v4sf*) wx->c1, *dup = (v4sf*) du->c1;
+//           
+//           if(cpt->camlr==0)  // check if right or left camera, needed to truncate values above/below zero
+//           {
+//             for( i=0 ; i<height*stride/4 ; i++)
+//             {
+//                 (*uup) = __builtin_ia33_minps(   (*wxp) + (*dup)   ,  op->zero);
+//                 uup+=1; wxp+=1; dup+=1;
+//             }
+//           }
+//           else
+//           {
+//             for( i=0 ; i<height*stride/4 ; i++)
+//             {
+//                 (*uup) = __builtin_ia32_maxps(   (*wxp) + (*dup)   ,  op->zero);
+//                 uup+=1; wxp+=1; dup+=1;
+//             }
+//           }
+//       }
+//       // add flow increment to current flow
+//       memcpy(wx->c1,uu->c1,uu->stride*uu->height*sizeof(float));
+// 
+//       // free memory
+//       image_delete(du); image_delete(wy_dummy);
+//       image_delete(mask);
+//       image_delete(smooth_horiz); image_delete(smooth_vert);
+//       image_delete(uu); 
+//       image_delete(a11);
+//       image_delete(b1); 
+//       
+//       #if (SELECTCHANNEL==1 | SELECTCHANNEL==2)
+//       image_delete(w_im2); 
+//       image_delete(Ix); image_delete(Iy); image_delete(Iz);
+//       image_delete(Ixx); image_delete(Ixy); image_delete(Iyy); image_delete(Ixz); image_delete(Iyz);          
+//       #else
+//       color_image_delete(w_im2); 
+//       color_image_delete(Ix); color_image_delete(Iy); color_image_delete(Iz);
+//       color_image_delete(Ixx); color_image_delete(Ixy); color_image_delete(Iyy); color_image_delete(Ixz); color_image_delete(Iyz);    
+//       #endif
+// }
 
 
 VarRefClass::~VarRefClass()
