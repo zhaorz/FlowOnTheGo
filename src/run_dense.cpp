@@ -315,9 +315,34 @@ int main( int argc, char** argv ) {
       cudaMalloc((void**) &(outflow3), 2 * iparams.height / scale_fact
         * iparams.width / scale_fact * sizeof(float)) );
 
+  if (op.verbosity > 1) gettimeofday(&start_time, NULL);
   ofc.next(I1, iparams, nullptr, outflow1);
+  if (op.verbosity > 1) {
+
+    gettimeofday(&end_time, NULL);
+    double tt = (end_time.tv_sec-start_time.tv_sec)*1000.0f + (end_time.tv_usec-start_time.tv_usec)/1000.0f;
+
+    printf("[next] %3g\n", tt);
+    gettimeofday(&start_time, NULL);
+  }
   ofc.next(I2, iparams, outflow1, outflow2);
+  if (op.verbosity > 1) {
+
+    gettimeofday(&end_time, NULL);
+    double tt = (end_time.tv_sec-start_time.tv_sec)*1000.0f + (end_time.tv_usec-start_time.tv_usec)/1000.0f;
+
+    printf("[next] %3g\n", tt);
+    gettimeofday(&start_time, NULL);
+  }
   ofc.next(I3, iparams, outflow2, outflow3);
+  if (op.verbosity > 1) {
+
+    gettimeofday(&end_time, NULL);
+    double tt = (end_time.tv_sec-start_time.tv_sec)*1000.0f + (end_time.tv_usec-start_time.tv_usec)/1000.0f;
+
+    printf("[next] %3g\n", tt);
+    gettimeofday(&start_time, NULL);
+  }
 
   cv::Mat flow_mat1(iparams.height / scale_fact , iparams.width / scale_fact,
       CV_32FC2);
