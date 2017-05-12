@@ -35,9 +35,13 @@ namespace timer {
   }
 
   inline double calc_print_elapsed(const char* name, std::chrono::time_point<Clock> start) {
+#if (VERBOSE)
     double duration = time_diff(start, now());
     std::cout << "[time] " << duration << " (ms) : " << name  << std::endl;
     return duration;
+#else
+    return 0.0;
+#endif
   }
 
 }

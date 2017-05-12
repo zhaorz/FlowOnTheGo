@@ -134,6 +134,41 @@ namespace cu {
     //       Iys[0], nDstStep, oPadSize, padding, padding, PAD_VAL) );
     // cudaDeviceSynchronize();
 
+    ////////////////////////////////////////////////////////////////////////////////////////////////
+    // Scale down to finest level
+    ////////////////////////////////////////////////////////////////////////////////////////////////
+
+    for (int k = 0; k < finest_scale - 1; k++) {
+      // Get the new size
+      NppiRect srcRect = { 0, 0, width, height };
+      NppiRect dstRect;
+      NPP_CHECK_NPP(
+          nppiGetResizeRect (srcRect, &dstRect, scaleX, scaleY, shiftX, shiftY, eInterpolation) );
+
+      std::cout << "constructImgPyramids level " << k << ": "
+        << dstRect.width << "x" << dstRect.height 
+        << " scaleX: " << scaleX << " scaleY: " << scaleY << std::endl;
+
+      int nDstStep = dstRect.width * elemSize;
+
+      // Resize I => Tmp
+      auto start_resize = now();
+      NPP_CHECK_NPP(
+          nppiResizeSqrPixel_32f_C3R (
+            pDeviceI, oSize, nSrcStep, srcRect,
+            pDeviceTmp, nDstStep, dstRect,
+            scaleX, scaleY, shiftX, shiftY, eInterpolation) );
+      compute_time += calc_print_elapsed("resize I => Tmp", start_resize);
+
+      // Put the resized image back into I
+      std::swap(pDeviceI, pDeviceTmp);
+
+      // And update the dimensions
+      nSrcStep = nDstStep;
+      width = dstRect.width; height = dstRect.height;
+      oSize.width = width; oSize.height = height;
+      oROI.width  = width; oROI.height  = height;
+    }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////
     // For every finer level, resize and apply the gradients
@@ -141,16 +176,6 @@ namespace cu {
 
 
     for (int i = finest_scale; i <= coarsest_scale; i++) {
-      if (i == finest_scale) {
-        // Calculate the scale to get from level 0 to finest_scale
-        for (int k = 0; k < finest_scale - 1; k++) {
-          scaleX *= 0.5;
-          scaleY *= 0.5;
-        }
-      } else {
-        scaleX = 0.5;
-        scaleY = 0.5;
-      }
 
       // Get the new size
       NppiRect srcRect = { 0, 0, width, height };
