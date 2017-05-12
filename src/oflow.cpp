@@ -318,21 +318,25 @@ namespace OFC {
       // Variational refinement, (Step 5 in Algorithm 1 of paper)
       if (op.use_var_ref) {
       // if (false) {
-        float* I0H, * I1H;
-        int elemSize = 3 * sizeof(float);
-        int size = iparams[ii].width_pad * iparams[ii].height_pad * elemSize;
-        I0H = (float*) malloc(size);
-        I1H = (float*) malloc(size);
+        // float* I0H, * I1H;
+        // int elemSize = 3 * sizeof(float);
+        // int size = iparams[ii].width_pad * iparams[ii].height_pad * elemSize;
+        // I0H = (float*) malloc(size);
+        // I1H = (float*) malloc(size);
 
-        checkCudaErrors(
-            cudaMemcpy(I0H, I0s[sl], size, cudaMemcpyDeviceToHost) );
-        checkCudaErrors(
-            cudaMemcpy(I1H, I1s[sl], size, cudaMemcpyDeviceToHost) );
+        // auto start = now();
+        // checkCudaErrors(
+        //     cudaMemcpy(I0H, I0s[sl], size, cudaMemcpyDeviceToHost) );
+        // checkCudaErrors(
+        //     cudaMemcpy(I1H, I1s[sl], size, cudaMemcpyDeviceToHost) );
+        // calc_print_elapsed("pre var-ref memcpy", start);
 
-        OFC::VarRefClass var_ref(I0H, I1H, &(iparams[ii]), &op, out_ptr);
+        // OFC::VarRefClass var_ref(I0H, I1H, &(iparams[ii]), &op, out_ptr);
 
-        delete I0H;
-        delete I1H;
+        OFC::VarRefClass var_ref(I0s[sl], I1s[sl], &(iparams[ii]), &op, out_ptr);
+
+        // delete I0H;
+        // delete I1H;
 
       }
 

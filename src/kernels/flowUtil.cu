@@ -530,6 +530,28 @@ __global__ void kernelMergeFlow(
   }
 }
 
+__global__ void kernelCopyImage(
+    float *dst1, float *dst2, float *dst3, const float *src,
+    int width_pad, int padding, int height, int width, int stride) {
+
+  int tidx = blockIdx.x * blockDim.x + threadIdx.x;
+
+  const float *pSrcStart = src + 3 * (width_pad + 1) * padding;
+
+  int ix = tidx % width;
+  int iy = tidx / width;
+
+  if (ix < width && iy < height) {
+
+    const float *pSrc = pSrcStart + (iy * 3 * width_pad) + 3 * ix;
+    int i = iy * stride + ix;
+
+    dst1[i] = *pSrc; pSrc++;
+    dst2[i] = *pSrc; pSrc++;
+    dst3[i] = *pSrc; pSrc++;
+  }
+}
+
 
 namespace cu {
 
@@ -1010,7 +1032,17 @@ namespace cu {
 
     kernelMergeFlow<<< nBlocks, nThreadsPerBlock >>>(
         flow_sep[0]->c1, flow_sep[1]->c1, flowout, height, width, flow_sep[0]->stride);
+  }
 
+  void copyImage(color_image_t *dst, const float *src, int width_pad, int padding, int height, int width) {
+
+    int N = width * height;
+    int nThreadsPerBlock = 64;
+    int nBlocks = (N + nThreadsPerBlock - 1) / nThreadsPerBlock;
+
+    kernelCopyImage<<< nBlocks, nThreadsPerBlock >>> (
+        dst->c1, dst->c2, dst->c3, src,
+        width_pad, padding, height, width, dst->stride);
   }
 
 }

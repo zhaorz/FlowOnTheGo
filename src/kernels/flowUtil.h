@@ -38,6 +38,8 @@ namespace cu {
 
   void mergeFlow(std::vector<image_t*> flow_sep, float *flowout, int height, int width);
 
+  void copyImage(color_image_t *dst, const float *src, int width_pad, int padding, int height, int width);
+
   void subLaplacian(
       image_t *dst, const image_t *src, const image_t *weight_horiz, const image_t *weight_vert, float *coeffs);
 
