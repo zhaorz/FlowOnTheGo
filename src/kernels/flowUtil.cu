@@ -575,7 +575,6 @@ namespace cu {
       color_image_t *Ixz, color_image_t *Iyz, 
       const float half_delta_over3, const float half_beta, const float half_gamma_over3) {
 
-    // TODO: cudaMemset
     checkCudaErrors( cudaMemset(a11->c1, 0, sizeof(float)*uu->height*uu->stride) );
     checkCudaErrors( cudaMemset(a12->c1, 0, sizeof(float)*uu->height*uu->stride) );
     checkCudaErrors( cudaMemset(a22->c1, 0, sizeof(float)*uu->height*uu->stride) );
@@ -1057,15 +1056,17 @@ namespace cu {
 
   
   void computeSmoothness(
-      image_t *dst_horiz, image_t *dst_vert, const image_t *uu, const image_t *vv, float *deriv_flow, const float quarter_alpha) {
+      image_t *dst_horiz, image_t *dst_vert, const image_t *uu, const image_t *vv, float *deriv_flow,
+      image_t *ux, image_t *uy, image_t *vx, image_t *vy, image_t *smoothness, 
+      const float quarter_alpha) {
 
     auto start_setup = now();
     const int width = uu->width, height = vv->height, stride = uu->stride;
-    image_t *ux = image_new(width,height),
-            *vx = image_new(width,height),
-            *uy = image_new(width,height),
-            *vy = image_new(width,height),
-            *smoothness = image_new(width,height);
+    // image_t *ux = image_new(width,height),
+    //         *vx = image_new(width,height),
+    //         *uy = image_new(width,height),
+    //         *vy = image_new(width,height),
+    //         *smoothness = image_new(width,height);
     calc_print_elapsed("smoothness setup", start_setup);
 
     // compute derivatives [-0.5 0 0.5]
@@ -1090,13 +1091,17 @@ namespace cu {
       // memset(&dst_horiz->c1[j*stride+width-1], 0, sizeof(float)*(stride-width+1));
       checkCudaErrors( cudaMemset(&dst_horiz->c1[j*stride+width-1], 0, sizeof(float)*(stride-width+1)) );
     }
+    cudaDeviceSynchronize();
+    calc_print_elapsed("smoothness column cleanup", start_cleanup);
     // Cleanup last row
     // memset( &dst_vert->c1[(height-1)*stride], 0, sizeof(float)*stride);
+    start_cleanup = now();
     checkCudaErrors( cudaMemset( &dst_vert->c1[(height-1)*stride], 0, sizeof(float)*stride) );
+    calc_print_elapsed("smoothness row cleanup", start_cleanup);
+    // Cleanup last row
 
-    image_delete(ux); image_delete(uy); image_delete(vx); image_delete(vy); 
-    image_delete(smoothness);
-    calc_print_elapsed("smoothness cleanup", start_cleanup);
+    // image_delete(ux); image_delete(uy); image_delete(vx); image_delete(vy); 
+    // image_delete(smoothness);
   }
 
   void getDerivatives(

@@ -148,6 +148,15 @@ namespace OFC {
                   *Ix = color_image_new(width,height), *Iy = color_image_new(width,height), *Iz = color_image_new(width,height), // first order derivatives
                   *Ixx = color_image_new(width,height), *Ixy = color_image_new(width,height),
                   *Iyy = color_image_new(width,height), *Ixz = color_image_new(width,height), *Iyz = color_image_new(width,height); // second order derivatives
+
+    // Temporary space for computeSmoothness
+    image_t *ux = image_new(width,height),
+            *vx = image_new(width,height),
+            *uy = image_new(width,height),
+            *vy = image_new(width,height),
+            *smoothness = image_new(width,height);
+
+    cudaDeviceSynchronize();
     calc_print_elapsed("RefLevelOF setup", start_setup);
 
     // warp second image
@@ -182,7 +191,9 @@ namespace OFC {
 
       //  compute robust function and system
       auto start_smooth = now();
-      cu::computeSmoothness(smooth_horiz, smooth_vert, uu, vv, pDeviceDerivativeKernel, vr.tmp_quarter_alpha );
+      cu::computeSmoothness(
+          smooth_horiz, smooth_vert, uu, vv, pDeviceDerivativeKernel, 
+          ux, uy, vx, vy, smoothness, vr.tmp_quarter_alpha );
       cudaDeviceSynchronize();
       calc_print_elapsed(("RefLevelOF " + iterStr + " smoothness").c_str(), start_smooth);
 
@@ -237,6 +248,10 @@ namespace OFC {
     image_delete(uu); image_delete(vv);
     image_delete(a11); image_delete(a12); image_delete(a22);
     image_delete(b1); image_delete(b2);
+
+    // Smoothness tmps
+    image_delete(ux); image_delete(uy); image_delete(vx); image_delete(vy); 
+    image_delete(smoothness);
 
     color_image_delete(w_im2);
     color_image_delete(Ix); color_image_delete(Iy); color_image_delete(Iz);
