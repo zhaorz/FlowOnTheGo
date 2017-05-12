@@ -2,7 +2,6 @@
 #define VARREF_HEADER
 
 #include "FDF1.0.1/image.h"
-#include "FDF1.0.1/opticalflow_aux.h"
 
 #include "oflow.h"
 

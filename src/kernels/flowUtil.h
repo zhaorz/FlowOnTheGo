@@ -71,6 +71,16 @@ namespace cu {
   void warpImage(
       color_image_t *dst, image_t *mask, const color_image_t *src, const image_t *wx, const image_t *wy);
 
+  void computeSmoothness(
+      image_t *dst_horiz, image_t *dst_vert, const image_t *uu, const image_t *vv, float *deriv_flow, const float quarter_alpha);
+
+  void getDerivatives(
+      const color_image_t *im1, const color_image_t *im2, float *pDeviceKernel,
+      color_image_t *dx, color_image_t *dy, color_image_t *dt, 
+      color_image_t *dxx, color_image_t *dxy, color_image_t *dyy, color_image_t *dxt, color_image_t *dyt);
+
+  void subLaplacian(image_t *dst, const image_t *src, const image_t *weight_horiz, const image_t *weight_vert);
+
 }
 
 #endif // end __KERNEL_FLOW_UTIL_H__

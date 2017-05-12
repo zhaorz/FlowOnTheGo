@@ -165,13 +165,12 @@ namespace OFC {
 
     // warp second image
     auto start_image_warp = now();
-    // image_warp(w_im2, mask, im2, wx, wy);
     cu::warpImage(w_im2, mask, im2, wx, wy);
     calc_print_elapsed("RefLevelOF image_warp", start_image_warp);
 
     // compute derivatives
     auto start_get_derivs = now();
-    get_derivatives(im1, w_im2, pDeviceColorDerivativeKernel, Ix, Iy, Iz, Ixx, Ixy, Iyy, Ixz, Iyz);
+    cu::getDerivatives(im1, w_im2, pDeviceColorDerivativeKernel, Ix, Iy, Iz, Ixx, Ixy, Iyy, Ixz, Iyz);
     calc_print_elapsed("RefLevelOF get_derivatives", start_get_derivs);
 
     // erase du and dv
@@ -190,17 +189,19 @@ namespace OFC {
 
       //  compute robust function and system
       auto start_smooth = now();
-      compute_smoothness(smooth_horiz, smooth_vert, uu, vv, pDeviceDerivativeKernel, vr.tmp_quarter_alpha );
+      cu::computeSmoothness(smooth_horiz, smooth_vert, uu, vv, pDeviceDerivativeKernel, vr.tmp_quarter_alpha );
       calc_print_elapsed(("RefLevelOF " + iterStr + " smoothness").c_str(), start_smooth);
 
       auto start_data = now();
-      // compute_data(a11, a12, a22, b1, b2, mask, wx, wy, du, dv, uu, vv, Ix, Iy, Iz, Ixx, Ixy, Iyy, Ixz, Iyz, vr.tmp_half_delta_over3, vr.tmp_half_beta, vr.tmp_half_gamma_over3);
-      cu::dataTerm(a11, a12, a22, b1, b2, mask, wx, wy, du, dv, uu, vv, Ix, Iy, Iz, Ixx, Ixy, Iyy, Ixz, Iyz, vr.tmp_half_delta_over3, vr.tmp_half_beta, vr.tmp_half_gamma_over3);
+      cu::dataTerm(a11, a12, a22, b1, b2,
+          mask, wx, wy, du, dv, uu, vv, 
+          Ix, Iy, Iz, Ixx, Ixy, Iyy, Ixz, Iyz, 
+          vr.tmp_half_delta_over3, vr.tmp_half_beta, vr.tmp_half_gamma_over3);
       calc_print_elapsed(("RefLevelOF " + iterStr + " data").c_str(), start_data);
 
       auto start_lapalcian = now();
-      sub_laplacian(b1, wx, smooth_horiz, smooth_vert);
-      sub_laplacian(b2, wy, smooth_horiz, smooth_vert);
+      cu::subLaplacian(b1, wx, smooth_horiz, smooth_vert);
+      cu::subLaplacian(b2, wy, smooth_horiz, smooth_vert);
       calc_print_elapsed(("RefLevelOF " + iterStr + " laplacian").c_str(), start_lapalcian);
 
       // solve system
