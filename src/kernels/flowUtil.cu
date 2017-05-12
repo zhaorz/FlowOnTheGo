@@ -227,7 +227,6 @@ __global__ void kernelSubLaplacianHorizFillCoeffs(
     float *src, float *weights, float *coeffs, int height, int width, int stride) {
 
   int tidx = blockIdx.x * blockDim.x + threadIdx.x;
-  int row  = tidx / stride;
   int col  = tidx % stride;
 
   // Do not calculate the last column
@@ -591,12 +590,18 @@ namespace cu {
 
   };
 
+  void subLaplacian(
+      image_t *dst, const image_t *src, const image_t *weight_horiz, const image_t *weight_vert, float *coeffs) {
+
+    cu::subLaplacianHoriz(src->c1, dst->c1, weight_horiz->c1, coeffs, src->height, src->width, src->stride);
+    cu::subLaplacianVert(src->c1, dst->c1, weight_vert->c1, src->height, src->stride);
+
+  }
 
   void subLaplacianHoriz(
-      float *src, float *dst, float *weights, int height, int width, int stride) {
+      float *src, float *dst, float *weights, float *coeffs, int height, int width, int stride) {
 
-    float *pDeviceCoeffs;
-    checkCudaErrors( cudaMalloc((void**) &pDeviceCoeffs, height * stride * sizeof(float)) );
+    float *pDeviceCoeffs = coeffs;
 
     // Setup device pointers
     float *pDeviceSrc, *pDeviceDst, *pDeviceWeights;
@@ -621,8 +626,6 @@ namespace cu {
     //     pDeviceSrc, pDeviceDst, pDeviceWeights, pDeviceCoeffs, height, width, stride);
     cudaDeviceSynchronize();
     calc_print_elapsed("laplacian horiz", start_horiz);
-
-    cudaFree(pDeviceCoeffs);
   }
 
   void subLaplacianVert(
@@ -948,11 +951,6 @@ namespace cu {
 
     // free memory
     color_image_delete(tmp_im2);
-  }
-
-  void subLaplacian(image_t *dst, const image_t *src, const image_t *weight_horiz, const image_t *weight_vert){
-    cu::subLaplacianHoriz(src->c1, dst->c1, weight_horiz->c1, src->height, src->width, src->stride);
-    cu::subLaplacianVert(src->c1, dst->c1, weight_vert->c1, src->height, src->stride);
   }
 
 }

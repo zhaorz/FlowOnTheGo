@@ -80,6 +80,9 @@ namespace OFC {
         }
       }
 
+      checkCudaErrors( cudaMalloc((void**) &pDeviceSubLaplacianCoeffs,
+            flow_sep[0]->height * flow_sep[0]->stride * sizeof(float)) );
+
       // copy image data into FV structs
       color_image_t * I0, * I1;
       I0 = color_image_new(i_params->width, i_params->height);
@@ -200,8 +203,8 @@ namespace OFC {
       calc_print_elapsed(("RefLevelOF " + iterStr + " data").c_str(), start_data);
 
       auto start_lapalcian = now();
-      cu::subLaplacian(b1, wx, smooth_horiz, smooth_vert);
-      cu::subLaplacian(b2, wy, smooth_horiz, smooth_vert);
+      cu::subLaplacian(b1, wx, smooth_horiz, smooth_vert, pDeviceSubLaplacianCoeffs);
+      cu::subLaplacian(b2, wy, smooth_horiz, smooth_vert, pDeviceSubLaplacianCoeffs);
       calc_print_elapsed(("RefLevelOF " + iterStr + " laplacian").c_str(), start_lapalcian);
 
       // solve system
@@ -246,6 +249,7 @@ namespace OFC {
   VarRefClass::~VarRefClass() {
     cudaFree(pDeviceColorDerivativeKernel); 
     cudaFree(pDeviceDerivativeKernel); 
+    cudaFree(pDeviceSubLaplacianCoeffs); 
   }
 
 }

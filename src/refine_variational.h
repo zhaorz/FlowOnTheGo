@@ -52,6 +52,7 @@ namespace OFC {
 
       float *pDeviceColorDerivativeKernel;
       float *pDeviceDerivativeKernel;
+      float *pDeviceSubLaplacianCoeffs;
 
   };
 
