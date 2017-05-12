@@ -14,6 +14,7 @@
 
 #include "params.h"
 #include "oflow.h"
+#include "color.h"
 #include "kernels/warmup.h"
 #include "kernels/pad.h"
 #include "common/timer.h"
@@ -249,17 +250,21 @@ void opticalFlowStream(cv::VideoCapture cap) {
     flow_mat = flow_mat(cv::Rect((int) floor((float) padw / 2.0f),(int) floor((float) padh / 2.0f),
           width_org, height_org));
 
+    rgb.create(flow_mat.size().height, flow_mat.size().width, CV_32FC3);
+
 
     // Draw the flow
-    cv::split(flow_mat, flow_uv);
-    cv::multiply(flow_uv[1], -1, flow_uv[1]);
-    cv::cartToPolar(flow_uv[0], flow_uv[1], mag, ang, true);
-    cv::normalize(mag, mag, 0, 1, cv::NORM_MINMAX);
-    hsv_split[0] = ang;
-    hsv_split[1] = mag;
-    hsv_split[2] = cv::Mat::ones(ang.size(), ang.type());
-    cv::merge(hsv_split, 3, hsv);
-    cv::cvtColor(hsv, rgb, cv::COLOR_HSV2BGR);
+    // cv::split(flow_mat, flow_uv);
+    // cv::multiply(flow_uv[1], -1, flow_uv[1]);
+    // cv::cartToPolar(flow_uv[0], flow_uv[1], mag, ang, true);
+    // cv::normalize(mag, mag, 0, 1, cv::NORM_MINMAX);
+    // hsv_split[0] = ang;
+    // hsv_split[1] = mag;
+    // hsv_split[2] = cv::Mat::ones(ang.size(), ang.type());
+    // cv::merge(hsv_split, 3, hsv);
+    // cv::cvtColor(hsv, rgb, cv::COLOR_HSV2BGR);
+
+    colorFlow(flow_mat, rgb, 50, true);
     cv::imshow("flow", rgb);
 
     // SaveFlowFile(flow_mat, ("video" + std::to_string(count) + ".flo").c_str());

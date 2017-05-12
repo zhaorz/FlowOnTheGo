@@ -94,6 +94,7 @@ set(COMMON
   common/RgbMat.cpp)
 
 set(CODEFILES
+  color.cpp
   run_dense.cpp
   oflow.cpp
   patchgrid.cpp
