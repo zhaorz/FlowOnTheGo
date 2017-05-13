@@ -22,11 +22,15 @@ detection or image stabilization.
 ![flow]({{ site.baseurl }}/public/img/flow.gif)
 
 The top gif is an input frame sequence, from which we calculate an optical flow (bottom) which
-represents movement of subjects in the input. We achieve a speedup of 3x over an optimized CPU
-baseline on the NVIDIA Jetson TX2, allowing realtime optical flow computation of high resolution
-video footage (1024 x 448) at 25 frames per second.
+represents movement of subjects in the input.
 
 ![1024 x 448]({{ site.baseurl }}/public/img/1024.png)
+
+We achieve a speedup of 3x over an optimized CPU baseline on the NVIDIA Jetson TX2 (pictured below),
+allowing realtime optical flow computation of high resolution video footage (1024 x 448) at 25
+frames per second on embedded systems such as drones and autonomous vehicles.
+
+![Jetson]({{ site.baseurl }}/public/img/jetson.jpg)
 
 
 ## Background
@@ -34,7 +38,10 @@ video footage (1024 x 448) at 25 frames per second.
 ## Challenges
 
 The main technical challenges associated with this project involve optimizing the algorithm to run
-on the NVIDIA Jetson, which has a less powerful CPU and GPU than traditional desktop machines.
+on the NVIDIA Jetson, which has a less powerful CPU and GPU than traditional desktop machines. In
+particular, the GPU unit on the Jetson has just 2 streaming multiprocessors, compared to 20 on the
+desktop GTX 1080's. Additionally, the Jetson has a TDP of just 7.5W, compared to 180W on the GTX
+1080.
 
 Since copying memory between the device and host is the main performance bottleneck, we designed
 the architecture as a pipeline which essentially performs copies at just the beginning and end of
